@@ -10837,6 +10837,37 @@
   }
 
   /**
+   * Serializes a value to JSON with every object's keys sorted, so two values built from the same
+   * data by independent code paths compare equal regardless of key insertion order.
+   * @param {*} value The value.
+   * @returns {string} The canonical JSON text.
+   */
+  function canonicalJson(value) {
+    return JSON.stringify(sortKeysDeep(value));
+  }
+
+  /**
+   * Recursively rebuilds a value with every plain object's keys sorted; arrays keep their order,
+   * since it's meaningful there.
+   * @param {*} value The value.
+   * @returns {*} An equivalent value with sorted object keys.
+   */
+  function sortKeysDeep(value) {
+    if (Array.isArray(value)) return value.map(sortKeysDeep);
+    if (value && typeof value === 'object') return sortObjectKeys(value);
+    return value;
+  }
+
+  /**
+   * Rebuilds a plain object with its keys sorted and its values recursively sorted.
+   * @param {object} value The object.
+   * @returns {object} The rebuilt object.
+   */
+  function sortObjectKeys(value) {
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key, sortKeysDeep(value[key])]));
+  }
+
+  /**
    * Extracts a widget's real rendered card straight from claude.ai's own React app, run fresh and
    * self-contained in a hidden same-origin iframe: no widget-specific rendering code of our own, no
    * touching the page's own native app instance. The iframe loads the conversation, React renders
@@ -10880,7 +10911,7 @@
       const iframe = WidgetIframeSource.#createHiddenIframe(conversationId);
       document.body.append(iframe);
       try {
-        return await WidgetIframeSource.#searchAllPositions(iframe, JSON.stringify(data));
+        return await WidgetIframeSource.#searchAllPositions(iframe, canonicalJson(data));
       } finally {
         iframe.remove();
       }
@@ -11058,7 +11089,7 @@
      */
     static #isWidgetFiber(fiber, dataJson) {
       const props = fiber.memoizedProps;
-      return Boolean(props) && typeof props === 'object' && 'input' in props && JSON.stringify(props.input) === dataJson;
+      return Boolean(props) && typeof props === 'object' && 'input' in props && canonicalJson(props.input) === dataJson;
     }
 
     /**

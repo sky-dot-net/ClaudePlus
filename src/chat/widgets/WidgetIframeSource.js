@@ -1,4 +1,5 @@
 import { TIMING } from '../../config/TIMING.js';
+import { canonicalJson } from '../../text/canonicalJson.js';
 import { createElement } from '../../dom/createElement.js';
 
 /**
@@ -45,7 +46,7 @@ export class WidgetIframeSource {
     const iframe = WidgetIframeSource.#createHiddenIframe(conversationId);
     document.body.append(iframe);
     try {
-      return await WidgetIframeSource.#searchAllPositions(iframe, JSON.stringify(data));
+      return await WidgetIframeSource.#searchAllPositions(iframe, canonicalJson(data));
     } finally {
       iframe.remove();
     }
@@ -223,7 +224,7 @@ export class WidgetIframeSource {
    */
   static #isWidgetFiber(fiber, dataJson) {
     const props = fiber.memoizedProps;
-    return Boolean(props) && typeof props === 'object' && 'input' in props && JSON.stringify(props.input) === dataJson;
+    return Boolean(props) && typeof props === 'object' && 'input' in props && canonicalJson(props.input) === dataJson;
   }
 
   /**
