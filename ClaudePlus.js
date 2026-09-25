@@ -202,6 +202,50 @@
    */
 
   /**
+   * A conversation in a format-neutral shape, as exported.
+   * @typedef {object} ExportedConversation
+   * @property {string} id Conversation id.
+   * @property {string} title Conversation title.
+   * @property {?string} createdAt ISO creation timestamp, or null when unknown.
+   * @property {string} updatedAt ISO timestamp of the last change.
+   * @property {string} exportedAt ISO timestamp of the export.
+   * @property {ExportedMessage[]} messages Messages of the current branch, oldest first.
+   */
+
+  /**
+   * One exported message.
+   * @typedef {object} ExportedMessage
+   * @property {string} id Message id.
+   * @property {?string} parentId Parent message id, or null.
+   * @property {string} sender 'human' or 'assistant'.
+   * @property {?string} createdAt ISO creation timestamp, or null when unknown.
+   * @property {string[]} attachments Names of the uploaded files.
+   * @property {ExportedBlock[]} blocks Content, in order.
+   */
+
+  /**
+   * One exported content block. Which optional fields are set depends on the type: text has text;
+   * toolCall has name and input; toolResult has name and content; other keeps an unrecognised block
+   * whole in content, with its API type in originalType.
+   * @typedef {object} ExportedBlock
+   * @property {'text'|'toolCall'|'toolResult'|'other'} type Block kind.
+   * @property {string} [text] Markdown text.
+   * @property {?string} [name] Tool name.
+   * @property {*} [input] Tool input, unchanged.
+   * @property {*} [content] Tool result content or the unrecognised block, unchanged.
+   * @property {string} [originalType] API type of an unrecognised block.
+   */
+
+  /**
+   * A file format a conversation can be exported to.
+   * @typedef {object} ExportFormat
+   * @property {string} label Name shown in the export menu.
+   * @property {string} extension File extension without the dot.
+   * @property {string} mimeType MIME type of the file.
+   * @property {function(ExportedConversation): string} serialize Converts a conversation to the file content.
+   */
+
+  /**
    * An event yielded by ClaudeApi#streamCompletion.
    * @typedef {object} StreamEvent
    * @property {string} type STREAM_START or a server-sent event type.
@@ -244,6 +288,7 @@
    * activitySaveMs: how often activity is written to IndexedDB. backfillPauseMs: pause between
    * conversation fetches during a backfill. maxResponseGapMs: longest prompt-to-answer gap still
    * counted as a response time. copyFeedbackMs: how long the copy button shows a check mark.
+   * downloadUrlLifetimeMs: how long a download's object URL stays valid after the download starts.
    * @type {Readonly<Record<string, number>>}
    */
   const TIMING = Object.freeze({
@@ -254,6 +299,7 @@
     backfillPauseMs: 300,
     maxResponseGapMs: 30 * 60 * 1000,
     copyFeedbackMs: 1_000,
+    downloadUrlLifetimeMs: 10_000,
   });
 
   /**
@@ -262,7 +308,8 @@
    * toolResultCharacters: characters of a tool result shown. provisionalTitleLength: characters of
    * the first prompt used as a new conversation's title. backfillRefreshInterval: conversations
    * stored between aggregate refreshes during a backfill. followOutputDistance: distance from the
-   * bottom, in pixels, within which the chat keeps following new output.
+   * bottom, in pixels, within which the chat keeps following new output. exportFileNameLength:
+   * characters of the conversation title used in an export file name.
    * @type {Readonly<Record<string, number>>}
    */
   const LIMITS = Object.freeze({
@@ -274,6 +321,7 @@
     provisionalTitleLength: 60,
     backfillRefreshInterval: 10,
     followOutputDistance: 40,
+    exportFileNameLength: 80,
   });
 
   /**
@@ -371,6 +419,18 @@
   const UNTITLED = '(untitled)';
 
   /**
+   * Characters XML 1.0 doesn't allow in documents, even escaped.
+   * @type {RegExp}
+   */
+  const XML_FORBIDDEN_CHARACTERS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g;
+
+  /**
+   * Characters not allowed in file names on common operating systems.
+   * @type {RegExp}
+   */
+  const FILE_NAME_FORBIDDEN_CHARACTERS = /[\\/:*?"<>|\u0000-\u001F]+/g;
+
+  /**
    * Upload fields that may hold a display name, in order of preference.
    * @type {ReadonlyArray<string>}
    */
@@ -389,6 +449,54 @@
    */
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, character => HTML_ENTITIES[character]);
+  }
+
+  /**
+   * Escapes a value for XML text or attribute values and drops characters XML can't contain.
+   * @param {*} value Value to escape; null and undefined become an empty string.
+   * @returns {string} The escaped string.
+   */
+  function escapeXml(value) {
+    return escapeHtml(String(value ?? '').replace(XML_FORBIDDEN_CHARACTERS, ''));
+  }
+
+  /**
+   * Wraps content in a markdown code fence longer than any backtick run inside it, so the content
+   * can't close the fence early.
+   * @param {string} content Code to wrap.
+   * @param {string} language Language tag after the opening fence; may be empty.
+   * @returns {string} The fenced block.
+   */
+  function markdownCodeFence(content, language) {
+    const longestBacktickRun = Math.max(2, ...(content.match(/`+/g) ?? []).map(run => run.length));
+    const fence = '`'.repeat(longestBacktickRun + 1);
+    return `${fence}${language}\n${content}\n${fence}`;
+  }
+
+  /**
+   * Makes a conversation title usable in a file name.
+   * @param {string} title Conversation title.
+   * @returns {string} The title without forbidden characters and shortened, or "conversation" if nothing remains.
+   */
+  function fileNameFromTitle(title) {
+    const cleaned = title.replace(FILE_NAME_FORBIDDEN_CHARACTERS, ' ').replace(/\s+/g, ' ').trim();
+    return cleaned.slice(0, LIMITS.exportFileNameLength).trim() || 'conversation';
+  }
+
+  /**
+   * Lets the browser save text as a file.
+   * @param {string} fileName Suggested file name.
+   * @param {string} content File content.
+   * @param {string} mimeType MIME type of the content.
+   * @returns {void}
+   */
+  function downloadTextFile(fileName, content, mimeType) {
+    const url = URL.createObjectURL(new Blob([content], { type: `${mimeType};charset=utf-8` }));
+    const link = createElement('a', { href: url, download: fileName });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), TIMING.downloadUrlLifetimeMs);
   }
 
   /**
@@ -667,47 +775,32 @@
     #startPointerX;
 
     /**
-
      * Pointer y when the button was pressed.
-
      * @type {number}
-
      */
     #startPointerY;
 
     /**
-
      * Movement in pixels before the gesture counts as a drag.
-
      * @type {number}
-
      */
     #threshold;
 
     /**
-
      * Called on every move once dragging.
-
      * @type {function(MouseEvent): void}
-
      */
     #onMove;
 
     /**
-
      * Called on release with whether a drag happened.
-
      * @type {function(MouseEvent, boolean): void}
-
      */
     #onEnd;
 
     /**
-
      * Whether the threshold has been passed.
-
      * @type {boolean}
-
      */
     #isDragging;
 
@@ -775,11 +868,8 @@
     #callback;
 
     /**
-
      * Pending animation frame id, or 0 when none is pending.
-
      * @type {number}
-
      */
     #pendingFrameId = 0;
 
@@ -927,29 +1017,20 @@
     #databaseName;
 
     /**
-
      * Schema version.
-
      * @type {number}
-
      */
     #schemaVersion;
 
     /**
-
      * Creates missing object stores on upgrade.
-
      * @type {function(IDBDatabase): void}
-
      */
     #upgradeSchema;
 
     /**
-
      * The open connection, or null before first use or after a failure.
-
      * @type {?Promise<IDBDatabase>}
-
      */
     #connection = null;
 
@@ -1109,11 +1190,8 @@
     static #EVENT_SEPARATOR = /\r?\n\r?\n/;
 
     /**
-
      * Text received but not yet part of a complete event.
-
      * @type {string}
-
      */
     #pendingText = '';
 
@@ -1447,11 +1525,8 @@
     static #NO_CONTENT_HTML = '<div class="claude-plus-message-text claude-plus-empty-state">(no content)</div>';
 
     /**
-
      * HTML renderer per content block type.
-
      * @type {Map<string, function(ContentBlock): string>}
-
      */
     static #BLOCK_RENDERERS = new Map([
       ['text', block => MessageContent.textHtml(block.text)],
@@ -1590,11 +1665,8 @@
     static #DEFAULTS = Object.freeze({ parentId: null, text: '', apiMessage: null, isPersisted: true, isStreaming: false, errorText: null });
 
     /**
-
      * Cached HTML; null when it must be re-rendered.
-
      * @type {?string}
-
      */
     #cachedHtml = null;
 
@@ -1841,74 +1913,50 @@
     #api;
 
     /**
-
      * Model options for new prompts.
-
      * @type {ComposerSettings}
-
      */
     #settings;
 
     /**
-
      * Sidebar listing, newest first.
-
      * @type {ConversationListing[]}
-
      */
     #conversations = [];
 
     /**
-
      * Open conversation id, or null for a new chat.
-
      * @type {?string}
-
      */
     #openConversationId = null;
 
     /**
-
      * Messages of the open conversation's current branch.
-
      * @type {ChatMessage[]}
-
      */
     #messages = [];
 
     /**
-
      * Whether a prompt is being sent.
-
      * @type {boolean}
-
      */
     #isSending = false;
 
     /**
-
      * Aborts the prompt being sent.
-
      * @type {?AbortController}
-
      */
     #abortController = null;
 
     /**
-
      * Incremented on every navigation, so late responses for an old one are dropped.
-
      * @type {number}
-
      */
     #navigationCount = 0;
 
     /**
-
      * Handler per stream event type.
-
      * @type {Map<string, function(Turn, object): void>}
-
      */
     #streamEventHandlers = new Map([
       [STREAM_START, (turn, event) => this.#onStreamStart(turn, event)],
@@ -2433,20 +2481,14 @@
     ]);
 
     /**
-
      * Summary being built.
-
      * @type {ConversationSummary}
-
      */
     #summary;
 
     /**
-
      * Creation time of the prompt awaiting an answer.
-
      * @type {?string}
-
      */
     #unansweredPromptTime = null;
 
@@ -2680,38 +2722,26 @@
     #api;
 
     /**
-
      * Summary cache.
-
      * @type {IndexedDbStore}
-
      */
     #database;
 
     /**
-
      * Current totals.
-
      * @type {StatsAggregate}
-
      */
     #aggregate = new StatsAggregate();
 
     /**
-
      * Backfill state.
-
      * @type {BackfillProgress}
-
      */
     #backfill = { isRunning: false, processedCount: 0, totalCount: 0 };
 
     /**
-
      * Conversations stored during the running backfill.
-
      * @type {number}
-
      */
     #storedDuringBackfill = 0;
 
@@ -2910,38 +2940,26 @@
     static #INPUT_EVENTS = ['mousemove', 'keydown', 'scroll', 'click', 'touchstart'];
 
     /**
-
      * Activity storage.
-
      * @type {IndexedDbStore}
-
      */
     #database;
 
     /**
-
      * Day being counted, as YYYY-MM-DD in UTC.
-
      * @type {string}
-
      */
     #countedDay = ActivityTracker.#today();
 
     /**
-
      * Epoch milliseconds of the last input.
-
      * @type {number}
-
      */
     #lastInputTime = Date.now();
 
     /**
-
      * Active milliseconds not yet written to storage.
-
      * @type {number}
-
      */
     #unsavedMs = 0;
 
@@ -3218,20 +3236,14 @@
     #store;
 
     /**
-
      * Navigation.
-
      * @type {Router}
-
      */
     #router;
 
     /**
-
      * Lower-case search text.
-
      * @type {string}
-
      */
     #searchText = '';
 
@@ -3378,29 +3390,20 @@
     #store;
 
     /**
-
      * Messages whose content changed since the last frame.
-
      * @type {Set<ChatMessage>}
-
      */
     #changedMessages = new Set();
 
     /**
-
      * Batches message updates per frame.
-
      * @type {FrameScheduler}
-
      */
     #updateScheduler = new FrameScheduler(() => this.#renderChangedMessages());
 
     /**
-
      * Handler per data-action value.
-
      * @type {Map<string, function(HTMLElement): void>}
-
      */
     #actionHandlers = new Map([
       ['retry', () => this.#store.retryLastPrompt()],
@@ -3582,11 +3585,8 @@
     #store;
 
     /**
-
      * Persisted model options.
-
      * @type {ComposerSettings}
-
      */
     #settings;
 
@@ -3694,20 +3694,14 @@
     #stats;
 
     /**
-
      * Active-time tracking.
-
      * @type {ActivityTracker}
-
      */
     #activity;
 
     /**
-
      * Usage windows.
-
      * @type {RateLimitMonitor}
-
      */
     #rateLimits;
 
@@ -3975,29 +3969,20 @@
     });
 
     /**
-
      * Conversation statistics.
-
      * @type {StatsIndex}
-
      */
     #stats;
 
     /**
-
      * Conversation id of the open folder, or null for the folder view.
-
      * @type {?string}
-
      */
     #openFolderId = null;
 
     /**
-
      * Sort column and direction (1 ascending, -1 descending).
-
      * @type {{column: string, direction: number}}
-
      */
     #sortOrder = { column: 'date', direction: -1 };
 
@@ -4641,11 +4626,8 @@
     #menuElement = null;
 
     /**
-
      * Called with the selected entry's id.
-
      * @type {?function(string): void}
-
      */
     #onSelect = null;
 
@@ -4734,74 +4716,50 @@
     });
 
     /**
-
      * Panels by id.
-
      * @type {Map<string, Panel>}
-
      */
     #panels;
 
     /**
-
      * Layout storage.
-
      * @type {Preferences}
-
      */
     #preferences;
 
     /**
-
      * Current layout.
-
      * @type {DockTree}
-
      */
     #tree;
 
     /**
-
      * Zone frames and tab strips, below the panels.
-
      * @type {HTMLElement}
-
      */
     #zoneChromeLayer;
 
     /**
-
      * Dividers, above the panels so they can be grabbed along their full length.
-
      * @type {HTMLElement}
-
      */
     #dividerLayer;
 
     /**
-
      * Zone areas from the last layout, used to find drop targets.
-
      * @type {LeafPlacement[]}
-
      */
     #leafPlacements = [];
 
     /**
-
      * Batches layouts per frame during resizing.
-
      * @type {FrameScheduler}
-
      */
     #layoutScheduler = new FrameScheduler(() => this.layout());
 
     /**
-
      * The add-panel menu.
-
      * @type {PopupMenu}
-
      */
     #addPanelMenu = new PopupMenu();
 
@@ -5289,7 +5247,351 @@
   }
 
   /**
-   * Top bar with the title, the message font size slider and layout reset.
+   * Converts an API conversation into the format-neutral ExportedConversation.
+   */
+  class ConversationExportBuilder {
+    /**
+     * Converter per API content block type; other types are kept whole as 'other' blocks.
+     * @type {Map<string, function(ContentBlock): ExportedBlock>}
+     */
+    static #BLOCK_CONVERTERS = new Map([
+      ['text', block => ({ type: 'text', text: block.text || '' })],
+      ['tool_use', block => ({ type: 'toolCall', name: block.name || null, input: block.input ?? null })],
+      ['tool_result', block => ({ type: 'toolResult', name: block.name || null, content: block.content ?? null })],
+    ]);
+
+    /**
+     * Converts the branch of a conversation that claude.ai shows.
+     * @param {ApiConversation} conversation The conversation, with every message.
+     * @returns {ExportedConversation} The exportable conversation.
+     */
+    static build(conversation) {
+      return {
+        id: conversation.uuid,
+        title: conversation.name || UNTITLED,
+        createdAt: conversation.created_at ?? null,
+        updatedAt: conversation.updated_at,
+        exportedAt: new Date().toISOString(),
+        messages: ConversationTree.currentBranch(conversation).map(message => ConversationExportBuilder.#convertMessage(message)),
+      };
+    }
+
+    /**
+     * Converts one message.
+     * @param {ApiMessage} message The message.
+     * @returns {ExportedMessage} The exportable message.
+     */
+    static #convertMessage(message) {
+      return {
+        id: message.uuid,
+        parentId: message.parent_message_uuid ?? null,
+        sender: message.sender,
+        createdAt: message.created_at ?? null,
+        attachments: MessageContent.uploads(message).map(upload => MessageContent.uploadName(upload)),
+        blocks: ConversationExportBuilder.#convertBlocks(message),
+      };
+    }
+
+    /**
+     * Converts a message's content blocks; a plain text field becomes a leading text block when the
+     * content has no text of its own.
+     * @param {ApiMessage} message The message.
+     * @returns {ExportedBlock[]} The blocks, in order.
+     */
+    static #convertBlocks(message) {
+      const blocks = (message.content ?? []).map(block => ConversationExportBuilder.#convertBlock(block));
+      const hasTextBlock = blocks.some(block => block.type === 'text');
+      return message.text && !hasTextBlock ? [{ type: 'text', text: message.text }, ...blocks] : blocks;
+    }
+
+    /**
+     * Converts one content block.
+     * @param {ContentBlock} block The block.
+     * @returns {ExportedBlock} The exportable block.
+     */
+    static #convertBlock(block) {
+      const convert = ConversationExportBuilder.#BLOCK_CONVERTERS.get(block.type);
+      return convert ? convert(block) : { type: 'other', originalType: block.type, content: block };
+    }
+  }
+
+  /**
+   * Exports a conversation as a readable Markdown document. Message text is kept as written; tool
+   * calls, tool results and unrecognised blocks become collapsible sections with their JSON.
+   */
+  class MarkdownConversationFormat {
+    /**
+     * Name shown in the export menu.
+     * @type {string}
+     */
+    static label = 'Markdown';
+
+    /**
+     * File extension.
+     * @type {string}
+     */
+    static extension = 'md';
+
+    /**
+     * MIME type.
+     * @type {string}
+     */
+    static mimeType = 'text/markdown';
+
+    /**
+     * Heading name per sender.
+     * @type {Readonly<Record<string, string>>}
+     */
+    static #SENDER_NAMES = Object.freeze({ human: 'You', assistant: 'Claude' });
+
+    /**
+     * Writer per exported block type.
+     * @type {Map<string, function(ExportedBlock): string>}
+     */
+    static #BLOCK_WRITERS = new Map([
+      ['text', block => block.text],
+      ['toolCall', block => MarkdownConversationFormat.#collapsibleJson(`Tool call: ${block.name || 'tool'}`, block.input)],
+      ['toolResult', block => MarkdownConversationFormat.#collapsibleJson(block.name ? `Tool result: ${block.name}` : 'Tool result', block.content)],
+      ['other', block => MarkdownConversationFormat.#collapsibleJson(`Content block: ${block.originalType}`, block.content)],
+    ]);
+
+    /**
+     * Converts a conversation to Markdown.
+     * @param {ExportedConversation} conversation The conversation.
+     * @returns {string} The document: a header with the conversation details, then one section per message.
+     */
+    static serialize(conversation) {
+      const sections = [MarkdownConversationFormat.#headerMarkdown(conversation), ...conversation.messages.map(message => MarkdownConversationFormat.#messageMarkdown(message))];
+      return `${sections.join('\n\n---\n\n')}\n`;
+    }
+
+    /**
+     * Title and details of the conversation.
+     * @param {ExportedConversation} conversation The conversation.
+     * @returns {string} The header.
+     */
+    static #headerMarkdown(conversation) {
+      return [
+        `# ${conversation.title}`,
+        '',
+        `- Conversation: ${conversation.id}`,
+        `- Created: ${conversation.createdAt ?? 'unknown'}`,
+        `- Last updated: ${conversation.updatedAt}`,
+        `- Exported: ${conversation.exportedAt}`,
+      ].join('\n');
+    }
+
+    /**
+     * One message: a heading with sender and time, its attachments and its blocks.
+     * @param {ExportedMessage} message The message.
+     * @returns {string} The section.
+     */
+    static #messageMarkdown(message) {
+      const heading = `## ${MarkdownConversationFormat.#SENDER_NAMES[message.sender] ?? message.sender} · ${message.createdAt ?? 'unknown time'}`;
+      const attachments = message.attachments.length ? `Attachments: ${message.attachments.join(', ')}` : '';
+      const blocks = message.blocks.map(block => MarkdownConversationFormat.#BLOCK_WRITERS.get(block.type)(block));
+      return [heading, attachments, ...blocks].filter(Boolean).join('\n\n');
+    }
+
+    /**
+     * A collapsible section holding a value as pretty-printed JSON.
+     * @param {string} summary Always-visible summary text.
+     * @param {*} value Value to show.
+     * @returns {string} The section as HTML details wrapping a JSON code block.
+     */
+    static #collapsibleJson(summary, value) {
+      return `<details>\n<summary>${escapeHtml(summary)}</summary>\n\n${markdownCodeFence(JSON.stringify(value, null, 2), 'json')}\n\n</details>`;
+    }
+  }
+
+  /**
+   * Exports a conversation as JSON: the ExportedConversation, pretty-printed.
+   */
+  class JsonConversationFormat {
+    /**
+     * Name shown in the export menu.
+     * @type {string}
+     */
+    static label = 'JSON';
+
+    /**
+     * File extension.
+     * @type {string}
+     */
+    static extension = 'json';
+
+    /**
+     * MIME type.
+     * @type {string}
+     */
+    static mimeType = 'application/json';
+
+    /**
+     * Converts a conversation to JSON.
+     * @param {ExportedConversation} conversation The conversation.
+     * @returns {string} The JSON document.
+     */
+    static serialize(conversation) {
+      return `${JSON.stringify(conversation, null, 2)}\n`;
+    }
+  }
+
+  /**
+   * Exports a conversation as an XML document. Tool inputs, tool results and unrecognised blocks are
+   * stored as escaped JSON text; text content is escaped, never wrapped in CDATA.
+   */
+  class XmlConversationFormat {
+    /**
+     * Name shown in the export menu.
+     * @type {string}
+     */
+    static label = 'XML';
+
+    /**
+     * File extension.
+     * @type {string}
+     */
+    static extension = 'xml';
+
+    /**
+     * MIME type.
+     * @type {string}
+     */
+    static mimeType = 'application/xml';
+
+    /**
+     * Writer per exported block type.
+     * @type {Map<string, function(ExportedBlock): string>}
+     */
+    static #BLOCK_WRITERS = new Map([
+      ['text', block => XmlConversationFormat.#element('text', {}, block.text)],
+      ['toolCall', block => XmlConversationFormat.#element('toolCall', { name: block.name }, JSON.stringify(block.input, null, 2))],
+      ['toolResult', block => XmlConversationFormat.#element('toolResult', { name: block.name }, JSON.stringify(block.content, null, 2))],
+      ['other', block => XmlConversationFormat.#element('contentBlock', { type: block.originalType }, JSON.stringify(block.content, null, 2))],
+    ]);
+
+    /**
+     * Converts a conversation to XML.
+     * @param {ExportedConversation} conversation The conversation.
+     * @returns {string} The XML document with a conversation root element holding one message element per message.
+     */
+    static serialize(conversation) {
+      const { id, title, createdAt, updatedAt, exportedAt } = conversation;
+      return [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        `<conversation${XmlConversationFormat.#attributes({ id, title, createdAt, updatedAt, exportedAt })}>`,
+        ...conversation.messages.map(message => XmlConversationFormat.#messageXml(message)),
+        '</conversation>',
+        '',
+      ].join('\n');
+    }
+
+    /**
+     * One message element with its attachments and blocks.
+     * @param {ExportedMessage} message The message.
+     * @returns {string} The element.
+     */
+    static #messageXml(message) {
+      const { id, parentId, sender, createdAt } = message;
+      const children = [
+        ...message.attachments.map(name => `<attachment${XmlConversationFormat.#attributes({ name })}/>`),
+        ...message.blocks.map(block => XmlConversationFormat.#BLOCK_WRITERS.get(block.type)(block)),
+      ];
+      return [`  <message${XmlConversationFormat.#attributes({ id, parentId, sender, createdAt })}>`, ...children.map(child => `    ${child}`), '  </message>'].join('\n');
+    }
+
+    /**
+     * An element with attributes and escaped text content.
+     * @param {string} name Element name.
+     * @param {Object<string, ?string>} attributes Attributes; null and undefined values are left out.
+     * @param {?string} text Text content.
+     * @returns {string} The element.
+     */
+    static #element(name, attributes, text) {
+      return `<${name}${XmlConversationFormat.#attributes(attributes)}>${escapeXml(text)}</${name}>`;
+    }
+
+    /**
+     * Attribute list of an element.
+     * @param {Object<string, ?string>} attributes Attributes; null and undefined values are left out.
+     * @returns {string} The attributes, each preceded by a space.
+     */
+    static #attributes(attributes) {
+      return Object.entries(attributes)
+        .filter(([, value]) => value !== null && value !== undefined)
+        .map(([name, value]) => ` ${name}="${escapeXml(value)}"`)
+        .join('');
+    }
+  }
+
+  /**
+   * Exports the open conversation to a file, fetching it fresh so the export is complete.
+   */
+  class ConversationExporter {
+    /**
+     * Available formats by id, in menu order.
+     * @type {Map<string, ExportFormat>}
+     */
+    static FORMATS = new Map([
+      ['markdown', MarkdownConversationFormat],
+      ['json', JsonConversationFormat],
+      ['xml', XmlConversationFormat],
+    ]);
+
+    /**
+     * API client.
+     * @type {ClaudeApi}
+     */
+    #api;
+
+    /**
+     * Conversation state, for the open conversation.
+     * @type {ConversationStore}
+     */
+    #store;
+
+    /**
+     * Creates the exporter.
+     * @param {ClaudeApi} api API client.
+     * @param {ConversationStore} store Conversation state, for the open conversation.
+     */
+    constructor(api, store) {
+      this.#api = api;
+      this.#store = store;
+    }
+
+    /**
+     * Downloads the open conversation in a format. Does nothing in an unsaved new chat; a failure is
+     * logged and shown in an alert.
+     * @param {string} formatId Key of ConversationExporter.FORMATS.
+     * @returns {Promise<void>} Resolves once the download has started or failed.
+     */
+    async exportOpenConversation(formatId) {
+      const conversationId = this.#store.openConversationId;
+      if (!conversationId) return;
+      try {
+        const conversation = ConversationExportBuilder.build(await this.#api.getConversation(conversationId));
+        ConversationExporter.#download(conversation, ConversationExporter.FORMATS.get(formatId));
+      } catch (error) {
+        console.warn(LOG_PREFIX, 'export failed', error);
+        window.alert(`Export failed: ${error.message}`);
+      }
+    }
+
+    /**
+     * Serializes a conversation and lets the browser save it as "<title> <date>.<extension>".
+     * @param {ExportedConversation} conversation The conversation.
+     * @param {ExportFormat} format Target format.
+     * @returns {void}
+     */
+    static #download(conversation, format) {
+      const fileName = `${fileNameFromTitle(conversation.title)} ${conversation.updatedAt.slice(0, 10)}.${format.extension}`;
+      downloadTextFile(fileName, format.serialize(conversation), format.mimeType);
+    }
+  }
+
+  /**
+   * Top bar with the title, the message font size slider, chat export and layout reset.
    */
   class Toolbar {
     /**
@@ -5299,40 +5601,54 @@
     static #FONT_SIZE = Object.freeze({ minimum: 11, maximum: 24, fallback: 14 });
 
     /**
-
      * Font size storage.
-
      * @type {Preferences}
-
      */
     #preferences;
 
     /**
-
      * Workspace to reset.
-
      * @type {DockWorkspace}
-
      */
     #workspace;
 
     /**
-
      * Message font size in pixels.
-
      * @type {number}
-
      */
     #messageFontSize;
 
     /**
-     * Creates the toolbar with the stored font size, limited to the allowed range.
-     * @param {Preferences} preferences Font size storage.
-     * @param {DockWorkspace} workspace Workspace to reset.
+     * Conversation state, for enabling the export button.
+     * @type {ConversationStore}
      */
-    constructor(preferences, workspace) {
+    #store;
+
+    /**
+     * Exports the open conversation.
+     * @type {ConversationExporter}
+     */
+    #exporter;
+
+    /**
+     * Menu listing the export formats.
+     * @type {PopupMenu}
+     */
+    #exportMenu = new PopupMenu();
+
+    /**
+     * Creates the toolbar with the stored font size, limited to the allowed range.
+     * @param {object} services Toolbar dependencies.
+     * @param {Preferences} services.preferences Font size storage.
+     * @param {DockWorkspace} services.workspace Workspace to reset.
+     * @param {ConversationStore} services.store Conversation state, for enabling the export button.
+     * @param {ConversationExporter} services.exporter Exports the open conversation.
+     */
+    constructor({ preferences, workspace, store, exporter }) {
       this.#preferences = preferences;
       this.#workspace = workspace;
+      this.#store = store;
+      this.#exporter = exporter;
       const storedSize = Number.parseFloat(preferences.read(STORAGE_KEYS.messageFontSize));
       const { minimum, maximum, fallback } = Toolbar.#FONT_SIZE;
       this.#messageFontSize = Number.isFinite(storedSize) ? clamp(storedSize, minimum, maximum) : fallback;
@@ -5354,13 +5670,50 @@
             <span data-name="fontSizeLabel"></span>
           </label>
           <div class="claude-plus-fill-remaining"></div>
+          <button class="claude-plus-toolbar__button" data-name="exportButton">Export chat ▾</button>
           <button class="claude-plus-toolbar__button" data-name="resetLayoutButton">Reset layout</button>`,
       });
       const elements = collectNamedElements(toolbar);
       elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
       elements.resetLayoutButton.addEventListener('click', () => this.#workspace.resetLayout());
+      this.#bindExportButton(elements.exportButton);
       this.#applyFontSize(elements.fontSizeLabel);
       document.body.append(toolbar);
+    }
+
+    /**
+     * Opens the format menu on click and keeps the button's enabled state current.
+     * @param {HTMLButtonElement} exportButton The export button.
+     * @returns {void}
+     */
+    #bindExportButton(exportButton) {
+      exportButton.addEventListener('click', () => this.#showExportMenu(exportButton));
+      this.#store.subscribe('openConversation', () => this.#updateExportButton(exportButton));
+      this.#updateExportButton(exportButton);
+    }
+
+    /**
+     * Enables the export button only while a saved conversation is open.
+     * @param {HTMLButtonElement} exportButton The export button.
+     * @returns {void}
+     */
+    #updateExportButton(exportButton) {
+      exportButton.disabled = !this.#store.openConversationId;
+    }
+
+    /**
+     * Opens the format menu below the export button.
+     * @param {HTMLButtonElement} exportButton The export button.
+     * @returns {void}
+     */
+    #showExportMenu(exportButton) {
+      const buttonBounds = exportButton.getBoundingClientRect();
+      this.#exportMenu.open({
+        left: buttonBounds.left,
+        top: buttonBounds.bottom + 4,
+        entries: [...ConversationExporter.FORMATS].map(([formatId, format]) => ({ id: formatId, label: format.label })),
+        onSelect: formatId => this.#exporter.exportOpenConversation(formatId),
+      });
     }
 
     /**
@@ -5437,6 +5790,7 @@
     .claude-plus-toolbar__title { font-weight: 600; }
     .claude-plus-toolbar__button { background: var(--claude-plus-color-button); border: none; color: var(--claude-plus-color-text); padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
     .claude-plus-toolbar__button:hover { background: var(--claude-plus-color-button-hover); }
+    .claude-plus-toolbar__button:disabled { opacity: 0.5; cursor: default; }
     .claude-plus-toolbar__font-size { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
     .claude-plus-toolbar__font-size input[type=range] { width: 100px; }
 
@@ -5619,7 +5973,7 @@
 
       const panels = ClaudePlusApp.#createPanels({ store, router, settings, stats, activity, rateLimits });
       const workspace = new DockWorkspace(panels, preferences);
-      new Toolbar(preferences, workspace).mount();
+      new Toolbar({ preferences, workspace, store, exporter: new ConversationExporter(api, store) }).mount();
       workspace.mount();
       new KeyboardShortcuts(workspace, panels.get('conversations')).install();
       return { store, router, stats, activity, rateLimits };
