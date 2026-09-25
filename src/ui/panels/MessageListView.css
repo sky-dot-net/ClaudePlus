@@ -16,6 +16,15 @@
   background: var(--claude-plus-color-accent-soft);
   align-self: flex-end;
   border-bottom-right-radius: 4px;
+  text-align: right;
+}
+
+.claude-plus-message--human .claude-plus-message__actions {
+  justify-content: flex-end;
+}
+
+.claude-plus-message--human .claude-plus-message-image {
+  margin-left: auto;
 }
 
 .claude-plus-message--assistant {
@@ -122,6 +131,7 @@
   font: inherit;
   font-size: var(--claude-plus-message-font-size, 14px);
   line-height: 1.5;
+  text-align: left;
   background: var(--claude-plus-color-bar);
   border: 1px solid var(--claude-plus-color-border-strong);
   color: var(--claude-plus-color-text);
