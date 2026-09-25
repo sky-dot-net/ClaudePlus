@@ -6,8 +6,8 @@ import { downloadTextFile } from '../browser/downloadTextFile.js';
 
 /**
  * Exports all ClaudePlus settings (every localStorage entry of the script: preferences, panes,
- * layouts, table columns) to a JSON file and imports them back. The indexed conversation cache is
- * not included; it can be rebuilt with "Index full history".
+ * layouts, table columns, sub-pane docking) to a JSON file and imports them back. The indexed
+ * conversation cache is not included; it can be rebuilt with "Index full history".
  */
 export class SettingsTransfer {
   /**

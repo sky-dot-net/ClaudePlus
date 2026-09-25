@@ -10,5 +10,6 @@ export const STORAGE_KEYS = Object.freeze({
   messageFontSize: 'claudePlus.messageFontSize',
   chatPanes: 'claudePlus.chatPanes',
   savedLayouts: 'claudePlus.savedLayouts',
+  subPaneEdges: 'claudePlus.subPaneEdges',
   tablePrefix: 'claudePlus.table.',
 });

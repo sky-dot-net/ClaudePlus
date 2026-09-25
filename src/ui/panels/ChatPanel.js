@@ -1,6 +1,7 @@
 import { ConversationSubPane } from './ConversationSubPane.js';
 import { MessageListView } from './MessageListView.js';
 import { Panel } from './Panel.js';
+import { STORAGE_KEYS } from '../../config/STORAGE_KEYS.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import stylesheet from './ChatPanel.css';
 
@@ -13,6 +14,12 @@ StyleRegistry.register(stylesheet);
  * than one chat pane is visible.
  */
 export class ChatPanel extends Panel {
+  /**
+   * Edge a sub-pane docks to when the open conversation has no remembered choice.
+   * @type {string}
+   */
+  static #DEFAULT_EDGE = 'right';
+
   /**
    * Pane id.
    * @type {string}
@@ -162,7 +169,7 @@ export class ChatPanel extends Panel {
       onMove: (movedKind, edge) => this.#dockSubPane(movedKind, edge),
     });
     this.#subPanes.set(kind, subPane);
-    this.#dockSubPane(kind, 'right');
+    this.#dockSubPane(kind, this.#storedSubPaneEdge(kind));
   }
 
   /**
@@ -184,6 +191,33 @@ export class ChatPanel extends Panel {
   #dockSubPane(kind, edge) {
     const sideElements = { left: this.elements.leftSide, top: this.elements.topSide, right: this.elements.rightSide };
     sideElements[edge].append(this.#subPanes.get(kind).element);
+    this.#saveSubPaneEdge(kind, edge);
+  }
+
+  /**
+   * Remembers a sub-pane's dock edge for the open conversation, so it reopens there next time;
+   * skipped for a chat that hasn't been saved yet.
+   * @param {string} kind Sub-pane kind.
+   * @param {string} edge 'left', 'top' or 'right'.
+   * @returns {void}
+   */
+  #saveSubPaneEdge(kind, edge) {
+    const conversationId = this.#session.openConversationId;
+    if (!conversationId) return;
+    const stored = this.#preferences.readJson(STORAGE_KEYS.subPaneEdges) ?? {};
+    stored[conversationId] = { ...stored[conversationId], [kind]: edge };
+    this.#preferences.writeJson(STORAGE_KEYS.subPaneEdges, stored);
+  }
+
+  /**
+   * The open conversation's remembered dock edge for a sub-pane kind.
+   * @param {string} kind Sub-pane kind.
+   * @returns {string} 'left', 'top' or 'right'; the default when unset or the chat is new.
+   */
+  #storedSubPaneEdge(kind) {
+    const conversationId = this.#session.openConversationId;
+    const stored = conversationId ? this.#preferences.readJson(STORAGE_KEYS.subPaneEdges)?.[conversationId] : null;
+    return stored?.[kind] ?? ChatPanel.#DEFAULT_EDGE;
   }
 
   /**

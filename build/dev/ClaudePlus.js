@@ -570,6 +570,7 @@
     messageFontSize: 'claudePlus.messageFontSize',
     chatPanes: 'claudePlus.chatPanes',
     savedLayouts: 'claudePlus.savedLayouts',
+    subPaneEdges: 'claudePlus.subPaneEdges',
     tablePrefix: 'claudePlus.table.',
   });
 
@@ -2424,6 +2425,12 @@
    */
   class ChatPanel extends Panel {
     /**
+     * Edge a sub-pane docks to when the open conversation has no remembered choice.
+     * @type {string}
+     */
+    static #DEFAULT_EDGE = 'right';
+
+    /**
      * Pane id.
      * @type {string}
      */
@@ -2572,7 +2579,7 @@
         onMove: (movedKind, edge) => this.#dockSubPane(movedKind, edge),
       });
       this.#subPanes.set(kind, subPane);
-      this.#dockSubPane(kind, 'right');
+      this.#dockSubPane(kind, this.#storedSubPaneEdge(kind));
     }
 
     /**
@@ -2594,6 +2601,33 @@
     #dockSubPane(kind, edge) {
       const sideElements = { left: this.elements.leftSide, top: this.elements.topSide, right: this.elements.rightSide };
       sideElements[edge].append(this.#subPanes.get(kind).element);
+      this.#saveSubPaneEdge(kind, edge);
+    }
+
+    /**
+     * Remembers a sub-pane's dock edge for the open conversation, so it reopens there next time;
+     * skipped for a chat that hasn't been saved yet.
+     * @param {string} kind Sub-pane kind.
+     * @param {string} edge 'left', 'top' or 'right'.
+     * @returns {void}
+     */
+    #saveSubPaneEdge(kind, edge) {
+      const conversationId = this.#session.openConversationId;
+      if (!conversationId) return;
+      const stored = this.#preferences.readJson(STORAGE_KEYS.subPaneEdges) ?? {};
+      stored[conversationId] = { ...stored[conversationId], [kind]: edge };
+      this.#preferences.writeJson(STORAGE_KEYS.subPaneEdges, stored);
+    }
+
+    /**
+     * The open conversation's remembered dock edge for a sub-pane kind.
+     * @param {string} kind Sub-pane kind.
+     * @returns {string} 'left', 'top' or 'right'; the default when unset or the chat is new.
+     */
+    #storedSubPaneEdge(kind) {
+      const conversationId = this.#session.openConversationId;
+      const stored = conversationId ? this.#preferences.readJson(STORAGE_KEYS.subPaneEdges)?.[conversationId] : null;
+      return stored?.[kind] ?? ChatPanel.#DEFAULT_EDGE;
     }
 
     /**
@@ -4629,6 +4663,8 @@
     { id: 'low', label: 'Low effort' },
     { id: 'medium', label: 'Medium effort' },
     { id: 'high', label: 'High effort' },
+    { id: 'extra', label: 'Extra effort' },
+    { id: 'max', label: 'Max effort' },
   ]);
 
   var stylesheet$b = ".claude-plus-dialog-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.5);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-dialog {\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 8px;\r\n  padding: 16px;\r\n  max-width: 360px;\r\n  font-size: 13px;\r\n}\r\n\r\n.claude-plus-dialog__message {\r\n  margin: 0 0 14px;\r\n  line-height: 1.4;\r\n}\r\n\r\n.claude-plus-dialog__input {\r\n  width: 100%;\r\n  box-sizing: border-box;\r\n  margin: 0 0 14px;\r\n  padding: 6px 8px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font: inherit;\r\n}\r\n\r\n.claude-plus-dialog__actions {\r\n  display: flex;\r\n  justify-content: flex-end;\r\n  gap: 8px;\r\n}\r\n";
@@ -5299,6 +5335,7 @@
     { id: 'claude-sonnet-5', label: 'Sonnet 5' },
     { id: 'claude-opus-5-5', label: 'Opus 5.5' },
     { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+    { id: 'claude-fable-5-1', label: 'Fable 5.1' },
   ]);
 
   var stylesheet$9 = ".claude-plus-staged-files {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 3px 4px 3px 3px;\r\n  font-size: 12px;\r\n  max-width: 200px;\r\n}\r\n\r\n.claude-plus-staged-file--uploading {\r\n  opacity: 0.6;\r\n}\r\n\r\n.claude-plus-staged-file__thumb {\r\n  width: 20px;\r\n  height: 20px;\r\n  border-radius: 4px;\r\n  object-fit: cover;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__icon {\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__name {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-staged-file__remove {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 0 2px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__remove:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
@@ -9305,8 +9342,8 @@
 
   /**
    * Exports all ClaudePlus settings (every localStorage entry of the script: preferences, panes,
-   * layouts, table columns) to a JSON file and imports them back. The indexed conversation cache is
-   * not included; it can be rebuilt with "Index full history".
+   * layouts, table columns, sub-pane docking) to a JSON file and imports them back. The indexed
+   * conversation cache is not included; it can be rebuilt with "Index full history".
    */
   class SettingsTransfer {
     /**
