@@ -747,7 +747,7 @@
     return String(value ?? '').replace(/[&<>"']/g, character => HTML_ENTITIES[character]);
   }
 
-  var stylesheet$l = ".claude-plus-empty-state {\n  color: var(--claude-plus-color-text-faint);\n  font-style: italic;\n  padding: 6px 0;\n}\n\n.claude-plus-empty-state--padded {\n  padding: 24px;\n}\n";
+  var stylesheet$l = ".claude-plus-empty-state {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-style: italic;\r\n  padding: 6px 0;\r\n}\r\n\r\n.claude-plus-empty-state--padded {\r\n  padding: 24px;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$l);
 
@@ -760,7 +760,7 @@
     return `<div class="claude-plus-empty-state">${escapeHtml(message)}</div>`;
   }
 
-  var stylesheet$k = ".claude-plus-value-combobox {\n  position: fixed;\n  z-index: var(--claude-plus-layer-popup-menu);\n  max-height: 240px;\n  overflow-y: auto;\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  padding: 4px;\n  font-size: 12px;\n}\n\n.claude-plus-value-combobox__entry {\n  padding: 4px 8px;\n  border-radius: 4px;\n  cursor: pointer;\n  white-space: nowrap;\n}\n\n.claude-plus-value-combobox__entry:hover {\n  background: var(--claude-plus-color-raised-hover);\n}\n";
+  var stylesheet$k = ".claude-plus-value-combobox {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  max-height: 240px;\r\n  overflow-y: auto;\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-value-combobox__entry {\r\n  padding: 4px 8px;\r\n  border-radius: 4px;\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-value-combobox__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$k);
 
@@ -906,7 +906,7 @@
     return FILTER_CONTROLS[column.filter ?? 'none'](column);
   }
 
-  var stylesheet$j = ".claude-plus-column-table__column-picker {\n  flex-shrink: 0;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n\ndetails.claude-plus-column-table__column-picker summary {\n  padding: 0;\n}\n\n.claude-plus-column-table__column-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  margin: 2px 10px 2px 0;\n  cursor: pointer;\n}\n\n.claude-plus-column-table__table {\n  width: 100%;\n  border-collapse: collapse;\n  font-size: 12px;\n}\n\n.claude-plus-column-table__table th {\n  text-align: left;\n  padding: 4px 6px;\n  color: var(--claude-plus-color-text-muted);\n  background: var(--claude-plus-color-raised);\n  position: sticky;\n  z-index: 1;\n  white-space: nowrap;\n  font-weight: 600;\n}\n\n.claude-plus-column-table__table thead tr:first-child th {\n  top: 0;\n}\n\n.claude-plus-column-table__filter-row th {\n  top: 24px;\n  padding-top: 0;\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\n  font-weight: normal;\n}\n\n.claude-plus-column-table__sortable {\n  cursor: pointer;\n  user-select: none;\n}\n\n.claude-plus-column-table__sortable:hover {\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-panel .claude-plus-column-table__filter-input {\n  display: block;\n  width: 100%;\n  min-width: 40px;\n  box-sizing: border-box;\n  padding: 2px 4px;\n  font-size: 11px;\n}\n\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\n  min-width: 0;\n  max-width: 112px;\n  padding: 1px 2px;\n  font-size: 10px;\n}\n\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\n  margin-top: 2px;\n}\n\n.claude-plus-column-table__cell {\n  padding: 4px 6px;\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\n  vertical-align: top;\n}\n\n.claude-plus-column-table__cell--name,\n.claude-plus-column-table__cell--title,\n.claude-plus-column-table__cell--match {\n  width: 100%;\n  max-width: 1px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-column-table__cell a {\n  color: var(--claude-plus-color-accent);\n  text-decoration: none;\n}\n\n.claude-plus-column-table__cell a:hover {\n  text-decoration: underline;\n}\n";
+  var stylesheet$j = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$j);
 
@@ -1300,7 +1300,7 @@
     return includesConversation ? [...columns, createConversationColumn()] : columns;
   }
 
-  var stylesheet$i = ".claude-plus-subpane {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-height: 0;\n  flex: 1;\n  padding: 6px;\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  background: var(--claude-plus-color-bar);\n}\n\n.claude-plus-subpane__header {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  flex-shrink: 0;\n}\n\n.claude-plus-subpane__title {\n  flex: 1;\n  min-width: 0;\n  font-size: 12px;\n  font-weight: 600;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.claude-plus-subpane__button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-faint);\n  cursor: pointer;\n  padding: 2px 5px;\n  border-radius: 4px;\n}\n\n.claude-plus-subpane__button:hover {\n  background: var(--claude-plus-color-hover);\n  color: var(--claude-plus-color-text);\n}\n";
+  var stylesheet$i = ".claude-plus-subpane {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  min-height: 0;\r\n  flex: 1;\r\n  padding: 6px;\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  background: var(--claude-plus-color-bar);\r\n}\r\n\r\n.claude-plus-subpane__header {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 2px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-subpane__title {\r\n  flex: 1;\r\n  min-width: 0;\r\n  font-size: 12px;\r\n  font-weight: 600;\r\n  white-space: nowrap;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-subpane__button {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 2px 5px;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-subpane__button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$i);
 
@@ -1819,7 +1819,7 @@
     }
   }
 
-  var stylesheet$h = ".claude-plus-image-viewer-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.8);\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 12px;\n}\n\n.claude-plus-image-viewer__frame {\n  max-width: 90vw;\n  max-height: 90vh;\n  overflow: hidden;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-image-viewer__image {\n  max-width: 90vw;\n  max-height: 90vh;\n  width: auto;\n  height: auto;\n  cursor: grab;\n  user-select: none;\n}\n\n.claude-plus-image-viewer__open-button {\n  flex-shrink: 0;\n}\n";
+  var stylesheet$h = ".claude-plus-image-viewer-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.8);\r\n  display: flex;\r\n  flex-direction: column;\r\n  align-items: center;\r\n  justify-content: center;\r\n  gap: 12px;\r\n}\r\n\r\n.claude-plus-image-viewer__frame {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  overflow: hidden;\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-image-viewer__image {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  width: auto;\r\n  height: auto;\r\n  cursor: grab;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-image-viewer__open-button {\r\n  flex-shrink: 0;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$h);
 
@@ -1877,15 +1877,23 @@
     }
   }
 
-  var stylesheet$g = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n}\n\n.claude-plus-message {\n  padding: 10px 12px;\n  border-radius: 8px;\n  max-width: 100%;\n}\n\n.claude-plus-message__sender {\n  font-size: 11px;\n  color: var(--claude-plus-color-text-faint);\n  margin-bottom: 4px;\n  font-weight: 600;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  gap: 8px;\n  margin-top: 6px;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-faint);\n  cursor: pointer;\n  font-size: 11px;\n  padding: 2px 6px;\n  border-radius: 4px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
+  var stylesheet$g = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 18px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  padding: 10px 14px;\n  border-radius: 16px;\n  max-width: 78%;\n  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);\n}\n\n.claude-plus-message--human {\n  background: var(--claude-plus-color-accent-soft);\n  align-self: flex-end;\n  border-bottom-right-radius: 4px;\n}\n\n.claude-plus-message--assistant {\n  background: var(--claude-plus-color-raised);\n  align-self: flex-start;\n  border-bottom-left-radius: 4px;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__sender {\n  font-size: 11px;\n  color: var(--claude-plus-color-text-faint);\n  margin-bottom: 4px;\n  font-weight: 600;\n  text-transform: uppercase;\n  letter-spacing: 0.04em;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  margin-top: 8px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: rgba(255, 255, 255, 0.06);\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 5px 10px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
 
   StyleRegistry.register(stylesheet$g);
 
   /**
-   * The messages of a chat session with copy and retry actions. Streaming updates re-render only
-   * the affected message, at most once per animation frame.
+   * The messages of a chat session: copy, retry, branch navigation between a message's edits and
+   * retries, and double-click (or the edit button) to edit a human message, which sends the new text
+   * as a sibling branch. Streaming updates re-render only the affected message, at most once per
+   * animation frame.
    */
   class MessageListView {
+    /**
+     * Sender label shown above a message's bubble.
+     * @type {Readonly<Record<string, string>>}
+     */
+    static #SENDER_LABELS = Object.freeze({ human: 'You', assistant: 'Claude' });
+
     /**
      * List element the messages are rendered into.
      * @type {HTMLElement}
@@ -1911,6 +1919,12 @@
     #updateScheduler = new FrameScheduler(() => this.#renderChangedMessages());
 
     /**
+     * Position of the message being edited, or null while none is.
+     * @type {?number}
+     */
+    #editingIndex = null;
+
+    /**
      * Handler per data-action value.
      * @type {Map<string, function(HTMLElement): void>}
      */
@@ -1918,6 +1932,11 @@
       ['retry', () => this.#session.retryLastPrompt()],
       ['copy', button => this.#copyMessageText(button)],
       ['openImage', image => new ImageViewerDialog(image.dataset.fullSrc, image.alt).show()],
+      ['startEdit', button => this.#startEdit(MessageListView.#indexOf(button))],
+      ['cancelEdit', () => this.#cancelEdit()],
+      ['saveEdit', button => this.#commitEdit(button.closest('.claude-plus-message'))],
+      ['prevBranch', button => this.#switchBranch(button, -1)],
+      ['nextBranch', button => this.#switchBranch(button, 1)],
     ]);
 
     /**
@@ -1930,6 +1949,8 @@
       this.#listElement = listElement;
       this.#session = session;
       listElement.addEventListener('click', event => this.#onClick(event));
+      listElement.addEventListener('dblclick', event => this.#onDoubleClick(event));
+      listElement.addEventListener('keydown', event => this.#onEditKeydown(event));
       ownerPanel.listenTo(session, 'messages', () => this.render());
       ownerPanel.listenTo(session, 'sending', () => this.render());
       ownerPanel.listenTo(session, 'messageContent', message => this.#scheduleMessageUpdate(message));
@@ -1945,9 +1966,10 @@
       const wasAtBottom = this.#isScrolledToBottom();
       const messages = this.#session.messages;
       const retryableIndex = this.#session.isSending ? -1 : messages.findLastIndex(message => message.sender === 'assistant');
-      this.#listElement.innerHTML = messages.map((message, index) => MessageListView.#messageHtml(message, index, index === retryableIndex)).join('')
+      this.#listElement.innerHTML = messages.map((message, index) => this.#messageHtml(message, index, index === retryableIndex)).join('')
         || '<div class="claude-plus-empty-state claude-plus-empty-state--padded">Start a conversation using the message box below.</div>';
       this.#scrollToBottomIf(wasAtBottom);
+      this.#focusEditInputIfEditing();
     }
 
     /**
@@ -1983,30 +2005,90 @@
     }
 
     /**
-     * HTML of one message.
+     * HTML of one message: its edit form while being edited, else its bubble with actions.
      * @param {ChatMessage} message The message.
      * @param {number} index Position in the list.
      * @param {boolean} offersRetry Whether to offer retry on it.
      * @returns {string} The message.
      */
-    static #messageHtml(message, index, offersRetry) {
+    #messageHtml(message, index, offersRetry) {
+      if (index === this.#editingIndex) return MessageListView.#editingMessageHtml(message, index);
       const sender = message.sender === 'human' ? 'human' : 'assistant';
       return `
       <div class="claude-plus-message claude-plus-message--${sender}" data-message-index="${index}">
-        <div class="claude-plus-message__sender">${sender === 'human' ? 'You' : 'Claude'}</div>
+        <div class="claude-plus-message__sender">${MessageListView.#SENDER_LABELS[sender]}</div>
         <div class="claude-plus-message__body">${MessageListView.#messageBodyHtml(message)}</div>
-        ${message.isStreaming ? '' : MessageListView.#actionButtonsHtml(offersRetry)}
+        ${this.#actionsHtmlOrEmpty(sender, message, offersRetry)}
       </div>`;
     }
 
     /**
-     * HTML of a message's action buttons.
+     * A message's action row, or an empty string while it is still streaming.
+     * @param {'human'|'assistant'} sender The message's sender.
+     * @param {ChatMessage} message The message.
      * @param {boolean} offersRetry Whether to include retry.
-     * @returns {string} The buttons.
+     * @returns {string} The action row, or an empty string.
      */
-    static #actionButtonsHtml(offersRetry) {
+    #actionsHtmlOrEmpty(sender, message, offersRetry) {
+      if (message.isStreaming) return '';
+      const branchInfo = message.isPersisted ? this.#session.branchInfoFor(message.id) : null;
+      return this.#actionsHtml(sender, message, offersRetry, branchInfo);
+    }
+
+    /**
+     * HTML of a human message's inline edit form: an editable copy of its text, and Cancel/Save.
+     * @param {ChatMessage} message The message.
+     * @param {number} index Position in the list.
+     * @returns {string} The form.
+     */
+    static #editingMessageHtml(message, index) {
+      return `
+      <div class="claude-plus-message claude-plus-message--human claude-plus-message--editing" data-message-index="${index}">
+        <div class="claude-plus-message__sender">You</div>
+        <textarea class="claude-plus-message__edit-input" data-name="editInput">${escapeHtml(message.text)}</textarea>
+        <div class="claude-plus-message__actions">
+          <button class="claude-plus-message__action-button" data-action="cancelEdit">Cancel</button>
+          <button class="claude-plus-message__action-button claude-plus-message__action-button--primary" data-action="saveEdit">Save &amp; branch</button>
+        </div>
+      </div>`;
+    }
+
+    /**
+     * HTML of a message's action row: branch navigation, copy, edit (human only) and retry.
+     * @param {'human'|'assistant'} sender The message's sender.
+     * @param {ChatMessage} message The message.
+     * @param {boolean} offersRetry Whether to include retry.
+     * @param {?{index: number, count: number}} branchInfo Its sibling position, if it has siblings.
+     * @returns {string} The action row.
+     */
+    #actionsHtml(sender, message, offersRetry, branchInfo) {
+      const branchNavHtml = branchInfo ? MessageListView.#branchNavHtml(branchInfo) : '';
+      const editButton = sender === 'human' && message.isPersisted
+        ? '<button class="claude-plus-message__action-button" data-action="startEdit" title="Edit and branch from here">✎ Edit</button>' : '';
       const retryButton = offersRetry ? '<button class="claude-plus-message__action-button" data-action="retry" title="Retry">🔁 Retry</button>' : '';
-      return `<div class="claude-plus-message__actions"><button class="claude-plus-message__action-button" data-action="copy" title="Copy">📋</button>${retryButton}</div>`;
+      return `
+      <div class="claude-plus-message__actions">
+        ${branchNavHtml}
+        <button class="claude-plus-message__action-button" data-action="copy" title="Copy">📋 Copy</button>
+        ${editButton}
+        ${retryButton}
+      </div>`;
+    }
+
+    /**
+     * HTML of a branch-switch control: previous/next buttons around the sibling position.
+     * @param {{index: number, count: number}} branchInfo Zero-based position and sibling count.
+     * @returns {string} The control.
+     */
+    static #branchNavHtml({ index, count }) {
+      const prevDisabled = index === 0 ? 'disabled' : '';
+      const nextDisabled = index === count - 1 ? 'disabled' : '';
+      return `
+      <span class="claude-plus-message__branch-nav">
+        <button class="claude-plus-message__branch-nav-button" data-action="prevBranch" ${prevDisabled} title="Previous version">‹</button>
+        <span class="claude-plus-message__branch-nav-count">${index + 1}/${count}</span>
+        <button class="claude-plus-message__branch-nav-button" data-action="nextBranch" ${nextDisabled} title="Next version">›</button>
+      </span>`;
     }
 
     /**
@@ -2032,15 +2114,119 @@
     }
 
     /**
+     * Starts editing the human message double-clicked on, unless it hasn't been persisted yet.
+     * @param {MouseEvent} event Double-click inside the list.
+     * @returns {void}
+     */
+    #onDoubleClick(event) {
+      if (event.target.closest('[data-action], .claude-plus-message__edit-input')) return;
+      const container = event.target.closest('.claude-plus-message--human');
+      if (!container) return;
+      const index = MessageListView.#indexOf(container);
+      if (this.#session.messages[index]?.isPersisted) this.#startEdit(index);
+    }
+
+    /**
+     * Saves or cancels the edit in progress on Enter or Escape.
+     * @param {KeyboardEvent} event Key press inside the list.
+     * @returns {void}
+     */
+    #onEditKeydown(event) {
+      if (!event.target.matches('.claude-plus-message__edit-input')) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.#cancelEdit();
+      } else if (MessageListView.#isCommitShortcut(event)) {
+        event.preventDefault();
+        this.#commitEdit(event.target.closest('.claude-plus-message'));
+      }
+    }
+
+    /**
+     * Whether a key press commits an edit in progress.
+     * @param {KeyboardEvent} event The key press.
+     * @returns {boolean} True for Enter without Shift outside IME composition.
+     */
+    static #isCommitShortcut(event) {
+      return event.key === 'Enter' && !event.shiftKey && !event.isComposing;
+    }
+
+    /**
+     * Shows a message as an editable form.
+     * @param {number} index Position of the message.
+     * @returns {void}
+     */
+    #startEdit(index) {
+      this.#editingIndex = index;
+      this.render();
+    }
+
+    /**
+     * Leaves edit mode without sending anything.
+     * @returns {void}
+     */
+    #cancelEdit() {
+      this.#editingIndex = null;
+      this.render();
+    }
+
+    /**
+     * Sends an edit form's text as a branch from the edited message's parent, or cancels for blank
+     * text.
+     * @param {HTMLElement} container The message element being edited.
+     * @returns {void}
+     */
+    #commitEdit(container) {
+      const index = MessageListView.#indexOf(container);
+      const newText = container.querySelector('.claude-plus-message__edit-input').value;
+      this.#editingIndex = null;
+      if (newText.trim()) this.#session.editMessage(index, newText);
+      else this.render();
+    }
+
+    /**
+     * Focuses and places the caret at the end of the edit form's text, if one is open.
+     * @returns {void}
+     */
+    #focusEditInputIfEditing() {
+      if (this.#editingIndex === null) return;
+      const input = this.#listElement.querySelector('.claude-plus-message__edit-input');
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+
+    /**
+     * Switches a message to its previous or next sibling version.
+     * @param {HTMLElement} button The clicked branch-nav button.
+     * @param {number} step -1 for the previous version, +1 for the next.
+     * @returns {void}
+     */
+    #switchBranch(button, step) {
+      const message = this.#session.messages[MessageListView.#indexOf(button)];
+      if (message) this.#session.switchBranch(message.id, step);
+    }
+
+    /**
+     * Position encoded in the closest message element's data-message-index.
+     * @param {HTMLElement} descendant An element inside, or equal to, a message element.
+     * @returns {number} The position.
+     */
+    static #indexOf(descendant) {
+      return Number(descendant.closest('.claude-plus-message').dataset.messageIndex);
+    }
+
+    /**
      * Copies a message's text to the clipboard and briefly shows a check mark.
      * @param {HTMLElement} button The copy button.
      * @returns {void}
      */
     #copyMessageText(button) {
-      const message = this.#session.messages[Number(button.closest('.claude-plus-message').dataset.messageIndex)];
+      const message = this.#session.messages[MessageListView.#indexOf(button)];
       navigator.clipboard.writeText(MessageListView.#copyableText(message)).catch(() => undefined);
-      button.textContent = '✓';
-      setTimeout(() => { button.textContent = '📋'; }, TIMING.copyFeedbackMs);
+      const label = button.textContent;
+      button.textContent = '✓ Copied';
+      setTimeout(() => { button.textContent = label; }, TIMING.copyFeedbackMs);
     }
 
     /**
@@ -2071,7 +2257,7 @@
     }
   }
 
-  var stylesheet$f = ".claude-plus-panel {\n  position: fixed;\n  z-index: var(--claude-plus-layer-panel);\n  box-sizing: border-box;\n  padding: 10px 12px;\n  overflow-y: auto;\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  font-size: 13px;\n  background: var(--claude-plus-color-background);\n}\n\n.claude-plus-panel summary {\n  cursor: pointer;\n  padding: 4px 0;\n}\n\n.claude-plus-panel select,\n.claude-plus-panel input[type=text],\n.claude-plus-panel input[type=date],\n.claude-plus-panel textarea {\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font-size: 12px;\n  font-family: inherit;\n}\n\n.claude-plus-panel__section {\n  padding: 8px 0;\n  border-bottom: 1px solid var(--claude-plus-color-hover);\n  flex-shrink: 0;\n}\n\n.claude-plus-panel__section:last-child {\n  border-bottom: none;\n}\n\n.claude-plus-spaced-above {\n  margin-top: 6px;\n}\n\n.claude-plus-hint {\n  color: var(--claude-plus-color-text-faint);\n  font-size: 11px;\n  margin-top: 4px;\n}\n\n.claude-plus-scrollable {\n  overflow-y: auto;\n}\n\n.claude-plus-fill-remaining {\n  flex: 1;\n  min-height: 0;\n}\n\n.claude-plus-pending {\n  opacity: 0.4;\n  pointer-events: none;\n}\n\n.claude-plus-primary-button {\n  padding: 8px;\n  background: var(--claude-plus-color-accent);\n  border: none;\n  border-radius: 6px;\n  color: #fff;\n  font-size: 13px;\n  cursor: pointer;\n  font-weight: 600;\n  flex-shrink: 0;\n}\n\n.claude-plus-primary-button:disabled {\n  opacity: 0.6;\n  cursor: default;\n}\n\n.claude-plus-full-width {\n  width: 100%;\n}\n\n.claude-plus-search-input {\n  flex-shrink: 0;\n  padding: 6px 8px;\n}\n";
+  var stylesheet$f = ".claude-plus-panel {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-panel);\r\n  box-sizing: border-box;\r\n  padding: 10px 12px;\r\n  overflow-y: auto;\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  font-size: 13px;\r\n  background: var(--claude-plus-color-background);\r\n}\r\n\r\n.claude-plus-panel summary {\r\n  cursor: pointer;\r\n  padding: 4px 0;\r\n}\r\n\r\n.claude-plus-panel select,\r\n.claude-plus-panel input[type=text],\r\n.claude-plus-panel input[type=date],\r\n.claude-plus-panel textarea {\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font-size: 12px;\r\n  font-family: inherit;\r\n}\r\n\r\n.claude-plus-panel__section {\r\n  padding: 8px 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-hover);\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-panel__section:last-child {\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-spaced-above {\r\n  margin-top: 6px;\r\n}\r\n\r\n.claude-plus-hint {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-size: 11px;\r\n  margin-top: 4px;\r\n}\r\n\r\n.claude-plus-scrollable {\r\n  overflow-y: auto;\r\n}\r\n\r\n.claude-plus-fill-remaining {\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-pending {\r\n  opacity: 0.4;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-primary-button {\r\n  padding: 8px;\r\n  background: var(--claude-plus-color-accent);\r\n  border: none;\r\n  border-radius: 6px;\r\n  color: #fff;\r\n  font-size: 13px;\r\n  cursor: pointer;\r\n  font-weight: 600;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-primary-button:disabled {\r\n  opacity: 0.6;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-full-width {\r\n  width: 100%;\r\n}\r\n\r\n.claude-plus-search-input {\r\n  flex-shrink: 0;\r\n  padding: 6px 8px;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$f);
 
@@ -2222,7 +2408,7 @@
     }
   }
 
-  var stylesheet$e = ".claude-plus-panel--active-among-several {\n  box-shadow: inset 0 0 0 1px var(--claude-plus-color-active-chat);\n}\n\n.claude-plus-chat-layout {\n  display: flex;\n  gap: 8px;\n  flex: 1;\n  min-height: 0;\n}\n\n.claude-plus-chat-layout__center {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  flex: 1;\n  min-width: 0;\n}\n\n.claude-plus-chat-layout__side {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  width: 300px;\n  flex-shrink: 0;\n  min-height: 0;\n}\n\n.claude-plus-chat-layout__top {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  flex-shrink: 0;\n}\n\n.claude-plus-chat-layout__side:empty,\n.claude-plus-chat-layout__top:empty {\n  display: none;\n}\n\n.claude-plus-chat-layout__top .claude-plus-subpane {\n  height: 200px;\n  flex: none;\n}\n";
+  var stylesheet$e = ".claude-plus-panel--active-among-several {\r\n  box-shadow: inset 0 0 0 1px var(--claude-plus-color-active-chat);\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$e);
 
@@ -2431,7 +2617,7 @@
    */
   const ATTACHMENT_NAME_FIELDS = Object.freeze(['file_name', 'name', 'filename', 'title']);
 
-  var stylesheet$d = ".claude-plus-code-block {\n  background: var(--claude-plus-color-code-block);\n  padding: 8px;\n  border-radius: 6px;\n  overflow-x: auto;\n  font-size: 12px;\n}\n";
+  var stylesheet$d = ".claude-plus-code-block {\r\n  background: var(--claude-plus-color-code-block);\r\n  padding: 8px;\r\n  border-radius: 6px;\r\n  overflow-x: auto;\r\n  font-size: 12px;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$d);
 
@@ -2496,7 +2682,7 @@
     }
   }
 
-  var stylesheet$c = ".claude-plus-message--human {\n  background: var(--claude-plus-color-human-message);\n  align-self: flex-end;\n}\n\n.claude-plus-message--assistant {\n  background: transparent;\n}\n\n.claude-plus-message-text {\n  white-space: normal;\n}\n\n.claude-plus-message-text a {\n  color: var(--claude-plus-color-accent);\n}\n\n.claude-plus-message-attachment {\n  color: var(--claude-plus-color-text-muted);\n  font-size: 12px;\n  margin-bottom: 4px;\n}\n\n.claude-plus-message-image {\n  display: block;\n  max-height: 300px;\n  max-width: 100%;\n  border-radius: 8px;\n  margin-bottom: 6px;\n  cursor: zoom-in;\n}\n\n.claude-plus-tool-details {\n  margin: 6px 0;\n  background: var(--claude-plus-color-tool-details);\n  border-radius: 6px;\n  padding: 4px 8px;\n  font-size: 12px;\n}\n\n.claude-plus-tool-details pre {\n  white-space: pre-wrap;\n  overflow-wrap: break-word;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n";
+  var stylesheet$c = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  margin-bottom: 6px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n.claude-plus-tool-details {\r\n  margin: 6px 0;\r\n  background: var(--claude-plus-color-tool-details);\r\n  border-radius: 6px;\r\n  padding: 4px 8px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-tool-details pre {\r\n  white-space: pre-wrap;\r\n  overflow-wrap: break-word;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$c);
 
@@ -2754,6 +2940,105 @@
   }
 
   /**
+   * Selects the branch of a conversation tree that claude.ai shows.
+   */
+  class ConversationTree {
+    /**
+     * The messages from the root to the current leaf. Falls back to every message when the tree
+     * fields aren't present.
+     * @param {ApiConversation} conversation The conversation.
+     * @returns {ApiMessage[]} The branch, oldest first.
+     */
+    static currentBranch(conversation) {
+      const messages = conversation.chat_messages ?? [];
+      const messagesById = new Map(messages.map(message => [message.uuid, message]));
+      const leafMessage = messagesById.get(conversation.current_leaf_message_uuid);
+      return ConversationTree.#hasTreeFields(messages, leafMessage) ? ConversationTree.#pathToRoot(leafMessage, messagesById) : messages;
+    }
+
+    /**
+     * Whether the messages carry enough information to walk the tree.
+     * @param {ApiMessage[]} messages All messages.
+     * @param {ApiMessage|undefined} leafMessage The current leaf, if found.
+     * @returns {boolean} True when the leaf exists and every message has a parent field.
+     */
+    static #hasTreeFields(messages, leafMessage) {
+      return Boolean(leafMessage) && messages.every(message => 'parent_message_uuid' in message);
+    }
+
+    /**
+     * Follows parent links from a message to the root, stopping at a missing or repeated message.
+     * @param {ApiMessage} leafMessage Starting message.
+     * @param {Map<string, ApiMessage>} messagesById Every message by id.
+     * @returns {ApiMessage[]} The path, root first.
+     */
+    static #pathToRoot(leafMessage, messagesById) {
+      const path = [];
+      const visitedIds = new Set();
+      for (let message = leafMessage; message && !visitedIds.has(message.uuid); message = messagesById.get(message.parent_message_uuid)) {
+        visitedIds.add(message.uuid);
+        path.push(message);
+      }
+      return path.reverse();
+    }
+
+    /**
+     * Every message sharing a message's parent, itself included, oldest first: the versions a
+     * branch-switch control cycles through (the original and each edit or retry of it).
+     * @param {ApiConversation} conversation The conversation.
+     * @param {string} messageId A message in the group.
+     * @returns {ApiMessage[]} The sibling group, oldest first; empty if messageId isn't found.
+     */
+    static siblingsOf(conversation, messageId) {
+      const messages = conversation.chat_messages ?? [];
+      const target = messages.find(message => message.uuid === messageId);
+      if (!target) return [];
+      return messages
+        .filter(message => message.parent_message_uuid === target.parent_message_uuid)
+        .sort((earlier, later) => (earlier.created_at ?? '').localeCompare(later.created_at ?? ''));
+    }
+
+    /**
+     * The leaf reached by following each level's most recently created child from a message, so
+     * switching to a sibling branch lands on its latest edit or retry rather than its first reply.
+     * @param {ApiConversation} conversation The conversation.
+     * @param {string} messageId Message to descend from.
+     * @returns {string} The leaf message's id; messageId itself when it has no children.
+     */
+    static latestLeafFrom(conversation, messageId) {
+      const messages = conversation.chat_messages ?? [];
+      let current = messageId;
+      for (
+        let children = ConversationTree.#childrenOf(messages, current);
+        children.length > 0;
+        children = ConversationTree.#childrenOf(messages, current)
+      ) {
+        current = ConversationTree.#latestOf(children).uuid;
+      }
+      return current;
+    }
+
+    /**
+     * Direct children of a message.
+     * @param {ApiMessage[]} messages Every message of the conversation.
+     * @param {string} parentId Parent message id.
+     * @returns {ApiMessage[]} Its children, in no particular order.
+     */
+    static #childrenOf(messages, parentId) {
+      return messages.filter(message => message.parent_message_uuid === parentId);
+    }
+
+    /**
+     * The most recently created of a group of messages.
+     * @param {ApiMessage[]} messages A non-empty group.
+     * @returns {ApiMessage} The latest one.
+     */
+    static #latestOf(messages) {
+      return messages.reduce((latest, message) => ((message.created_at ?? '') > (latest.created_at ?? '') ? message : latest));
+    }
+  }
+
+  /**
    * Numbers navigations, so a response arriving for an older navigation can be recognized and dropped.
    */
   class NavigationCounter {
@@ -2954,50 +3239,6 @@
   }
 
   /**
-   * Selects the branch of a conversation tree that claude.ai shows.
-   */
-  class ConversationTree {
-    /**
-     * The messages from the root to the current leaf. Falls back to every message when the tree
-     * fields aren't present.
-     * @param {ApiConversation} conversation The conversation.
-     * @returns {ApiMessage[]} The branch, oldest first.
-     */
-    static currentBranch(conversation) {
-      const messages = conversation.chat_messages ?? [];
-      const messagesById = new Map(messages.map(message => [message.uuid, message]));
-      const leafMessage = messagesById.get(conversation.current_leaf_message_uuid);
-      return ConversationTree.#hasTreeFields(messages, leafMessage) ? ConversationTree.#pathToRoot(leafMessage, messagesById) : messages;
-    }
-
-    /**
-     * Whether the messages carry enough information to walk the tree.
-     * @param {ApiMessage[]} messages All messages.
-     * @param {ApiMessage|undefined} leafMessage The current leaf, if found.
-     * @returns {boolean} True when the leaf exists and every message has a parent field.
-     */
-    static #hasTreeFields(messages, leafMessage) {
-      return Boolean(leafMessage) && messages.every(message => 'parent_message_uuid' in message);
-    }
-
-    /**
-     * Follows parent links from a message to the root, stopping at a missing or repeated message.
-     * @param {ApiMessage} leafMessage Starting message.
-     * @param {Map<string, ApiMessage>} messagesById Every message by id.
-     * @returns {ApiMessage[]} The path, root first.
-     */
-    static #pathToRoot(leafMessage, messagesById) {
-      const path = [];
-      const visitedIds = new Set();
-      for (let message = leafMessage; message && !visitedIds.has(message.uuid); message = messagesById.get(message.parent_message_uuid)) {
-        visitedIds.add(message.uuid);
-        path.push(message);
-      }
-      return path.reverse();
-    }
-  }
-
-  /**
    * Chat messages of a conversation's current branch.
    * @param {ApiConversation} conversation The conversation.
    * @returns {ChatMessage[]} The messages, oldest first.
@@ -3053,6 +3294,13 @@
      * @type {ChatMessage[]}
      */
     #messages = [];
+
+    /**
+     * The full conversation last fetched, with every branch; null for a new chat or before the first
+     * load. Used to find a message's sibling versions and switch between them.
+     * @type {?ApiConversation}
+     */
+    #conversation = null;
 
     /**
      * Whether a prompt is being sent.
@@ -3140,6 +3388,62 @@
     }
 
     /**
+     * Position of a message among its siblings (its other edits or retries), for a branch-switch
+     * control. Null when it has no siblings besides itself, or before the conversation has loaded.
+     * @param {string} messageId Message id.
+     * @returns {?{index: number, count: number}} Its zero-based position and the sibling count, or null.
+     */
+    branchInfoFor(messageId) {
+      if (!this.#conversation) return null;
+      const siblings = ConversationTree.siblingsOf(this.#conversation, messageId);
+      if (siblings.length <= 1) return null;
+      return { index: siblings.findIndex(sibling => sibling.uuid === messageId), count: siblings.length };
+    }
+
+    /**
+     * Switches to a sibling version of a message (an edit or a retried reply), landing on that
+     * version's latest leaf, and persists the choice server-side. Ignored while sending, before the
+     * conversation has loaded, or when there is no sibling in that direction.
+     * @param {string} messageId Message id.
+     * @param {number} step -1 for the previous version, +1 for the next.
+     * @returns {Promise<void>} Resolves once switched.
+     */
+    async switchBranch(messageId, step) {
+      if (this.#isSending || !this.#conversation) return;
+      const siblings = ConversationTree.siblingsOf(this.#conversation, messageId);
+      const target = siblings[siblings.findIndex(sibling => sibling.uuid === messageId) + step];
+      if (!target) return;
+      const leafId = ConversationTree.latestLeafFrom(this.#conversation, target.uuid);
+      await this.#api.setCurrentLeafMessage(this.#openConversationId, leafId);
+      this.#conversation = { ...this.#conversation, current_leaf_message_uuid: leafId };
+      this.#setMessages(currentBranchMessages(this.#conversation));
+    }
+
+    /**
+     * Edits a persisted human message: sends the new text as a sibling reply to the same parent,
+     * branching the conversation there instead of replacing what the server has. Ignored while
+     * sending, for an assistant message, or for a message the server hasn't accepted yet.
+     * @param {number} index Position of the message in the current branch.
+     * @param {string} newText Edited text; ignored if blank.
+     * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
+     */
+    editMessage(index, newText) {
+      const message = this.#messages[index];
+      if (this.#isSending || !newText.trim() || !ChatSession.#isEditableHumanMessage(message)) return Promise.resolve();
+      this.#setMessages(this.#messages.slice(0, index));
+      return this.#sendPromptAfter(newText, message.parentId, []);
+    }
+
+    /**
+     * Whether a message can be edited: a persisted prompt from the human.
+     * @param {?ChatMessage} message The message.
+     * @returns {boolean} True when it can be edited.
+     */
+    static #isEditableHumanMessage(message) {
+      return Boolean(message) && message.sender === 'human' && message.isPersisted;
+    }
+
+    /**
      * Opens a conversation, stopping any reply in progress. A load failure is shown as an error notice.
      * @param {string} conversationId Conversation id.
      * @returns {Promise<void>} Resolves once the messages or the error notice are shown.
@@ -3203,6 +3507,7 @@
       this.stopReply();
       const navigation = this.#navigations.begin();
       this.#setOpenConversation(conversationId);
+      this.#conversation = null;
       this.#setMessages([]);
       return navigation;
     }
@@ -3323,7 +3628,10 @@
         const conversation = await this.#api.getConversation(conversationId);
         this.#directory.updateListing(conversation);
         this.publish('conversationLoaded', conversation);
-        if (replaceMessages && this.#isOpenAndIdle(conversationId)) this.#setMessages(currentBranchMessages(conversation));
+        if (replaceMessages && this.#isOpenAndIdle(conversationId)) {
+          this.#conversation = conversation;
+          this.#setMessages(currentBranchMessages(conversation));
+        }
       } catch (error) {
         console.warn(LOG_PREFIX, 'refreshing conversation failed', error);
       }
@@ -3344,6 +3652,7 @@
      * @returns {void}
      */
     #showConversation(conversation) {
+      this.#conversation = conversation;
       this.#setMessages(currentBranchMessages(conversation));
       this.publish('conversationLoaded', conversation);
     }
@@ -4037,6 +4346,23 @@
     }
 
     /**
+     * Sets which leaf message a conversation's branch navigation shows, persisting a branch switch
+     * server-side so it survives a reload.
+     * @param {string} conversationId Conversation id.
+     * @param {string} leafMessageId Id of the message to show as the current leaf.
+     * @returns {Promise<void>} Resolves once set.
+     * @throws {ApiError} When the request fails.
+     */
+    async setCurrentLeafMessage(conversationId, leafMessageId) {
+      const url = await this.#organizationUrl(`/chat_conversations/${conversationId}/current_leaf_message_uuid`, {});
+      await this.#fetchSuccessful(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_leaf_message_uuid: leafMessageId }),
+      });
+    }
+
+    /**
      * Sends a prompt and streams the reply. The first event has type STREAM_START and carries the
      * client-generated humanMessageId and assistantMessageId; every following event is a parsed
      * server-sent event.
@@ -4260,7 +4586,7 @@
     { id: 'high', label: 'High effort' },
   ]);
 
-  var stylesheet$b = ".claude-plus-dialog-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  max-width: 360px;\n  font-size: 13px;\n}\n\n.claude-plus-dialog__message {\n  margin: 0 0 14px;\n  line-height: 1.4;\n}\n\n.claude-plus-dialog__input {\n  width: 100%;\n  box-sizing: border-box;\n  margin: 0 0 14px;\n  padding: 6px 8px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font: inherit;\n}\n\n.claude-plus-dialog__actions {\n  display: flex;\n  justify-content: flex-end;\n  gap: 8px;\n}\n";
+  var stylesheet$b = ".claude-plus-dialog-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.5);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-dialog {\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 8px;\r\n  padding: 16px;\r\n  max-width: 360px;\r\n  font-size: 13px;\r\n}\r\n\r\n.claude-plus-dialog__message {\r\n  margin: 0 0 14px;\r\n  line-height: 1.4;\r\n}\r\n\r\n.claude-plus-dialog__input {\r\n  width: 100%;\r\n  box-sizing: border-box;\r\n  margin: 0 0 14px;\r\n  padding: 6px 8px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font: inherit;\r\n}\r\n\r\n.claude-plus-dialog__actions {\r\n  display: flex;\r\n  justify-content: flex-end;\r\n  gap: 8px;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$b);
 
@@ -4773,7 +5099,7 @@
     }
   }
 
-  var stylesheet$a = ".claude-plus-popup-menu {\n  position: fixed;\n  z-index: var(--claude-plus-layer-popup-menu);\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  padding: 4px;\n  min-width: 140px;\n  font-size: 12px;\n}\n\n.claude-plus-popup-menu__entry {\n  padding: 6px 10px;\n  cursor: pointer;\n  border-radius: 4px;\n}\n\n.claude-plus-popup-menu__entry:hover {\n  background: var(--claude-plus-color-raised-hover);\n}\n";
+  var stylesheet$a = ".claude-plus-popup-menu {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  min-width: 140px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry {\r\n  padding: 6px 10px;\r\n  cursor: pointer;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$a);
 
@@ -4930,7 +5256,7 @@
     { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
   ]);
 
-  var stylesheet$9 = ".claude-plus-staged-files {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  padding: 3px 4px 3px 3px;\n  font-size: 12px;\n  max-width: 200px;\n}\n\n.claude-plus-staged-file--uploading {\n  opacity: 0.6;\n}\n\n.claude-plus-staged-file__thumb {\n  width: 20px;\n  height: 20px;\n  border-radius: 4px;\n  object-fit: cover;\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file__icon {\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file__name {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-staged-file__remove {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-faint);\n  cursor: pointer;\n  padding: 0 2px;\n  border-radius: 4px;\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file__remove:hover {\n  background: var(--claude-plus-color-hover);\n  color: var(--claude-plus-color-text);\n}\n";
+  var stylesheet$9 = ".claude-plus-staged-files {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 3px 4px 3px 3px;\r\n  font-size: 12px;\r\n  max-width: 200px;\r\n}\r\n\r\n.claude-plus-staged-file--uploading {\r\n  opacity: 0.6;\r\n}\r\n\r\n.claude-plus-staged-file__thumb {\r\n  width: 20px;\r\n  height: 20px;\r\n  border-radius: 4px;\r\n  object-fit: cover;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__icon {\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__name {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-staged-file__remove {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 0 2px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__remove:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$9);
 
@@ -5082,7 +5408,7 @@
     return options.map(option => `<option value="${escapeHtml(option.id)}"${option.id === selectedId ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
   }
 
-  var stylesheet$8 = ".claude-plus-composer__options {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n  align-items: center;\n  flex-shrink: 0;\n}\n\n.claude-plus-composer__options select {\n  padding: 4px 6px;\n}\n\n.claude-plus-composer__thinking-toggle {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n}\n\n.claude-plus-panel .claude-plus-composer__input {\n  flex: 1;\n  resize: none;\n  min-height: 40px;\n  border-radius: 8px;\n  padding: 8px;\n  font-size: 14px;\n}\n\n.claude-plus-primary-button.claude-plus-composer__stop-button {\n  flex-shrink: 0;\n  background: var(--claude-plus-color-button-hover);\n}\n";
+  var stylesheet$8 = ".claude-plus-composer__options {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 8px;\r\n  align-items: center;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-composer__options select {\r\n  padding: 4px 6px;\r\n}\r\n\r\n.claude-plus-composer__thinking-toggle {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-panel .claude-plus-composer__input {\r\n  flex: 1;\r\n  resize: none;\r\n  min-height: 40px;\r\n  border-radius: 8px;\r\n  padding: 8px;\r\n  font-size: 14px;\r\n}\r\n\r\n.claude-plus-primary-button.claude-plus-composer__stop-button {\r\n  flex-shrink: 0;\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$8);
 
@@ -6068,7 +6394,7 @@
     Object.assign(element.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
   }
 
-  var stylesheet$7 = "html.claude-plus-resizing-horizontally,\nhtml.claude-plus-resizing-horizontally * {\n  cursor: col-resize !important;\n  user-select: none;\n}\n\nhtml.claude-plus-resizing-vertically,\nhtml.claude-plus-resizing-vertically * {\n  cursor: row-resize !important;\n  user-select: none;\n}\n\n.claude-plus-divider-layer {\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  z-index: var(--claude-plus-layer-divider);\n}\n\n.claude-plus-divider {\n  position: fixed;\n  pointer-events: auto;\n  background: transparent;\n}\n\n.claude-plus-divider--vertical {\n  cursor: col-resize;\n}\n\n.claude-plus-divider--horizontal {\n  cursor: row-resize;\n}\n\n.claude-plus-divider:hover {\n  background: var(--claude-plus-color-accent);\n}\n";
+  var stylesheet$7 = "html.claude-plus-resizing-horizontally,\r\nhtml.claude-plus-resizing-horizontally * {\r\n  cursor: col-resize !important;\r\n  user-select: none;\r\n}\r\n\r\nhtml.claude-plus-resizing-vertically,\r\nhtml.claude-plus-resizing-vertically * {\r\n  cursor: row-resize !important;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-divider-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-divider);\r\n}\r\n\r\n.claude-plus-divider {\r\n  position: fixed;\r\n  pointer-events: auto;\r\n  background: transparent;\r\n}\r\n\r\n.claude-plus-divider--vertical {\r\n  cursor: col-resize;\r\n}\r\n\r\n.claude-plus-divider--horizontal {\r\n  cursor: row-resize;\r\n}\r\n\r\n.claude-plus-divider:hover {\r\n  background: var(--claude-plus-color-accent);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$7);
 
@@ -6300,7 +6626,7 @@
     }
   }
 
-  var stylesheet$6 = ".claude-plus-drop-highlight[hidden] {\n  display: none !important;\n}\n\n.claude-plus-drag-label {\n  position: fixed;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n  padding: 4px 10px;\n  border-radius: 6px;\n  font-size: 12px;\n  pointer-events: none;\n}\n\n.claude-plus-drop-highlight {\n  position: fixed;\n  z-index: var(--claude-plus-layer-drop-highlight);\n  background: var(--claude-plus-color-accent-overlay);\n  border: 2px solid var(--claude-plus-color-accent);\n  pointer-events: none;\n  box-sizing: border-box;\n}\n";
+  var stylesheet$6 = ".claude-plus-drop-highlight[hidden] {\r\n  display: none !important;\r\n}\r\n\r\n.claude-plus-drag-label {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: var(--claude-plus-color-accent);\r\n  color: #fff;\r\n  padding: 4px 10px;\r\n  border-radius: 6px;\r\n  font-size: 12px;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-drop-highlight {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drop-highlight);\r\n  background: var(--claude-plus-color-accent-overlay);\r\n  border: 2px solid var(--claude-plus-color-accent);\r\n  pointer-events: none;\r\n  box-sizing: border-box;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$6);
 
@@ -6509,7 +6835,7 @@
     }
   }
 
-  var stylesheet$5 = ".claude-plus-zone-chrome-layer {\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  z-index: var(--claude-plus-layer-zone-chrome);\n}\n\n.claude-plus-zone-frame {\n  position: fixed;\n  background: var(--claude-plus-color-background);\n  border: 1px solid var(--claude-plus-color-border);\n  box-sizing: border-box;\n}\n\n.claude-plus-tab-strip {\n  position: fixed;\n  display: flex;\n  align-items: center;\n  background: var(--claude-plus-color-bar);\n  border-bottom: 1px solid var(--claude-plus-color-border);\n  overflow-x: auto;\n  box-sizing: border-box;\n  pointer-events: auto;\n}\n\n.claude-plus-tab {\n  padding: 5px 12px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  white-space: nowrap;\n  border-right: 1px solid var(--claude-plus-color-border-faint);\n  user-select: none;\n}\n\n.claude-plus-tab--active {\n  color: var(--claude-plus-color-text);\n  border-bottom: 2px solid var(--claude-plus-color-accent);\n}\n\n.claude-plus-tab {\n  display: flex;\n  align-items: center;\n  min-width: 0;\n  max-width: 220px;\n}\n\n.claude-plus-tab__label {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-tab__close-button {\n  flex-shrink: 0;\n  margin-left: 8px;\n  padding: 0 3px;\n  border-radius: 3px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-tab__close-button:hover {\n  background: var(--claude-plus-color-hover);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-tab-strip__add-button {\n  padding: 5px 10px;\n  cursor: pointer;\n  color: var(--claude-plus-color-text-faint);\n  user-select: none;\n}\n\n.claude-plus-tab-strip__add-button:hover {\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-table-host {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  flex: 1;\n  min-height: 0;\n}\n";
+  var stylesheet$5 = ".claude-plus-zone-chrome-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-zone-chrome);\r\n}\r\n\r\n.claude-plus-zone-frame {\r\n  position: fixed;\r\n  background: var(--claude-plus-color-background);\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-tab-strip {\r\n  position: fixed;\r\n  display: flex;\r\n  align-items: center;\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border);\r\n  overflow-x: auto;\r\n  box-sizing: border-box;\r\n  pointer-events: auto;\r\n}\r\n\r\n.claude-plus-tab {\r\n  padding: 5px 12px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n  border-right: 1px solid var(--claude-plus-color-border-faint);\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab--active {\r\n  color: var(--claude-plus-color-text);\r\n  border-bottom: 2px solid var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-tab {\r\n  display: flex;\r\n  align-items: center;\r\n  min-width: 0;\r\n  max-width: 220px;\r\n}\r\n\r\n.claude-plus-tab__label {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-tab__close-button {\r\n  flex-shrink: 0;\r\n  margin-left: 8px;\r\n  padding: 0 3px;\r\n  border-radius: 3px;\r\n  color: var(--claude-plus-color-text-faint);\r\n}\r\n\r\n.claude-plus-tab__close-button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__add-button {\r\n  padding: 5px 10px;\r\n  cursor: pointer;\r\n  color: var(--claude-plus-color-text-faint);\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__add-button:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-table-host {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$5);
 
@@ -7205,7 +7531,7 @@
     return epochMs ? new Date(epochMs).toLocaleDateString() : '';
   }
 
-  var stylesheet$4 = ".claude-plus-conversation:hover .claude-plus-conversation__action-button {\n  visibility: visible;\n}\n\n.claude-plus-conversation {\n  cursor: pointer;\n}\n\n.claude-plus-conversation:hover > td {\n  background: var(--claude-plus-color-hover);\n}\n\n.claude-plus-conversation--active > td {\n  background: var(--claude-plus-color-accent-soft);\n}\n\n.claude-plus-conversation--open-elsewhere > td:first-child {\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);\n}\n\n.claude-plus-conversation__actions {\n  display: inline-flex;\n  white-space: nowrap;\n}\n\n.claude-plus-conversation__action-button {\n  visibility: hidden;\n  background: none;\n  border: none;\n  cursor: pointer;\n  font-size: 12px;\n  padding: 4px;\n  border-radius: 4px;\n  flex-shrink: 0;\n}\n\n.claude-plus-conversation__action-button:hover {\n  background: rgba(255, 255, 255, 0.1);\n}\n";
+  var stylesheet$4 = ".claude-plus-conversation:hover .claude-plus-conversation__action-button {\r\n  visibility: visible;\r\n}\r\n\r\n.claude-plus-conversation {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-conversation:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-conversation--active > td {\r\n  background: var(--claude-plus-color-accent-soft);\r\n}\r\n\r\n.claude-plus-conversation--open-elsewhere > td:first-child {\r\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-conversation__actions {\r\n  display: inline-flex;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-conversation__action-button {\r\n  visibility: hidden;\r\n  background: none;\r\n  border: none;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n  padding: 4px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-conversation__action-button:hover {\r\n  background: rgba(255, 255, 255, 0.1);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$4);
 
@@ -7644,7 +7970,7 @@
     }
   }
 
-  var stylesheet$3 = ".claude-plus-folder {\n  cursor: pointer;\n}\n\n.claude-plus-folder:hover > td {\n  background: var(--claude-plus-color-hover);\n}\n\n.claude-plus-breadcrumb {\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  margin-bottom: 6px;\n  flex-shrink: 0;\n}\n\n.claude-plus-breadcrumb__back-link {\n  color: var(--claude-plus-color-accent);\n  cursor: pointer;\n}\n";
+  var stylesheet$3 = ".claude-plus-folder {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-folder:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-breadcrumb {\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  margin-bottom: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-breadcrumb__back-link {\r\n  color: var(--claude-plus-color-accent);\r\n  cursor: pointer;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$3);
 
@@ -8073,7 +8399,7 @@
     }
   }
 
-  var stylesheet$2 = ".claude-plus-search-result {\n  cursor: pointer;\n}\n\n.claude-plus-search-result:hover > td {\n  background: var(--claude-plus-color-hover);\n}\n";
+  var stylesheet$2 = ".claude-plus-search-result {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-search-result:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$2);
 
@@ -8262,7 +8588,7 @@
     return `${Math.round((usageWindow.utilization || 0) * 100) / 100}%`;
   }
 
-  var stylesheet$1 = ".claude-plus-value-row {\n  display: flex;\n  justify-content: space-between;\n  padding: 2px 0;\n  gap: 8px;\n}\n\n.claude-plus-value-row span {\n  color: var(--claude-plus-color-text-muted);\n}\n";
+  var stylesheet$1 = ".claude-plus-value-row {\r\n  display: flex;\r\n  justify-content: space-between;\r\n  padding: 2px 0;\r\n  gap: 8px;\r\n}\r\n\r\n.claude-plus-value-row span {\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$1);
 
@@ -9647,7 +9973,7 @@
     }
   }
 
-  var stylesheet = ".claude-plus-toolbar {\n  position: fixed;\n  top: 0;\n  left: 0;\n  right: 0;\n  height: var(--claude-plus-toolbar-height);\n  z-index: var(--claude-plus-layer-toolbar);\n  background: var(--claude-plus-color-bar);\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\n  display: flex;\n  align-items: center;\n  gap: 14px;\n  padding: 0 10px;\n  font-size: 12px;\n  box-sizing: border-box;\n}\n\n.claude-plus-toolbar__title {\n  font-weight: 600;\n}\n\n.claude-plus-toolbar__button {\n  background: var(--claude-plus-color-button);\n  border: none;\n  color: var(--claude-plus-color-text);\n  padding: 5px 10px;\n  border-radius: 6px;\n  cursor: pointer;\n  font-size: 12px;\n}\n\n.claude-plus-toolbar__button:hover {\n  background: var(--claude-plus-color-button-hover);\n}\n\n.claude-plus-toolbar__button:disabled {\n  opacity: 0.5;\n  cursor: default;\n}\n\n.claude-plus-toolbar__font-size {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex-shrink: 0;\n}\n\n.claude-plus-toolbar__font-size input[type=range] {\n  width: 100px;\n}\n";
+  var stylesheet = ".claude-plus-toolbar {\r\n  position: fixed;\r\n  top: 0;\r\n  left: 0;\r\n  right: 0;\r\n  height: var(--claude-plus-toolbar-height);\r\n  z-index: var(--claude-plus-layer-toolbar);\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 14px;\r\n  padding: 0 10px;\r\n  font-size: 12px;\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-toolbar__title {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-toolbar__button {\r\n  background: var(--claude-plus-color-button);\r\n  border: none;\r\n  color: var(--claude-plus-color-text);\r\n  padding: 5px 10px;\r\n  border-radius: 6px;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-toolbar__button:hover {\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-toolbar__button:disabled {\r\n  opacity: 0.5;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-toolbar__font-size {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-toolbar__font-size input[type=range] {\r\n  width: 100px;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet);
 
@@ -9836,9 +10162,9 @@
     }
   }
 
-  var nativeAppHidingStylesheet = "#root,\n#portal-root {\n  display: none !important;\n}\n";
+  var nativeAppHidingStylesheet = "#root,\r\n#portal-root {\r\n  display: none !important;\r\n}\r\n";
 
-  var themeStylesheet = ":root {\n  --claude-plus-color-background: #1a1918;\n  --claude-plus-color-bar: #1c1b1a;\n  --claude-plus-color-raised: #262523;\n  --claude-plus-color-raised-hover: #3a3937;\n  --claude-plus-color-human-message: #2a2927;\n  --claude-plus-color-tool-details: #232221;\n  --claude-plus-color-code-block: #101010;\n  --claude-plus-color-button: #333;\n  --claude-plus-color-button-hover: #444;\n  --claude-plus-color-text: #ececec;\n  --claude-plus-color-text-muted: #b8b6b3;\n  --claude-plus-color-text-faint: #8a8886;\n  --claude-plus-color-accent: #d97757;\n  --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);\n  --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);\n  --claude-plus-color-error: #e57373;\n  --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);\n  --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);\n  --claude-plus-color-border: rgba(255, 255, 255, 0.08);\n  --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);\n  --claude-plus-color-hover: rgba(255, 255, 255, 0.06);\n  --claude-plus-font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n  --claude-plus-layer-zone-chrome: 2147480000;\n  --claude-plus-layer-panel: 2147480500;\n  --claude-plus-layer-divider: 2147480600;\n  --claude-plus-layer-toolbar: 2147483000;\n  --claude-plus-layer-popup-menu: 2147483001;\n  --claude-plus-layer-drop-highlight: 2147483646;\n  --claude-plus-layer-drag-label: 2147483647;\n}\n\n.claude-plus-themed {\n  font-family: var(--claude-plus-font-family);\n  color: var(--claude-plus-color-text);\n  color-scheme: dark;\n}\n\n.claude-plus-themed [hidden],\n.claude-plus-themed[hidden] {\n  display: none !important;\n}\n";
+  var themeStylesheet = ":root {\r\n  --claude-plus-color-background: #1a1918;\r\n  --claude-plus-color-bar: #1c1b1a;\r\n  --claude-plus-color-raised: #262523;\r\n  --claude-plus-color-raised-hover: #3a3937;\r\n  --claude-plus-color-tool-details: #232221;\r\n  --claude-plus-color-code-block: #101010;\r\n  --claude-plus-color-button: #333;\r\n  --claude-plus-color-button-hover: #444;\r\n  --claude-plus-color-text: #ececec;\r\n  --claude-plus-color-text-muted: #b8b6b3;\r\n  --claude-plus-color-text-faint: #8a8886;\r\n  --claude-plus-color-accent: #d97757;\r\n  --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);\r\n  --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);\r\n  --claude-plus-color-error: #e57373;\r\n  --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);\r\n  --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);\r\n  --claude-plus-color-border: rgba(255, 255, 255, 0.08);\r\n  --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);\r\n  --claude-plus-color-hover: rgba(255, 255, 255, 0.06);\r\n  --claude-plus-font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\r\n  --claude-plus-layer-zone-chrome: 2147480000;\r\n  --claude-plus-layer-panel: 2147480500;\r\n  --claude-plus-layer-divider: 2147480600;\r\n  --claude-plus-layer-toolbar: 2147483000;\r\n  --claude-plus-layer-popup-menu: 2147483001;\r\n  --claude-plus-layer-drop-highlight: 2147483646;\r\n  --claude-plus-layer-drag-label: 2147483647;\r\n}\r\n\r\n.claude-plus-themed {\r\n  font-family: var(--claude-plus-font-family);\r\n  color: var(--claude-plus-color-text);\r\n  color-scheme: dark;\r\n}\r\n\r\n.claude-plus-themed [hidden],\r\n.claude-plus-themed[hidden] {\r\n  display: none !important;\r\n}\r\n";
 
   /**
    * Composes every part of the UI and starts it.

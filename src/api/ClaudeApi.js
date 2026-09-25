@@ -75,6 +75,23 @@ export class ClaudeApi {
   }
 
   /**
+   * Sets which leaf message a conversation's branch navigation shows, persisting a branch switch
+   * server-side so it survives a reload.
+   * @param {string} conversationId Conversation id.
+   * @param {string} leafMessageId Id of the message to show as the current leaf.
+   * @returns {Promise<void>} Resolves once set.
+   * @throws {ApiError} When the request fails.
+   */
+  async setCurrentLeafMessage(conversationId, leafMessageId) {
+    const url = await this.#organizationUrl(`/chat_conversations/${conversationId}/current_leaf_message_uuid`, {});
+    await this.#fetchSuccessful(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current_leaf_message_uuid: leafMessageId }),
+    });
+  }
+
+  /**
    * Sends a prompt and streams the reply. The first event has type STREAM_START and carries the
    * client-generated humanMessageId and assistantMessageId; every following event is a parsed
    * server-sent event.

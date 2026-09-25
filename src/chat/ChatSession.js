@@ -1,4 +1,5 @@
 import { ChatMessage } from './ChatMessage.js';
+import { ConversationTree } from './ConversationTree.js';
 import { EventEmitter } from '../core/EventEmitter.js';
 import { LOG_PREFIX } from '../config/LOG_PREFIX.js';
 import { NavigationCounter } from './NavigationCounter.js';
@@ -56,6 +57,13 @@ export class ChatSession extends EventEmitter {
    * @type {ChatMessage[]}
    */
   #messages = [];
+
+  /**
+   * The full conversation last fetched, with every branch; null for a new chat or before the first
+   * load. Used to find a message's sibling versions and switch between them.
+   * @type {?ApiConversation}
+   */
+  #conversation = null;
 
   /**
    * Whether a prompt is being sent.
@@ -143,6 +151,62 @@ export class ChatSession extends EventEmitter {
   }
 
   /**
+   * Position of a message among its siblings (its other edits or retries), for a branch-switch
+   * control. Null when it has no siblings besides itself, or before the conversation has loaded.
+   * @param {string} messageId Message id.
+   * @returns {?{index: number, count: number}} Its zero-based position and the sibling count, or null.
+   */
+  branchInfoFor(messageId) {
+    if (!this.#conversation) return null;
+    const siblings = ConversationTree.siblingsOf(this.#conversation, messageId);
+    if (siblings.length <= 1) return null;
+    return { index: siblings.findIndex(sibling => sibling.uuid === messageId), count: siblings.length };
+  }
+
+  /**
+   * Switches to a sibling version of a message (an edit or a retried reply), landing on that
+   * version's latest leaf, and persists the choice server-side. Ignored while sending, before the
+   * conversation has loaded, or when there is no sibling in that direction.
+   * @param {string} messageId Message id.
+   * @param {number} step -1 for the previous version, +1 for the next.
+   * @returns {Promise<void>} Resolves once switched.
+   */
+  async switchBranch(messageId, step) {
+    if (this.#isSending || !this.#conversation) return;
+    const siblings = ConversationTree.siblingsOf(this.#conversation, messageId);
+    const target = siblings[siblings.findIndex(sibling => sibling.uuid === messageId) + step];
+    if (!target) return;
+    const leafId = ConversationTree.latestLeafFrom(this.#conversation, target.uuid);
+    await this.#api.setCurrentLeafMessage(this.#openConversationId, leafId);
+    this.#conversation = { ...this.#conversation, current_leaf_message_uuid: leafId };
+    this.#setMessages(currentBranchMessages(this.#conversation));
+  }
+
+  /**
+   * Edits a persisted human message: sends the new text as a sibling reply to the same parent,
+   * branching the conversation there instead of replacing what the server has. Ignored while
+   * sending, for an assistant message, or for a message the server hasn't accepted yet.
+   * @param {number} index Position of the message in the current branch.
+   * @param {string} newText Edited text; ignored if blank.
+   * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
+   */
+  editMessage(index, newText) {
+    const message = this.#messages[index];
+    if (this.#isSending || !newText.trim() || !ChatSession.#isEditableHumanMessage(message)) return Promise.resolve();
+    this.#setMessages(this.#messages.slice(0, index));
+    return this.#sendPromptAfter(newText, message.parentId, []);
+  }
+
+  /**
+   * Whether a message can be edited: a persisted prompt from the human.
+   * @param {?ChatMessage} message The message.
+   * @returns {boolean} True when it can be edited.
+   */
+  static #isEditableHumanMessage(message) {
+    return Boolean(message) && message.sender === 'human' && message.isPersisted;
+  }
+
+  /**
    * Opens a conversation, stopping any reply in progress. A load failure is shown as an error notice.
    * @param {string} conversationId Conversation id.
    * @returns {Promise<void>} Resolves once the messages or the error notice are shown.
@@ -206,6 +270,7 @@ export class ChatSession extends EventEmitter {
     this.stopReply();
     const navigation = this.#navigations.begin();
     this.#setOpenConversation(conversationId);
+    this.#conversation = null;
     this.#setMessages([]);
     return navigation;
   }
@@ -326,7 +391,10 @@ export class ChatSession extends EventEmitter {
       const conversation = await this.#api.getConversation(conversationId);
       this.#directory.updateListing(conversation);
       this.publish('conversationLoaded', conversation);
-      if (replaceMessages && this.#isOpenAndIdle(conversationId)) this.#setMessages(currentBranchMessages(conversation));
+      if (replaceMessages && this.#isOpenAndIdle(conversationId)) {
+        this.#conversation = conversation;
+        this.#setMessages(currentBranchMessages(conversation));
+      }
     } catch (error) {
       console.warn(LOG_PREFIX, 'refreshing conversation failed', error);
     }
@@ -347,6 +415,7 @@ export class ChatSession extends EventEmitter {
    * @returns {void}
    */
   #showConversation(conversation) {
+    this.#conversation = conversation;
     this.#setMessages(currentBranchMessages(conversation));
     this.publish('conversationLoaded', conversation);
   }

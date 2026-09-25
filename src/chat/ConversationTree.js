@@ -40,4 +40,59 @@ export class ConversationTree {
     }
     return path.reverse();
   }
+
+  /**
+   * Every message sharing a message's parent, itself included, oldest first: the versions a
+   * branch-switch control cycles through (the original and each edit or retry of it).
+   * @param {ApiConversation} conversation The conversation.
+   * @param {string} messageId A message in the group.
+   * @returns {ApiMessage[]} The sibling group, oldest first; empty if messageId isn't found.
+   */
+  static siblingsOf(conversation, messageId) {
+    const messages = conversation.chat_messages ?? [];
+    const target = messages.find(message => message.uuid === messageId);
+    if (!target) return [];
+    return messages
+      .filter(message => message.parent_message_uuid === target.parent_message_uuid)
+      .sort((earlier, later) => (earlier.created_at ?? '').localeCompare(later.created_at ?? ''));
+  }
+
+  /**
+   * The leaf reached by following each level's most recently created child from a message, so
+   * switching to a sibling branch lands on its latest edit or retry rather than its first reply.
+   * @param {ApiConversation} conversation The conversation.
+   * @param {string} messageId Message to descend from.
+   * @returns {string} The leaf message's id; messageId itself when it has no children.
+   */
+  static latestLeafFrom(conversation, messageId) {
+    const messages = conversation.chat_messages ?? [];
+    let current = messageId;
+    for (
+      let children = ConversationTree.#childrenOf(messages, current);
+      children.length > 0;
+      children = ConversationTree.#childrenOf(messages, current)
+    ) {
+      current = ConversationTree.#latestOf(children).uuid;
+    }
+    return current;
+  }
+
+  /**
+   * Direct children of a message.
+   * @param {ApiMessage[]} messages Every message of the conversation.
+   * @param {string} parentId Parent message id.
+   * @returns {ApiMessage[]} Its children, in no particular order.
+   */
+  static #childrenOf(messages, parentId) {
+    return messages.filter(message => message.parent_message_uuid === parentId);
+  }
+
+  /**
+   * The most recently created of a group of messages.
+   * @param {ApiMessage[]} messages A non-empty group.
+   * @returns {ApiMessage} The latest one.
+   */
+  static #latestOf(messages) {
+    return messages.reduce((latest, message) => ((message.created_at ?? '') > (latest.created_at ?? '') ? message : latest));
+  }
 }

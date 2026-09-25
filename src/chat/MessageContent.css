@@ -1,12 +1,3 @@
-.claude-plus-message--human {
-  background: var(--claude-plus-color-human-message);
-  align-self: flex-end;
-}
-
-.claude-plus-message--assistant {
-  background: transparent;
-}
-
 .claude-plus-message-text {
   white-space: normal;
 }
