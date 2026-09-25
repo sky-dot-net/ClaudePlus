@@ -73,8 +73,7 @@ export class MessageContent {
       ...uploads.filter(upload => !MessageContent.#isImageUpload(upload)).map(upload => MessageContent.#fileAttachmentHtml(upload)),
     ].join('');
     const blocks = apiMessage.content ?? [];
-    const toolResultByUseId = MessageContent.#toolResultsByUseId(blocks);
-    const rendered = blocks.map(block => MessageContent.#bodyBlock(block, toolResultByUseId));
+    const rendered = blocks.map(block => MessageContent.#bodyBlock(block));
     const blocksHtml = rendered.map(item => item.html).join('');
     const bodyHtml = blocksHtml || MessageContent.textHtml(apiMessage.text);
     const widgets = rendered.map(item => item.widget).filter(Boolean);
@@ -82,49 +81,28 @@ export class MessageContent {
   }
 
   /**
-   * Tool results by the id of the tool call they answer.
-   * @param {ContentBlock[]} blocks The message's content blocks.
-   * @returns {Map<string, ContentBlock>} The results, by tool_use_id.
-   */
-  static #toolResultsByUseId(blocks) {
-    return new Map(blocks.filter(block => block.type === 'tool_result').map(block => [block.tool_use_id, block]));
-  }
-
-  /**
    * HTML (and, for a widget, the extraction job) of one content block.
    * @param {ContentBlock} block The block.
-   * @param {Map<string, ContentBlock>} toolResultByUseId Tool results by the id of the call they answer.
    * @returns {{html: string, widget: ?{toolName: string, data: object, toolUseId: string}}} The
    * block's HTML, and its widget job if it is one.
    */
-  static #bodyBlock(block, toolResultByUseId) {
+  static #bodyBlock(block) {
     if (block.type === 'text' && block.text) return { html: MessageContent.textHtml(block.text), widget: null };
-    if (block.type === 'tool_use' && WIDGET_TOOL_NAMES.includes(block.name)) return MessageContent.#widgetBlock(block, toolResultByUseId.get(block.id));
+    if (block.type === 'tool_use' && WIDGET_TOOL_NAMES.includes(block.name)) return MessageContent.#widgetBlock(block);
     return { html: '', widget: null };
   }
 
   /**
-   * HTML and extraction job of a widget tool call's placeholder slot.
+   * HTML and extraction job of a widget tool call's placeholder slot. The job's data is the call's
+   * own input, since every widget wrapper mirrors that back as a prop and it's what the extractor
+   * matches against (a tool call id isn't consistently exposed across widget types).
    * @param {ContentBlock} useBlock The tool_use block.
-   * @param {?ContentBlock} resultBlock Its tool_result block, if the call has completed.
    * @returns {{html: string, widget: {toolName: string, data: object, toolUseId: string}}} The slot's HTML and its job.
    */
-  static #widgetBlock(useBlock, resultBlock) {
-    const widget = { toolName: useBlock.name, data: MessageContent.#widgetDataOf(useBlock, resultBlock), toolUseId: useBlock.id };
+  static #widgetBlock(useBlock) {
+    const widget = { toolName: useBlock.name, data: useBlock.input || {}, toolUseId: useBlock.id };
     const key = escapeHtml(widget.toolUseId);
     return { html: `<div class="claude-plus-widget-slot" data-widget-key="${key}">Loading widget…</div>`, widget };
-  }
-
-  /**
-   * A widget's data to extract from: the result's normalized content when the call succeeded and
-   * provided one, else the call's own input.
-   * @param {ContentBlock} useBlock The tool_use block.
-   * @param {?ContentBlock} resultBlock Its tool_result block, if the call has completed.
-   * @returns {object} The data.
-   */
-  static #widgetDataOf(useBlock, resultBlock) {
-    const structuredContent = resultBlock && !resultBlock.is_error ? resultBlock.structured_content : null;
-    return structuredContent || useBlock.input || {};
   }
 
   /**

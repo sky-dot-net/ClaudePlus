@@ -75,7 +75,7 @@ export class WidgetExtractor {
     const cached = await this.#database.read(DATABASE.stores.widgetCards, hash);
     if (cached) return cached;
     if (!conversationId) throw new Error('no conversation to extract this widget from');
-    const card = await this.#extract(conversationId, job.toolUseId);
+    const card = await this.#extract(conversationId, job.data);
     await this.#database.write(DATABASE.stores.widgetCards, { hash, ...card });
     return card;
   }
@@ -83,12 +83,12 @@ export class WidgetExtractor {
   /**
    * Extracts a widget's card and its stylesheets' combined text, queued behind the concurrency limit.
    * @param {string} conversationId Conversation the widget's message belongs to.
-   * @param {string} toolUseId Id of the widget's tool_use block.
+   * @param {object} data The widget's own data, to match against.
    * @returns {Promise<{html: string, css: string}>} The card.
    */
-  #extract(conversationId, toolUseId) {
+  #extract(conversationId, data) {
     return this.#extractionLimiter.run(async () => {
-      const extracted = await WidgetIframeSource.extract(conversationId, toolUseId);
+      const extracted = await WidgetIframeSource.extract(conversationId, data);
       const cssParts = await Promise.all(extracted.cssHrefs.map(href => this.#cssTextOf(href)));
       return { html: extracted.html, css: cssParts.join('\n') };
     });

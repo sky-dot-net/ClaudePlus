@@ -6,8 +6,9 @@ import { createElement } from '../../dom/createElement.js';
  * self-contained in a hidden same-origin iframe: no widget-specific rendering code of our own, no
  * touching the page's own native app instance. The iframe loads the conversation, React renders
  * the widget exactly as it normally would (its own hooks, its own context, all real), and once
- * found by its tool call's id, the finished card's HTML and stylesheet URLs are read off and the
- * iframe is torn down.
+ * found by matching its own data (every widget wrapper mirrors its tool call's input back as a
+ * prop, unlike its tool call id, which isn't consistently exposed across widget types), the
+ * finished card's HTML and stylesheet URLs are read off and the iframe is torn down.
  */
 export class WidgetIframeSource {
   /**
@@ -19,16 +20,16 @@ export class WidgetIframeSource {
   /**
    * Extracts a widget's rendered card.
    * @param {string} conversationId Conversation the widget's message belongs to.
-   * @param {string} toolUseId Id of the widget's tool_use block.
+   * @param {object} data The widget's own data (its tool call's input), to match against.
    * @returns {Promise<{html: string, cssHrefs: string[]}>} The card's outer HTML and the
    * stylesheet URLs it depends on.
    * @throws {Error} When the widget doesn't appear within the timeout.
    */
-  static async extract(conversationId, toolUseId) {
+  static async extract(conversationId, data) {
     const iframe = WidgetIframeSource.#createHiddenIframe(conversationId);
     document.body.append(iframe);
     try {
-      return await WidgetIframeSource.#waitForWidget(iframe, toolUseId);
+      return await WidgetIframeSource.#waitForWidget(iframe, JSON.stringify(data));
     } finally {
       iframe.remove();
     }
@@ -49,14 +50,14 @@ export class WidgetIframeSource {
   /**
    * Polls the iframe until the widget appears or the timeout elapses.
    * @param {HTMLIFrameElement} iframe The extraction iframe.
-   * @param {string} toolUseId Id of the widget's tool_use block.
+   * @param {string} dataJson The widget's data, pre-serialized for comparison.
    * @returns {Promise<{html: string, cssHrefs: string[]}>} The extracted card.
    * @throws {Error} When the widget doesn't appear within the timeout.
    */
-  static #waitForWidget(iframe, toolUseId) {
+  static #waitForWidget(iframe, dataJson) {
     return new Promise((resolve, reject) => {
       const deadline = Date.now() + WidgetIframeSource.#TIMEOUT_MS;
-      const poll = () => WidgetIframeSource.#pollOnce(iframe, toolUseId, deadline, poll, resolve, reject);
+      const poll = () => WidgetIframeSource.#pollOnce(iframe, dataJson, deadline, poll, resolve, reject);
       poll();
     });
   }
@@ -64,76 +65,32 @@ export class WidgetIframeSource {
   /**
    * One poll attempt: resolves if found, rejects past the deadline, else schedules another attempt.
    * @param {HTMLIFrameElement} iframe The extraction iframe.
-   * @param {string} toolUseId Id of the widget's tool_use block.
+   * @param {string} dataJson The widget's data, pre-serialized for comparison.
    * @param {number} deadline Epoch ms after which to give up.
    * @param {function(): void} poll This function, to schedule the next attempt.
    * @param {function({html: string, cssHrefs: string[]}): void} resolve Resolves the extraction.
    * @param {function(Error): void} reject Rejects the extraction.
    * @returns {void}
    */
-  static #pollOnce(iframe, toolUseId, deadline, poll, resolve, reject) {
-    const found = WidgetIframeSource.#tryFind(iframe, toolUseId);
-    console.warn('[widget-debug]', toolUseId, JSON.stringify(WidgetIframeSource.#debugSnapshot(iframe, toolUseId)));
+  static #pollOnce(iframe, dataJson, deadline, poll, resolve, reject) {
+    const found = WidgetIframeSource.#tryFind(iframe, dataJson);
     if (found) resolve(found);
-    else if (Date.now() > deadline) reject(new Error(`widget ${toolUseId} did not render within the timeout`));
+    else if (Date.now() > deadline) reject(new Error('widget did not render within the timeout'));
     else setTimeout(poll, TIMING.widgetExtractPollMs);
-  }
-
-  /**
-   * Temporary diagnostic snapshot of the iframe's state for one poll attempt.
-   * @param {HTMLIFrameElement} iframe The extraction iframe.
-   * @param {string} toolUseId Id of the widget's tool_use block.
-   * @returns {object} The snapshot.
-   */
-  static #debugSnapshot(iframe, toolUseId) {
-    let doc;
-    let docError = null;
-    try {
-      doc = iframe.contentDocument;
-    } catch (error) {
-      docError = error.message;
-    }
-    const rootElement = doc ? doc.getElementById('root') : null;
-    const rootFiber = rootElement ? WidgetIframeSource.#fiberOf(rootElement) : null;
-    let fiberCount = 0;
-    let toolUseIdSample = [];
-    if (rootFiber) {
-      const seen = new Set();
-      const collect = fiber => {
-        if (!fiber || seen.has(fiber) || fiberCount > 5000) return;
-        seen.add(fiber);
-        fiberCount += 1;
-        const props = fiber.memoizedProps;
-        if (props && typeof props === 'object' && 'toolUseId' in props && toolUseIdSample.length < 8) toolUseIdSample.push(props.toolUseId);
-        collect(fiber.child);
-        collect(fiber.sibling);
-      };
-      collect(rootFiber);
-    }
-    return {
-      docError,
-      readyState: doc?.readyState,
-      currentUrl: doc?.location?.href,
-      hasRoot: Boolean(rootElement),
-      hasFiber: Boolean(rootFiber),
-      fiberCount,
-      toolUseIdSample,
-      targetPresent: toolUseIdSample.includes(toolUseId),
-    };
   }
 
   /**
    * Looks for the widget in the iframe's current document, if it has loaded far enough to have one.
    * @param {HTMLIFrameElement} iframe The extraction iframe.
-   * @param {string} toolUseId Id of the widget's tool_use block.
+   * @param {string} dataJson The widget's data, pre-serialized for comparison.
    * @returns {?{html: string, cssHrefs: string[]}} The extracted card, or null when not found yet.
    */
-  static #tryFind(iframe, toolUseId) {
+  static #tryFind(iframe, dataJson) {
     const documentInFrame = WidgetIframeSource.#documentOf(iframe);
     const rootElement = documentInFrame?.getElementById('root');
     const rootFiber = rootElement ? WidgetIframeSource.#fiberOf(rootElement) : null;
     if (!rootFiber) return null;
-    const hostElement = WidgetIframeSource.#findWidgetElement(rootFiber, toolUseId);
+    const hostElement = WidgetIframeSource.#findWidgetElement(rootFiber, dataJson);
     if (!hostElement) return null;
     const cssHrefs = [...documentInFrame.querySelectorAll('link[rel="stylesheet"]')].map(link => link.href);
     return { html: hostElement.outerHTML, cssHrefs };
@@ -163,41 +120,41 @@ export class WidgetIframeSource {
   }
 
   /**
-   * The rendered DOM element of the widget matching a tool call id, searching the whole fiber
-   * tree generically (works for every widget type, since it looks for the tool call id claude.ai
-   * itself passes as a prop, not for anything specific to one widget's layout).
+   * The rendered DOM element of the widget whose data matches, searching the whole fiber tree
+   * generically (works for every widget type: every widget wrapper mirrors its tool call's input
+   * back as a prop, so matching on that needs no per-type layout knowledge).
    * @param {object} rootFiber Root fiber to search from.
-   * @param {string} toolUseId Id of the widget's tool_use block.
+   * @param {string} dataJson The widget's data, pre-serialized for comparison.
    * @returns {?HTMLElement} The widget's outermost rendered element, or null when not found.
    */
-  static #findWidgetElement(rootFiber, toolUseId) {
-    const matchingFiber = WidgetIframeSource.#findMatchingFiber(rootFiber, new Set(), toolUseId);
+  static #findWidgetElement(rootFiber, dataJson) {
+    const matchingFiber = WidgetIframeSource.#findMatchingFiber(rootFiber, new Set(), dataJson);
     return matchingFiber ? WidgetIframeSource.#firstHostElement(matchingFiber) : null;
   }
 
   /**
-   * Depth-first search of the fiber tree for a node whose props carry a given tool call id.
+   * Depth-first search of the fiber tree for a node whose props carry matching data.
    * @param {?object} fiber Fiber to check, or null past the end of a branch.
    * @param {Set<object>} visited Fibers already checked, since child/sibling links can cross-reference.
-   * @param {string} toolUseId Id of the widget's tool_use block.
+   * @param {string} dataJson The widget's data, pre-serialized for comparison.
    * @returns {?object} The matching fiber, or null.
    */
-  static #findMatchingFiber(fiber, visited, toolUseId) {
+  static #findMatchingFiber(fiber, visited, dataJson) {
     if (!fiber || visited.has(fiber)) return null;
     visited.add(fiber);
-    if (WidgetIframeSource.#isWidgetFiber(fiber, toolUseId)) return fiber;
-    return WidgetIframeSource.#findMatchingFiber(fiber.child, visited, toolUseId) || WidgetIframeSource.#findMatchingFiber(fiber.sibling, visited, toolUseId);
+    if (WidgetIframeSource.#isWidgetFiber(fiber, dataJson)) return fiber;
+    return WidgetIframeSource.#findMatchingFiber(fiber.child, visited, dataJson) || WidgetIframeSource.#findMatchingFiber(fiber.sibling, visited, dataJson);
   }
 
   /**
-   * Whether a fiber's props identify it as the widget with a given tool call id.
+   * Whether a fiber's props identify it as the widget with matching data.
    * @param {object} fiber The fiber.
-   * @param {string} toolUseId Id of the widget's tool_use block.
-   * @returns {boolean} True when its props carry a matching toolUseId.
+   * @param {string} dataJson The widget's data, pre-serialized for comparison.
+   * @returns {boolean} True when its input prop matches.
    */
-  static #isWidgetFiber(fiber, toolUseId) {
+  static #isWidgetFiber(fiber, dataJson) {
     const props = fiber.memoizedProps;
-    return Boolean(props) && typeof props === 'object' && props.toolUseId === toolUseId && 'input' in props;
+    return Boolean(props) && typeof props === 'object' && 'input' in props && JSON.stringify(props.input) === dataJson;
   }
 
   /**
