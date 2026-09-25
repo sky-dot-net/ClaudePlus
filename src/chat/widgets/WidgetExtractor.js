@@ -1,3 +1,4 @@
+import { ConcurrencyLimiter } from '../../core/ConcurrencyLimiter.js';
 import { DATABASE } from '../../config/DATABASE.js';
 import { LOG_PREFIX } from '../../config/LOG_PREFIX.js';
 import { WidgetHash } from './WidgetHash.js';
@@ -7,9 +8,17 @@ import { WidgetMount } from './WidgetMount.js';
 /**
  * Renders a widget tool call's real card into a slot element: a cached copy if this exact widget
  * (by tool name and data) was extracted before, or a fresh extraction from a hidden iframe
- * otherwise. Stylesheets are fetched once per session and reused across every widget.
+ * otherwise. Stylesheets are fetched once per session and reused across every widget. Extractions
+ * are capped at a few concurrent iframe loads, since a message-heavy chat can have many widgets
+ * and loading claude.ai's whole app in each of them at once would starve every one of them.
  */
 export class WidgetExtractor {
+  /**
+   * Iframe extractions allowed to run at once.
+   * @type {number}
+   */
+  static #MAX_CONCURRENT_EXTRACTIONS = 2;
+
   /**
    * A stylesheet URL's already-started fetch, kept for the page's lifetime so every widget shares it.
    * @type {Map<string, Promise<string>>}
@@ -21,6 +30,12 @@ export class WidgetExtractor {
    * @type {IndexedDbStore}
    */
   #database;
+
+  /**
+   * Limits how many iframe extractions run at once.
+   * @type {ConcurrencyLimiter}
+   */
+  #extractionLimiter = new ConcurrencyLimiter(WidgetExtractor.#MAX_CONCURRENT_EXTRACTIONS);
 
   /**
    * Creates the extractor on top of a persisted cache.
@@ -66,15 +81,17 @@ export class WidgetExtractor {
   }
 
   /**
-   * Extracts a widget's card and its stylesheets' combined text.
+   * Extracts a widget's card and its stylesheets' combined text, queued behind the concurrency limit.
    * @param {string} conversationId Conversation the widget's message belongs to.
    * @param {string} toolUseId Id of the widget's tool_use block.
    * @returns {Promise<{html: string, css: string}>} The card.
    */
-  async #extract(conversationId, toolUseId) {
-    const extracted = await WidgetIframeSource.extract(conversationId, toolUseId);
-    const cssParts = await Promise.all(extracted.cssHrefs.map(href => this.#cssTextOf(href)));
-    return { html: extracted.html, css: cssParts.join('\n') };
+  #extract(conversationId, toolUseId) {
+    return this.#extractionLimiter.run(async () => {
+      const extracted = await WidgetIframeSource.extract(conversationId, toolUseId);
+      const cssParts = await Promise.all(extracted.cssHrefs.map(href => this.#cssTextOf(href)));
+      return { html: extracted.html, css: cssParts.join('\n') };
+    });
   }
 
   /**

@@ -10774,6 +10774,73 @@
   }
 
   /**
+   * Runs at most a fixed number of async tasks at once, queuing the rest to start as slots free up.
+   */
+  class ConcurrencyLimiter {
+    /**
+     * Tasks allowed to run at once.
+     * @type {number}
+     */
+    #maxConcurrent;
+
+    /**
+     * Tasks currently running.
+     * @type {number}
+     */
+    #activeCount = 0;
+
+    /**
+     * Callbacks waiting for a free slot, in arrival order.
+     * @type {Array<function(): void>}
+     */
+    #waiters = [];
+
+    /**
+     * Creates the limiter.
+     * @param {number} maxConcurrent Tasks allowed to run at once.
+     */
+    constructor(maxConcurrent) {
+      this.#maxConcurrent = maxConcurrent;
+    }
+
+    /**
+     * Runs a task once a slot is free, releasing the slot once it settles either way.
+     * @param {function(): Promise<*>} task The task.
+     * @returns {Promise<*>} The task's result.
+     */
+    async run(task) {
+      await this.#acquire();
+      try {
+        return await task();
+      } finally {
+        this.#release();
+      }
+    }
+
+    /**
+     * Reserves a slot, waiting in line if none are free.
+     * @returns {Promise<void>} Resolves once a slot is reserved.
+     */
+    #acquire() {
+      if (this.#activeCount < this.#maxConcurrent) {
+        this.#activeCount += 1;
+        return Promise.resolve();
+      }
+      return new Promise(resolve => this.#waiters.push(resolve));
+    }
+
+    /**
+     * Frees a slot, handing it straight to the next waiter if one is queued.
+     * @returns {void}
+     */
+    #release() {
+      const nextWaiter = this.#waiters.shift();
+      if (nextWaiter) nextWaiter();
+      else this.#activeCount -= 1;
+    }
+  }
+
+  /**
    * Derives a stable cache key for a widget call from its tool name and data, so identical widgets
    * (even across different conversations) share one cached, already-extracted card.
    */
@@ -10999,9 +11066,17 @@
   /**
    * Renders a widget tool call's real card into a slot element: a cached copy if this exact widget
    * (by tool name and data) was extracted before, or a fresh extraction from a hidden iframe
-   * otherwise. Stylesheets are fetched once per session and reused across every widget.
+   * otherwise. Stylesheets are fetched once per session and reused across every widget. Extractions
+   * are capped at a few concurrent iframe loads, since a message-heavy chat can have many widgets
+   * and loading claude.ai's whole app in each of them at once would starve every one of them.
    */
   class WidgetExtractor {
+    /**
+     * Iframe extractions allowed to run at once.
+     * @type {number}
+     */
+    static #MAX_CONCURRENT_EXTRACTIONS = 2;
+
     /**
      * A stylesheet URL's already-started fetch, kept for the page's lifetime so every widget shares it.
      * @type {Map<string, Promise<string>>}
@@ -11013,6 +11088,12 @@
      * @type {IndexedDbStore}
      */
     #database;
+
+    /**
+     * Limits how many iframe extractions run at once.
+     * @type {ConcurrencyLimiter}
+     */
+    #extractionLimiter = new ConcurrencyLimiter(WidgetExtractor.#MAX_CONCURRENT_EXTRACTIONS);
 
     /**
      * Creates the extractor on top of a persisted cache.
@@ -11058,15 +11139,17 @@
     }
 
     /**
-     * Extracts a widget's card and its stylesheets' combined text.
+     * Extracts a widget's card and its stylesheets' combined text, queued behind the concurrency limit.
      * @param {string} conversationId Conversation the widget's message belongs to.
      * @param {string} toolUseId Id of the widget's tool_use block.
      * @returns {Promise<{html: string, css: string}>} The card.
      */
-    async #extract(conversationId, toolUseId) {
-      const extracted = await WidgetIframeSource.extract(conversationId, toolUseId);
-      const cssParts = await Promise.all(extracted.cssHrefs.map(href => this.#cssTextOf(href)));
-      return { html: extracted.html, css: cssParts.join('\n') };
+    #extract(conversationId, toolUseId) {
+      return this.#extractionLimiter.run(async () => {
+        const extracted = await WidgetIframeSource.extract(conversationId, toolUseId);
+        const cssParts = await Promise.all(extracted.cssHrefs.map(href => this.#cssTextOf(href)));
+        return { html: extracted.html, css: cssParts.join('\n') };
+      });
     }
 
     /**
