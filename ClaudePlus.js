@@ -335,6 +335,8 @@
     thinkingMode: 'claudePlus.thinkingMode',
     messageFontSize: 'claudePlus.messageFontSize',
     chatPanes: 'claudePlus.chatPanes',
+    conversationListColumns: 'claudePlus.conversationListColumns',
+    conversationListSort: 'claudePlus.conversationListSort',
   });
 
   /**
@@ -714,6 +716,70 @@
    */
   function createElement(tagName, properties) {
     return Object.assign(document.createElement(tagName), properties);
+  }
+
+  /**
+   * Shows a themed modal in place of the native confirm() dialog, which Chrome silently disables
+   * ("prevent this page from creating additional dialogs") after repeated use on the same page,
+   * making a delete button appear to do nothing with no feedback.
+   * @param {string} message Question to show.
+   * @param {string} [confirmLabel] Label of the confirming button.
+   * @returns {Promise<boolean>} Resolves true if confirmed, false if cancelled.
+   */
+  function confirmDialog(message, confirmLabel = 'Confirm') {
+    return new Promise(resolve => {
+      const { overlay, dialog } = createDialogShell(message, `
+        <button class="claude-plus-toolbar__button" data-name="cancel">Cancel</button>
+        <button class="claude-plus-primary-button" data-name="confirm">${escapeHtml(confirmLabel)}</button>`);
+      const finish = result => {
+        overlay.remove();
+        resolve(result);
+      };
+      dialog.querySelector('[data-name="cancel"]').addEventListener('click', () => finish(false));
+      dialog.querySelector('[data-name="confirm"]').addEventListener('click', () => finish(true));
+      overlay.addEventListener('mousedown', event => {
+        if (event.target === overlay) finish(false);
+      });
+      document.body.append(overlay);
+    });
+  }
+
+  /**
+   * Shows a themed modal in place of the native alert() dialog, for the same reason as
+   * confirmDialog: repeated native dialogs can be silently disabled by the browser.
+   * @param {string} message Message to show.
+   * @returns {Promise<void>} Resolves once dismissed.
+   */
+  function alertDialog(message) {
+    return new Promise(resolve => {
+      const { overlay, dialog } = createDialogShell(message, '<button class="claude-plus-primary-button" data-name="ok">OK</button>');
+      const finish = () => {
+        overlay.remove();
+        resolve();
+      };
+      dialog.querySelector('[data-name="ok"]').addEventListener('click', finish);
+      overlay.addEventListener('mousedown', event => {
+        if (event.target === overlay) finish();
+      });
+      document.body.append(overlay);
+    });
+  }
+
+  /**
+   * Builds the overlay and dialog box shared by confirmDialog and alertDialog.
+   * @param {string} message Message to show.
+   * @param {string} actionsHtml HTML of the action buttons.
+   * @returns {{overlay: HTMLElement, dialog: HTMLElement}} The overlay and the dialog inside it.
+   */
+  function createDialogShell(message, actionsHtml) {
+    const overlay = createElement('div', { className: 'claude-plus-themed claude-plus-dialog-overlay' });
+    const dialog = createElement('div', {
+      className: 'claude-plus-dialog',
+      innerHTML: `<p class="claude-plus-dialog__message"></p><div class="claude-plus-dialog__actions">${actionsHtml}</div>`,
+    });
+    dialog.querySelector('.claude-plus-dialog__message').textContent = message;
+    overlay.append(dialog);
+    return { overlay, dialog };
   }
 
   /**
@@ -2616,6 +2682,35 @@
     }
 
     /**
+     * Opens a conversation as a new pane docked exactly where a drag was released, instead of always
+     * beside the focused pane. Used to compose several chats side by side without switching between
+     * them or mixing their context.
+     * @param {string} conversationId Conversation to show.
+     * @param {DropTarget} dropTarget Where to dock the new pane.
+     * @returns {void}
+     */
+    openPaneAt(conversationId, dropTarget) {
+      const paneId = ChatPaneManager.#createPaneId();
+      const pane = this.#createPane(paneId);
+      this.#workspace.addPanelAt(paneId, pane.panel, dropTarget);
+      this.focusPane(paneId);
+      pane.session.openConversation(conversationId);
+      this.#savePanes();
+    }
+
+    /**
+     * Starts dragging a conversation out of the sidebar; releasing over a valid drop target opens it
+     * as a new pane docked there.
+     * @param {MouseEvent} startEvent The mousedown that starts the drag.
+     * @param {string} conversationId Conversation to open on drop.
+     * @param {string} label Text shown in the floating drag label.
+     * @returns {void}
+     */
+    beginDragToOpenPane(startEvent, conversationId, label) {
+      this.#workspace.beginExternalDrag(startEvent, label, dropTarget => this.openPaneAt(conversationId, dropTarget));
+    }
+
+    /**
      * Closes a pane, stopping its reply. The last remaining pane can't be closed.
      * @param {string} paneId Pane id.
      * @returns {void}
@@ -3000,6 +3095,14 @@
       this.topLevelDomains = new Set();
       this.sources = [];
       this.folders = [];
+
+      /**
+       * Prompt and file counts by conversation id, for showing them as sidebar columns without
+       * needing a separate lookup structure. Only conversations that have been indexed (opened, or
+       * pulled in by a backfill) appear here.
+       * @type {Map<string, {promptCount: number, fileCount: number}>}
+       */
+      this.perConversation = new Map();
     }
 
     /**
@@ -3030,6 +3133,7 @@
       this.#addToolCallCounts(summary.toolCallCounts);
       this.#addSources(summary.sources, origin);
       this.#addFolder(summary.files, origin);
+      this.perConversation.set(summary.conversationId, { promptCount: summary.promptCount, fileCount: summary.files.length });
     }
 
     /**
@@ -3648,6 +3752,29 @@
    */
   class ConversationListPanel extends Panel {
     /**
+     * Column ids that can be shown for each entry, in display order.
+     * @type {ReadonlyArray<string>}
+     */
+    static #COLUMNS = Object.freeze(['date', 'turns', 'files']);
+
+    /**
+     * Label of each column, for its toggle checkbox.
+     * @type {Readonly<Record<string, string>>}
+     */
+    static #COLUMN_LABELS = Object.freeze({ date: 'Date', turns: 'Turns', files: 'Files' });
+
+    /**
+     * Label of each sort key, for the sort dropdown, in menu order.
+     * @type {ReadonlyArray<{key: string, label: string}>}
+     */
+    static #SORT_OPTIONS = Object.freeze([
+      { key: 'date', label: 'Date' },
+      { key: 'name', label: 'Name' },
+      { key: 'turns', label: 'Turns' },
+      { key: 'files', label: 'Files' },
+    ]);
+
+    /**
      * Shared conversation list.
      * @type {ConversationDirectory}
      */
@@ -3666,10 +3793,34 @@
     #paneManager;
 
     /**
+     * Conversation statistics, for the optional turn- and file-count columns and for sorting by them.
+     * @type {StatsIndex}
+     */
+    #stats;
+
+    /**
+     * Column and sort preference storage.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
      * Lower-case search text.
      * @type {string}
      */
     #searchText = '';
+
+    /**
+     * Ids of the columns currently shown, besides the title.
+     * @type {Set<string>}
+     */
+    #visibleColumns;
+
+    /**
+     * Current sort.
+     * @type {{key: string, direction: number}}
+     */
+    #sort;
 
     /**
      * Handler per button data-action value inside a conversation entry.
@@ -3686,49 +3837,68 @@
      * @param {ConversationDirectory} services.directory Shared conversation list.
      * @param {Router} services.router Navigation.
      * @param {ChatPaneManager} services.paneManager Chat panes.
+     * @param {StatsIndex} services.stats Conversation statistics.
+     * @param {Preferences} services.preferences Column and sort preference storage.
      */
-    constructor({ directory, router, paneManager }) {
+    constructor({ directory, router, paneManager, stats, preferences }) {
       super('Chats');
       this.#directory = directory;
       this.#router = router;
       this.#paneManager = paneManager;
+      this.#stats = stats;
+      this.#preferences = preferences;
+      this.#visibleColumns = ConversationListPanel.#loadVisibleColumns(preferences);
+      this.#sort = ConversationListPanel.#loadSort(preferences);
     }
 
     /**
-     * HTML of the panel body.
-     * @returns {string} New chat button, search box and list.
+     * HTML of the panel body: new chat button, search box, a sort and column toolbar, and the list.
+     * @returns {string} The body.
      */
     createBodyHtml() {
       return `
         <button class="claude-plus-primary-button" data-name="newChatButton">+ New chat</button>
         <input class="claude-plus-search-input" data-name="searchInput" type="text" placeholder="Search chats…" />
+        <div class="claude-plus-conversation-list-toolbar">
+          <select data-name="sortKeySelect">${ConversationListPanel.#sortOptionsHtml()}</select>
+          <button class="claude-plus-toolbar__button" data-name="sortDirectionButton" title="Toggle sort direction"></button>
+        </div>
+        <div class="claude-plus-column-toggles" data-name="columnToggles">${ConversationListPanel.#columnToggleHtml()}</div>
         <div class="claude-plus-scrollable claude-plus-fill-remaining" data-name="conversationList"></div>`;
     }
 
     /**
-     * Wires the buttons, search and list, and follows list, focus and pane changes.
+     * Wires the buttons, search, sort, column toggles and list; follows list, focus, pane and stats
+     * changes; and applies the loaded sort and column preferences to the new controls.
      * @returns {void}
      */
     bindEvents() {
       this.elements.newChatButton.addEventListener('click', () => this.#router.startNewConversation());
       this.elements.searchInput.addEventListener('input', () => this.#applySearch(this.elements.searchInput.value));
+      this.elements.sortKeySelect.addEventListener('change', () => this.#setSortKey(this.elements.sortKeySelect.value));
+      this.elements.sortDirectionButton.addEventListener('click', () => this.#toggleSortDirection());
+      this.elements.columnToggles.addEventListener('change', event => this.#onColumnToggle(event));
+      this.elements.conversationList.addEventListener('mousedown', event => this.#onConversationListPress(event));
       this.elements.conversationList.addEventListener('click', event => this.#onConversationListClick(event));
       this.listenTo(this.#directory, 'conversations', () => this.render());
       this.listenTo(this.#paneManager, 'focus', () => this.render());
       this.listenTo(this.#paneManager, 'paneConversations', () => this.render());
+      this.listenTo(this.#stats, 'aggregate', () => this.render());
+      this.#applyPreferencesToControls();
     }
 
     /**
-     * Shows the conversations matching the search, marking the focused pane's conversation and
-     * those open in other panes.
+     * Shows the conversations matching the search, sorted by the current sort, marking the focused
+     * pane's conversation and those open in other panes.
      * @returns {void}
      */
     render() {
       const openIds = this.#paneManager.openConversationIds();
       const focusedId = this.#paneManager.focusedSession.openConversationId;
       const matching = this.#directory.conversations.filter(conversation => this.#matchesSearch(conversation));
+      const sorted = this.#sortedConversations(matching);
       const emptyText = this.#searchText ? 'No chats match your search.' : 'No conversations yet.';
-      this.elements.conversationList.innerHTML = matching.map(conversation => ConversationListPanel.#conversationHtml(conversation, focusedId, openIds)).join('') || emptyStateHtml(emptyText);
+      this.elements.conversationList.innerHTML = sorted.map(conversation => this.#conversationHtml(conversation, focusedId, openIds)).join('') || emptyStateHtml(emptyText);
     }
 
     /**
@@ -3760,23 +3930,138 @@
     }
 
     /**
-     * HTML of one conversation entry.
+     * Sets the checkboxes and select to match the loaded preferences, since the HTML they were built
+     * from is static.
+     * @returns {void}
+     */
+    #applyPreferencesToControls() {
+      this.elements.sortKeySelect.value = this.#sort.key;
+      this.#renderSortDirectionButton();
+      for (const checkbox of this.elements.columnToggles.querySelectorAll('[data-column]')) {
+        checkbox.checked = this.#visibleColumns.has(checkbox.dataset.column);
+      }
+    }
+
+    /**
+     * Sets the sort key, keeping the current direction, and re-renders.
+     * @param {string} key One of ConversationListPanel.#SORT_OPTIONS' keys.
+     * @returns {void}
+     */
+    #setSortKey(key) {
+      this.#sort = { ...this.#sort, key };
+      this.#saveSort();
+      this.render();
+    }
+
+    /**
+     * Flips the sort direction and re-renders.
+     * @returns {void}
+     */
+    #toggleSortDirection() {
+      this.#sort = { ...this.#sort, direction: -this.#sort.direction };
+      this.#saveSort();
+      this.#renderSortDirectionButton();
+      this.render();
+    }
+
+    /**
+     * Shows an arrow matching the current sort direction.
+     * @returns {void}
+     */
+    #renderSortDirectionButton() {
+      this.elements.sortDirectionButton.textContent = this.#sort.direction === 1 ? '↑' : '↓';
+    }
+
+    /**
+     * Persists the current sort.
+     * @returns {void}
+     */
+    #saveSort() {
+      this.#preferences.writeJson(STORAGE_KEYS.conversationListSort, this.#sort);
+    }
+
+    /**
+     * Toggles a column on or off, persists it and re-renders.
+     * @param {Event} event Change event from a column checkbox.
+     * @returns {void}
+     */
+    #onColumnToggle(event) {
+      const checkbox = event.target.closest('[data-column]');
+      if (!checkbox) return;
+      const column = checkbox.dataset.column;
+      if (checkbox.checked) this.#visibleColumns.add(column);
+      else this.#visibleColumns.delete(column);
+      this.#preferences.writeJson(STORAGE_KEYS.conversationListColumns, [...this.#visibleColumns]);
+      this.render();
+    }
+
+    /**
+     * Sorts conversations by the current sort key and direction. Turns and files fall back to -1 for
+     * conversations not yet indexed (opened, or pulled in by a stats backfill), sorting them to one
+     * end rather than scattering them by search-list order.
+     * @param {ConversationListing[]} conversations Conversations to sort.
+     * @returns {ConversationListing[]} A new, sorted array.
+     */
+    #sortedConversations(conversations) {
+      return [...conversations].sort((first, second) => {
+        const firstValue = this.#sortValue(first);
+        const secondValue = this.#sortValue(second);
+        if (firstValue < secondValue) return -this.#sort.direction;
+        if (firstValue > secondValue) return this.#sort.direction;
+        return 0;
+      });
+    }
+
+    /**
+     * A conversation's value for the current sort key.
+     * @param {ConversationListing} conversation The conversation.
+     * @returns {number|string} The value to compare.
+     */
+    #sortValue(conversation) {
+      if (this.#sort.key === 'name') return (conversation.name || '').toLowerCase();
+      if (this.#sort.key === 'date') return toEpochMs(conversation.updated_at);
+      const summary = this.#stats.aggregate.perConversation.get(conversation.uuid);
+      if (!summary) return -1;
+      return this.#sort.key === 'turns' ? summary.promptCount : summary.fileCount;
+    }
+
+    /**
+     * HTML of one conversation entry: title, a badge per visible column, then the action buttons.
      * @param {ConversationListing} conversation The conversation.
      * @param {?string} focusedId Conversation of the focused pane.
      * @param {Set<string>} openIds Conversations open in any pane.
      * @returns {string} The entry.
      */
-    static #conversationHtml(conversation, focusedId, openIds) {
-      const date = conversation.updated_at ? new Date(conversation.updated_at).toLocaleDateString() : '';
+    #conversationHtml(conversation, focusedId, openIds) {
+      const badges = ConversationListPanel.#COLUMNS.filter(column => this.#visibleColumns.has(column))
+        .map(column => this.#columnBadgeHtml(column, conversation))
+        .join('');
       return `
         <div class="claude-plus-conversation${ConversationListPanel.#stateModifier(conversation.uuid, focusedId, openIds)}" data-conversation-id="${escapeHtml(conversation.uuid)}">
           <div class="claude-plus-conversation__summary">
             <div class="claude-plus-conversation__title">${escapeHtml(conversation.name || UNTITLED)}</div>
-            <div class="claude-plus-conversation__date">${escapeHtml(date)}</div>
+            ${badges ? `<div class="claude-plus-conversation__badges">${badges}</div>` : ''}
           </div>
           <button class="claude-plus-conversation__action-button" data-action="openInNewPane" title="Open in new pane">⧉</button>
           <button class="claude-plus-conversation__action-button" data-action="delete" title="Delete chat">🗑</button>
         </div>`;
+    }
+
+    /**
+     * HTML of one column's badge for a conversation. Turns and files show "–" until the conversation
+     * has been indexed.
+     * @param {string} column 'date', 'turns' or 'files'.
+     * @param {ConversationListing} conversation The conversation.
+     * @returns {string} The badge.
+     */
+    #columnBadgeHtml(column, conversation) {
+      if (column === 'date') {
+        const date = conversation.updated_at ? new Date(conversation.updated_at).toLocaleDateString() : '–';
+        return `<span class="claude-plus-conversation__badge">${escapeHtml(date)}</span>`;
+      }
+      const summary = this.#stats.aggregate.perConversation.get(conversation.uuid);
+      const value = summary ? (column === 'turns' ? summary.promptCount : summary.fileCount) : '–';
+      return `<span class="claude-plus-conversation__badge">${escapeHtml(String(value))} ${escapeHtml(ConversationListPanel.#COLUMN_LABELS[column].toLowerCase())}</span>`;
     }
 
     /**
@@ -3789,6 +4074,23 @@
     static #stateModifier(conversationId, focusedId, openIds) {
       if (conversationId === focusedId) return ' claude-plus-conversation--active';
       return openIds.has(conversationId) ? ' claude-plus-conversation--open-elsewhere' : '';
+    }
+
+    /**
+     * Starts dragging a conversation out of the list on a primary-button press away from its action
+     * buttons; releasing over a valid dock target opens it as a new pane docked there, so several
+     * conversations can be compared side by side without switching between them or mixing their
+     * context. A plain click (no real drag) still falls through to #onConversationListClick, which
+     * opens it in the focused pane as before.
+     * @param {MouseEvent} event Mousedown inside the list.
+     * @returns {void}
+     */
+    #onConversationListPress(event) {
+      if (event.button !== 0) return;
+      const entry = event.target.closest('.claude-plus-conversation');
+      if (!entry || event.target.closest('[data-action]')) return;
+      const conversationId = entry.dataset.conversationId;
+      this.#paneManager.beginDragToOpenPane(event, conversationId, this.#directory.titleOf(conversationId));
     }
 
     /**
@@ -3812,7 +4114,8 @@
      */
     async #confirmAndDelete(entry) {
       const conversationId = entry.dataset.conversationId;
-      if (!window.confirm(`Delete "${this.#directory.titleOf(conversationId)}"? This cannot be undone.`)) return;
+      const confirmed = await confirmDialog(`Delete "${this.#directory.titleOf(conversationId)}"? This cannot be undone.`, 'Delete');
+      if (!confirmed) return;
       entry.classList.add('claude-plus-pending');
       try {
         await this.#directory.deleteConversation(conversationId);
@@ -3820,6 +4123,45 @@
         console.warn(LOG_PREFIX, 'delete failed', error);
         entry.classList.remove('claude-plus-pending');
       }
+    }
+
+    /**
+     * HTML of the sort key dropdown's options.
+     * @returns {string} The options.
+     */
+    static #sortOptionsHtml() {
+      return ConversationListPanel.#SORT_OPTIONS.map(({ key, label }) => `<option value="${key}">${escapeHtml(label)}</option>`).join('');
+    }
+
+    /**
+     * HTML of the column toggle checkboxes. Their checked state is applied after insertion, by
+     * #applyPreferencesToControls, since it depends on instance state.
+     * @returns {string} The checkboxes.
+     */
+    static #columnToggleHtml() {
+      return ConversationListPanel.#COLUMNS.map(column => `<label class="claude-plus-column-toggle"><input type="checkbox" data-column="${column}" /> ${escapeHtml(ConversationListPanel.#COLUMN_LABELS[column])}</label>`).join('');
+    }
+
+    /**
+     * Loads which columns are visible, defaulting to none (matching the previous, column-free list).
+     * @param {Preferences} preferences Preference storage.
+     * @returns {Set<string>} The visible column ids.
+     */
+    static #loadVisibleColumns(preferences) {
+      const stored = preferences.readJson(STORAGE_KEYS.conversationListColumns);
+      const valid = Array.isArray(stored) ? stored.filter(column => ConversationListPanel.#COLUMNS.includes(column)) : [];
+      return new Set(valid);
+    }
+
+    /**
+     * Loads the sort, defaulting to newest first (matching the previous, server-ordered list).
+     * @param {Preferences} preferences Preference storage.
+     * @returns {{key: string, direction: number}} The sort.
+     */
+    static #loadSort(preferences) {
+      const stored = preferences.readJson(STORAGE_KEYS.conversationListSort);
+      const validKey = Boolean(stored) && ConversationListPanel.#SORT_OPTIONS.some(option => option.key === stored.key);
+      return { key: validKey ? stored.key : 'date', direction: stored && stored.direction === 1 ? 1 : -1 };
     }
   }
 
@@ -5419,6 +5761,51 @@
     }
 
     /**
+     * Adds a panel and docks it at a specific drop target, as chosen during a drag started with
+     * beginExternalDrag.
+     * @param {string} panelId Id of the new panel.
+     * @param {Panel} panel The panel.
+     * @param {DropTarget} dropTarget Where to dock it: an outer edge, or a region of a zone.
+     * @returns {void}
+     */
+    addPanelAt(panelId, panel, dropTarget) {
+      this.#panels.set(panelId, panel);
+      if (dropTarget.edge) this.#tree.dockPanelAtEdge(panelId, dropTarget.edge);
+      else this.#tree.dockPanel(panelId, dropTarget.leafId, dropTarget.region);
+      this.#layoutAndSave();
+    }
+
+    /**
+     * Drags a floating label for something that doesn't exist as a panel yet, highlighting the same
+     * drop targets a tab drag would, and invokes a callback with the chosen target on release. Lets
+     * other panels (e.g. the conversation list) offer "drag this to open it as a new pane docked
+     * here" without this class needing to know anything about what's being dragged.
+     * @param {MouseEvent} startEvent The mousedown that starts the drag.
+     * @param {string} label Text shown in the floating drag label.
+     * @param {function(DropTarget): void} onDrop Called with the chosen drop target when dropped on one.
+     * @returns {void}
+     */
+    beginExternalDrag(startEvent, label, onDrop) {
+      startEvent.preventDefault();
+      const dragLabel = createElement('div', { className: 'claude-plus-themed claude-plus-drag-label', textContent: label, hidden: true });
+      const dropHighlight = createElement('div', { className: 'claude-plus-drop-highlight', hidden: true });
+      document.body.append(dragLabel, dropHighlight);
+      let dropTarget = null;
+      new DragGesture(startEvent, {
+        threshold: LAYOUT.dragThreshold,
+        onMove: (event) => {
+          dropTarget = this.#dropTargetAt(event.clientX, event.clientY);
+          DockWorkspace.#showDragFeedback(dragLabel, dropHighlight, event, dropTarget);
+        },
+        onEnd: (event, wasDragged) => {
+          dragLabel.remove();
+          dropHighlight.remove();
+          if (wasDragged && dropTarget) onDrop(dropTarget);
+        },
+      });
+    }
+
+    /**
      * Undocks a panel, disposes it and forgets it.
      * @param {string} panelId Panel id.
      * @returns {void}
@@ -6246,7 +6633,7 @@
         ConversationExporter.#download(conversation, ConversationExporter.FORMATS.get(formatId));
       } catch (error) {
         console.warn(LOG_PREFIX, 'export failed', error);
-        window.alert(`Export failed: ${error.message}`);
+        await alertDialog(`Export failed: ${error.message}`);
       }
     }
 
@@ -6491,6 +6878,11 @@
     .claude-plus-popup-menu__entry { padding: 6px 10px; cursor: pointer; border-radius: 4px; }
     .claude-plus-popup-menu__entry:hover { background: var(--claude-plus-color-raised-hover); }
 
+    .claude-plus-dialog-overlay { position: fixed; inset: 0; z-index: var(--claude-plus-layer-drag-label); background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; }
+    .claude-plus-dialog { background: var(--claude-plus-color-raised); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 8px; padding: 16px; max-width: 360px; font-size: 13px; }
+    .claude-plus-dialog__message { margin: 0 0 14px; line-height: 1.4; }
+    .claude-plus-dialog__actions { display: flex; justify-content: flex-end; gap: 8px; }
+
     .claude-plus-panel { position: fixed; z-index: var(--claude-plus-layer-panel); box-sizing: border-box; padding: 10px 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; font-size: 13px; background: var(--claude-plus-color-background); }
     .claude-plus-panel summary { cursor: pointer; padding: 4px 0; }
     .claude-plus-panel--focused { box-shadow: inset 0 2px 0 var(--claude-plus-color-accent); }
@@ -6511,6 +6903,11 @@
     .claude-plus-full-width { width: 100%; }
 
     .claude-plus-search-input { flex-shrink: 0; padding: 6px 8px; }
+    .claude-plus-conversation-list-toolbar { display: flex; gap: 6px; flex-shrink: 0; }
+    .claude-plus-conversation-list-toolbar select { flex: 1; min-width: 0; padding: 4px 6px; }
+    .claude-plus-conversation-list-toolbar .claude-plus-toolbar__button { flex-shrink: 0; padding: 4px 8px; }
+    .claude-plus-column-toggles { display: flex; flex-wrap: wrap; gap: 2px 10px; flex-shrink: 0; font-size: 11px; color: var(--claude-plus-color-text-muted); }
+    .claude-plus-column-toggle { display: flex; align-items: center; gap: 4px; cursor: pointer; }
     .claude-plus-conversation { padding: 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
     .claude-plus-conversation:hover { background: var(--claude-plus-color-hover); }
     .claude-plus-conversation:hover .claude-plus-conversation__action-button { visibility: visible; }
@@ -6518,7 +6915,8 @@
     .claude-plus-conversation--open-elsewhere { box-shadow: inset 2px 0 0 var(--claude-plus-color-accent); }
     .claude-plus-conversation__summary { flex: 1; min-width: 0; }
     .claude-plus-conversation__title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .claude-plus-conversation__date { font-size: 11px; color: var(--claude-plus-color-text-faint); }
+    .claude-plus-conversation__badges { display: flex; flex-wrap: wrap; gap: 2px 8px; margin-top: 2px; }
+    .claude-plus-conversation__badge { font-size: 11px; color: var(--claude-plus-color-text-faint); }
     .claude-plus-conversation__action-button { visibility: hidden; background: none; border: none; cursor: pointer; font-size: 12px; padding: 4px; border-radius: 4px; flex-shrink: 0; }
     .claude-plus-conversation__action-button:hover { background: rgba(255, 255, 255, 0.1); }
 
@@ -6594,11 +6992,12 @@
      * @param {StatsIndex} services.stats Conversation statistics.
      * @param {ActivityTracker} services.activity Active-time tracking.
      * @param {RateLimitMonitor} services.rateLimits Usage windows.
+     * @param {Preferences} services.preferences Column and sort preference storage.
      * @returns {Map<string, Panel>} The panels.
      */
-    static #createPanels({ directory, router, paneManager, stats, activity, rateLimits }) {
+    static #createPanels({ directory, router, paneManager, stats, activity, rateLimits, preferences }) {
       return new Map([
-        ['conversations', new ConversationListPanel({ directory, router, paneManager })],
+        ['conversations', new ConversationListPanel({ directory, router, paneManager, stats, preferences })],
         ...paneManager.panelEntries(),
         ['stats', new StatsPanel(stats, activity, rateLimits)],
         ['webSources', new WebSourcesPanel(stats)],
@@ -6652,7 +7051,7 @@
       ClaudePlusApp.#connectServices({ directory, paneManager, stats, rateLimits });
       paneManager.restorePanes(conversationIdFromPath(location.pathname));
 
-      const panels = ClaudePlusApp.#createPanels({ directory, router, paneManager, stats, activity, rateLimits });
+      const panels = ClaudePlusApp.#createPanels({ directory, router, paneManager, stats, activity, rateLimits, preferences });
       const workspace = new DockWorkspace({
         panels,
         preferences,
