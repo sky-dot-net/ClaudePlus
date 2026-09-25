@@ -999,6 +999,17 @@
     }
 
     /**
+     * Deletes a record; deleting a missing record succeeds.
+     * @param {string} storeName Object store.
+     * @param {IDBValidKey} key Record key.
+     * @returns {Promise<void>} Resolves once deleted.
+     * @throws {DOMException} When the database can't be opened or written.
+     */
+    remove(storeName, key) {
+      return this.#runRequest(storeName, 'readwrite', store => store.delete(key));
+    }
+
+    /**
      * Reads a record and writes back a replacement in one transaction, so concurrent tabs can't
      * overwrite each other's changes.
      * @param {string} storeName Object store.
@@ -1370,10 +1381,10 @@
    */
   class Markdown {
     /**
-     * A fenced code block; captures the code.
+     * A fenced code block, with or without a language line; captures the code.
      * @type {RegExp}
      */
-    static #CODE_FENCE = /```[^\n`]*\n([\s\S]*?)```/;
+    static #CODE_FENCE = /```(?:[^\n`]*\n)?([\s\S]*?)```/;
 
     /**
      * Renders markdown text as HTML.
@@ -1820,6 +1831,7 @@
    * @fires ConversationStore#sending Sending started or ended.
    * @fires ConversationStore#conversationLoaded A conversation was fetched; payload is the ApiConversation.
    * @fires ConversationStore#rateLimits Usage windows arrived in a stream; payload is RateLimits.
+   * @fires ConversationStore#conversationDeleted A conversation was deleted; payload is its id.
    */
   class ConversationStore extends EventEmitter {
     /**
@@ -2025,6 +2037,7 @@
       await this.#api.deleteConversation(conversationId);
       this.#conversations = this.#conversations.filter(conversation => conversation.uuid !== conversationId);
       this.publish('conversations');
+      this.publish('conversationDeleted', conversationId);
       if (this.#openConversationId === conversationId) this.startNewConversation();
     }
 
@@ -2756,6 +2769,20 @@
     }
 
     /**
+     * Removes a deleted conversation's summary, then recomputes the aggregate. Failures are logged.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<void>} Resolves once done.
+     */
+    async removeConversation(conversationId) {
+      try {
+        await this.#database.remove(DATABASE.stores.conversationSummaries, conversationId);
+        await this.refreshAggregate();
+      } catch (error) {
+        console.warn(LOG_PREFIX, 'removing conversation stats failed', error);
+      }
+    }
+
+    /**
      * Fetches and stores every conversation not yet cached at its current version. Ignored while
      * running; cancellable with cancelBackfill. Failures are logged.
      * @returns {Promise<void>} Resolves when finished, cancelled or failed.
@@ -3250,6 +3277,15 @@
       const matching = this.#store.conversations.filter(conversation => this.#matchesSearch(conversation));
       const emptyText = this.#searchText ? 'No chats match your search.' : 'No conversations yet.';
       this.elements.conversationList.innerHTML = matching.map(conversation => this.#conversationHtml(conversation)).join('') || emptyStateHtml(emptyText);
+    }
+
+    /**
+     * Moves keyboard focus to the search box and selects its text.
+     * @returns {void}
+     */
+    focusSearch() {
+      this.elements.searchInput.focus();
+      this.elements.searchInput.select();
     }
 
     /**
@@ -4803,6 +4839,17 @@
     }
 
     /**
+     * Makes a docked panel the visible tab of its zone.
+     * @param {string} panelId Panel id.
+     * @returns {boolean} True if the panel is docked and now visible; false if it isn't docked.
+     */
+    revealPanel(panelId) {
+      const leaf = this.#tree.findLeafContaining(panelId);
+      if (leaf) this.#activateTab(leaf.id, panelId);
+      return Boolean(leaf);
+    }
+
+    /**
      * Redraws zone frames, tab strips and dividers and positions the visible panels; other panels are hidden.
      * @returns {void}
      */
@@ -5176,6 +5223,72 @@
   }
 
   /**
+   * Global keyboard shortcuts. Cmd+K (Ctrl+K elsewhere) reveals the conversation list and focuses
+   * its search. Shortcuts are handled in the capture phase and stopped there, so claude.ai's own
+   * hidden app never reacts to them.
+   */
+  class KeyboardShortcuts {
+    /**
+     * Workspace used to reveal panels.
+     * @type {DockWorkspace}
+     */
+    #workspace;
+
+    /**
+     * Panel whose search box the search shortcut focuses.
+     * @type {ConversationListPanel}
+     */
+    #conversationListPanel;
+
+    /**
+     * Creates the shortcuts.
+     * @param {DockWorkspace} workspace Workspace used to reveal panels.
+     * @param {ConversationListPanel} conversationListPanel Panel whose search box the search shortcut focuses.
+     */
+    constructor(workspace, conversationListPanel) {
+      this.#workspace = workspace;
+      this.#conversationListPanel = conversationListPanel;
+    }
+
+    /**
+     * Starts listening for the shortcuts.
+     * @returns {void}
+     */
+    install() {
+      window.addEventListener('keydown', this.#handleKeydown, true);
+    }
+
+    /**
+     * Runs the shortcut matching a key press.
+     * @param {KeyboardEvent} event The key press.
+     * @returns {void}
+     */
+    #handleKeydown = (event) => {
+      if (!KeyboardShortcuts.#isSearchShortcut(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.#focusConversationSearch();
+    };
+
+    /**
+     * Whether a key press is the search shortcut.
+     * @param {KeyboardEvent} event The key press.
+     * @returns {boolean} True for Cmd+K or Ctrl+K without Shift or Alt.
+     */
+    static #isSearchShortcut(event) {
+      return (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k';
+    }
+
+    /**
+     * Shows the conversation list and focuses its search box; does nothing when the list isn't docked.
+     * @returns {void}
+     */
+    #focusConversationSearch() {
+      if (this.#workspace.revealPanel('conversations')) this.#conversationListPanel.focusSearch();
+    }
+  }
+
+  /**
    * Top bar with the title, the message font size slider and layout reset.
    */
   class Toolbar {
@@ -5274,13 +5387,17 @@
   }
 
   /**
-   * Stylesheet of the whole UI. Its first rule hides claude.ai's two top-level mount points, the
-   * only change made to the native app; nothing inside them is ever queried or touched.
+   * Hides claude.ai's two top-level mount points, the only change made to the native app; nothing
+   * inside them is ever queried or touched. Applied only once the UI has mounted successfully.
+   * @type {string}
+   */
+  const NATIVE_APP_HIDING_STYLES = '#root, #portal-root { display: none !important; }';
+
+  /**
+   * Stylesheet of the whole UI.
    * @type {string}
    */
   const STYLES = `
-    #root, #portal-root { display: none !important; }
-
     :root {
       --claude-plus-color-background: #1a1918;
       --claude-plus-color-bar: #1c1b1a;
@@ -5454,12 +5571,38 @@
     }
 
     /**
-     * Injects the styles, builds every component, mounts the UI, loads the data and opens the
-     * conversation in the URL.
-     * @returns {Promise<void>} Resolves once the first conversation is shown.
+     * Mounts the UI, then hides claude.ai and loads the data. If mounting fails, everything this
+     * script added is removed again, so claude.ai stays usable instead of turning into a blank page.
+     * @returns {Promise<void>} Resolves once the first conversation is shown, or after a failed mount.
      */
     async start() {
-      document.head.append(createElement('style', { textContent: STYLES }));
+      const services = ClaudePlusApp.#mountOrRestore();
+      if (services) await ClaudePlusApp.#loadData(services);
+    }
+
+    /**
+     * Mounts the UI and hides the native app, or undoes everything when mounting throws.
+     * @returns {?object} The services needing data (store, router, stats, activity, rateLimits), or null after a failure.
+     */
+    static #mountOrRestore() {
+      try {
+        const services = ClaudePlusApp.#mountInterface();
+        document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: NATIVE_APP_HIDING_STYLES }));
+        return services;
+      } catch (error) {
+        ClaudePlusApp.#removeInterface();
+        console.error(LOG_PREFIX, 'failed to start; claude.ai was left unchanged', error);
+        return null;
+      }
+    }
+
+    /**
+     * Injects the styles, builds every component and mounts the toolbar and the workspace.
+     * @returns {object} The services needing data: store, router, stats, activity and rateLimits.
+     * @throws {Error} When any part fails to build or mount.
+     */
+    static #mountInterface() {
+      document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: STYLES }));
       const preferences = new Preferences();
       const api = new ClaudeApi();
       const database = new IndexedDbStore({ name: DATABASE.name, version: DATABASE.version, upgrade: ClaudePlusApp.#createMissingStores });
@@ -5471,12 +5614,36 @@
       const rateLimits = new RateLimitMonitor(api);
 
       store.subscribe('conversationLoaded', conversation => stats.indexConversation(conversation));
+      store.subscribe('conversationDeleted', conversationId => stats.removeConversation(conversationId));
       store.subscribe('rateLimits', limits => rateLimits.setLimits(limits));
 
-      const workspace = new DockWorkspace(ClaudePlusApp.#createPanels({ store, router, settings, stats, activity, rateLimits }), preferences);
+      const panels = ClaudePlusApp.#createPanels({ store, router, settings, stats, activity, rateLimits });
+      const workspace = new DockWorkspace(panels, preferences);
       new Toolbar(preferences, workspace).mount();
       workspace.mount();
+      new KeyboardShortcuts(workspace, panels.get('conversations')).install();
+      return { store, router, stats, activity, rateLimits };
+    }
 
+    /**
+     * Removes every element and stylesheet this script added.
+     * @returns {void}
+     */
+    static #removeInterface() {
+      document.querySelectorAll('.claude-plus-styles, body > [class*="claude-plus-"]').forEach(element => element.remove());
+    }
+
+    /**
+     * Starts polling, loads stats, activity and the conversation list, then opens the conversation in the URL.
+     * @param {object} services Services created by #mountInterface.
+     * @param {ConversationStore} services.store Conversation state.
+     * @param {Router} services.router Navigation.
+     * @param {StatsIndex} services.stats Conversation statistics.
+     * @param {ActivityTracker} services.activity Active-time tracking.
+     * @param {RateLimitMonitor} services.rateLimits Usage windows.
+     * @returns {Promise<void>} Resolves once the first conversation is shown.
+     */
+    static async #loadData({ store, router, stats, activity, rateLimits }) {
       rateLimits.start();
       await Promise.all([stats.refreshAggregate(), activity.start(), store.refreshConversations()]);
       await router.start();
