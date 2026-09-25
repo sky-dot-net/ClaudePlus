@@ -48,3 +48,20 @@
 .claude-plus-toolbar__font-size input[type=range] {
   width: 100px;
 }
+
+.claude-plus-toolbar__close-button {
+  background: var(--claude-plus-color-error);
+  border: none;
+  color: #fff;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.claude-plus-toolbar__close-button:hover {
+  filter: brightness(1.15);
+}

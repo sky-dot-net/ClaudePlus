@@ -12,9 +12,10 @@ async function failedMount(run) {
   await failingPage.addInitScript(makeInnerWidthThrow);
   await failingPage.goto('https://claude.ai/new');
   await failingPage.addScriptTag({ content: run.script });
+  await failingPage.click('.claude-plus-launcher');
   await failingPage.waitForTimeout(300);
   const isNativeAppVisible = await failingPage.$eval('#root', root => getComputedStyle(root).display !== 'none');
-  const addedElementCount = await failingPage.$$eval('.claude-plus-styles, body > [class*="claude-plus-"]', elements => elements.length);
+  const addedElementCount = await failingPage.$$eval('.claude-plus-styles, body > [class*="claude-plus-"]:not(.claude-plus-launcher)', elements => elements.length);
   run.check('failed mount leaves claude.ai visible', isNativeAppVisible && addedElementCount === 0);
   await failingPage.close();
 }

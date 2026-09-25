@@ -95,11 +95,13 @@ class SmokeRun {
   }
 
   /**
-   * Injects the userscript into the current page.
+   * Injects the userscript into the current page and clicks the launcher button, since ClaudePlus
+   * no longer starts itself.
    * @returns {Promise<void>} Resolves once a chat message is shown and the first layout settled.
    */
   async injectScript() {
     await this.page.addScriptTag({ content: this.script });
+    await this.page.click('.claude-plus-launcher');
     await this.page.waitForSelector('.claude-plus-message');
     await this.page.waitForTimeout(400);
   }

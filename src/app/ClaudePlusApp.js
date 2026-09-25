@@ -29,9 +29,66 @@ import nativeAppHidingStylesheet from './nativeAppHiding.css';
 import themeStylesheet from '../ui/theme.css';
 
 /**
- * Composes every part of the UI and starts it.
+ * Composes every part of the UI and starts it, only once the launcher button is clicked.
  */
 export class ClaudePlusApp {
+  /**
+   * Whether the one-time heavy boot (services, panels, data) has already run.
+   * @type {boolean}
+   */
+  #isStarted = false;
+
+  /**
+   * The stylesheet hiding claude.ai's native app; toggled (not removed) so hiding ClaudePlus
+   * again never loses any state.
+   * @type {?HTMLStyleElement}
+   */
+  #nativeHidingStyle = null;
+
+  /**
+   * Shows the interface: runs the one-time heavy boot on the first call, or just reveals it
+   * again with all state intact on a later one.
+   * @returns {Promise<void>} Resolves once shown.
+   */
+  async launch() {
+    if (this.#isStarted) {
+      this.show();
+      return;
+    }
+    await this.start();
+    this.#isStarted = Boolean(this.#nativeHidingStyle);
+  }
+
+  /**
+   * Reveals the interface and hides claude.ai's native app again.
+   * @returns {void}
+   */
+  show() {
+    if (this.#nativeHidingStyle) this.#nativeHidingStyle.disabled = false;
+    ClaudePlusApp.#setInterfaceVisible(true);
+  }
+
+  /**
+   * Hides the interface and reveals claude.ai's native app, without unmounting anything.
+   * @returns {void}
+   */
+  hide() {
+    if (this.#nativeHidingStyle) this.#nativeHidingStyle.disabled = true;
+    ClaudePlusApp.#setInterfaceVisible(false);
+  }
+
+  /**
+   * Shows or hides every element this script added, other than the launcher button, which stays
+   * on top regardless.
+   * @param {boolean} visible Whether to show them.
+   * @returns {void}
+   */
+  static #setInterfaceVisible(visible) {
+    document.querySelectorAll('body > [class*="claude-plus-"]:not(.claude-plus-launcher)').forEach((element) => {
+      element.style.display = visible ? '' : 'none';
+    });
+  }
+
   /**
    * Creates the object stores that don't exist yet.
    * @param {IDBDatabase} database Database being upgraded.
@@ -59,19 +116,24 @@ export class ClaudePlusApp {
    * @returns {Promise<void>} Resolves once the first conversation is shown, or after a failed mount.
    */
   async start() {
-    const services = ClaudePlusApp.#mountOrRestore();
-    if (services) await ClaudePlusApp.#loadData(services);
+    const mounted = this.#mountOrRestore();
+    if (!mounted) return;
+    this.#nativeHidingStyle = mounted.nativeHidingStyle;
+    await ClaudePlusApp.#loadData(mounted.services);
   }
 
   /**
    * Mounts the UI and hides the native app, or undoes everything when mounting throws.
-   * @returns {?object} The services needing data (directory, router, paneManager, stats, activity, rateLimits), or null after a failure.
+   * @returns {?{services: object, nativeHidingStyle: HTMLStyleElement}} The services needing data
+   * (directory, router, paneManager, stats, activity, rateLimits) and the native-hiding
+   * stylesheet, or null after a failure.
    */
-  static #mountOrRestore() {
+  #mountOrRestore() {
     try {
-      const services = ClaudePlusApp.#mountInterface();
-      document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: nativeAppHidingStylesheet }));
-      return services;
+      const services = this.#mountInterface();
+      const nativeHidingStyle = createElement('style', { className: 'claude-plus-styles', textContent: nativeAppHidingStylesheet });
+      document.head.append(nativeHidingStyle);
+      return { services, nativeHidingStyle };
     } catch (error) {
       ClaudePlusApp.#removeInterface();
       console.error(LOG_PREFIX, 'failed to start; claude.ai was left unchanged', error);
@@ -84,7 +146,7 @@ export class ClaudePlusApp {
    * @returns {object} The services needing data: directory, router, paneManager, stats, activity and rateLimits.
    * @throws {Error} When any part fails to build or mount.
    */
-  static #mountInterface() {
+  #mountInterface() {
     document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: ClaudePlusApp.#interfaceStylesheet() }));
     const preferences = new Preferences();
     const api = new ClaudeApi();
@@ -106,7 +168,7 @@ export class ClaudePlusApp {
     paneManager.attachWorkspace(workspace);
     panelFactory.attachWorkspace(workspace);
     const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
-    new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences) }).mount();
+    new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), onHide: () => this.hide() }).mount();
     workspace.mount();
     ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
     new KeyboardShortcuts(workspace).install();
@@ -201,11 +263,12 @@ export class ClaudePlusApp {
   }
 
   /**
-   * Removes every element and stylesheet this script added.
+   * Removes every element and stylesheet this script added, other than the launcher button, so a
+   * failed mount can still be retried.
    * @returns {void}
    */
   static #removeInterface() {
-    document.querySelectorAll('.claude-plus-styles, body > [class*="claude-plus-"]').forEach(element => element.remove());
+    document.querySelectorAll('.claude-plus-styles, body > [class*="claude-plus-"]:not(.claude-plus-launcher)').forEach(element => element.remove());
   }
 
   /**

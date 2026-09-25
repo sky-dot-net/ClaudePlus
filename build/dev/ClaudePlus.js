@@ -10604,7 +10604,7 @@
     }
   }
 
-  var stylesheet$1 = ".claude-plus-toolbar {\r\n  position: fixed;\r\n  top: 0;\r\n  left: 0;\r\n  right: 0;\r\n  height: var(--claude-plus-toolbar-height);\r\n  z-index: var(--claude-plus-layer-toolbar);\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 14px;\r\n  padding: 0 10px;\r\n  font-size: 12px;\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-toolbar__title {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-toolbar__button {\r\n  background: var(--claude-plus-color-button);\r\n  border: none;\r\n  color: var(--claude-plus-color-text);\r\n  padding: 5px 10px;\r\n  border-radius: 6px;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-toolbar__button:hover {\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-toolbar__button:disabled {\r\n  opacity: 0.5;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-toolbar__font-size {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-toolbar__font-size input[type=range] {\r\n  width: 100px;\r\n}\r\n";
+  var stylesheet$1 = ".claude-plus-toolbar {\r\n  position: fixed;\r\n  top: 0;\r\n  left: 0;\r\n  right: 0;\r\n  height: var(--claude-plus-toolbar-height);\r\n  z-index: var(--claude-plus-layer-toolbar);\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 14px;\r\n  padding: 0 10px;\r\n  font-size: 12px;\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-toolbar__title {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-toolbar__button {\r\n  background: var(--claude-plus-color-button);\r\n  border: none;\r\n  color: var(--claude-plus-color-text);\r\n  padding: 5px 10px;\r\n  border-radius: 6px;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-toolbar__button:hover {\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-toolbar__button:disabled {\r\n  opacity: 0.5;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-toolbar__font-size {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-toolbar__font-size input[type=range] {\r\n  width: 100px;\r\n}\r\n\r\n.claude-plus-toolbar__close-button {\r\n  background: var(--claude-plus-color-error);\r\n  border: none;\r\n  color: #fff;\r\n  width: 22px;\r\n  height: 22px;\r\n  padding: 0;\r\n  border-radius: 50%;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n  line-height: 1;\r\n}\r\n\r\n.claude-plus-toolbar__close-button:hover {\r\n  filter: brightness(1.15);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$1);
 
@@ -10644,6 +10644,12 @@
     #settingsTransfer;
 
     /**
+     * Called when the hide button is clicked.
+     * @type {function(): void}
+     */
+    #onHide;
+
+    /**
      * The layout and settings menus.
      * @type {PopupMenu}
      */
@@ -10662,12 +10668,14 @@
      * @param {DockWorkspace} services.workspace Workspace to reset.
      * @param {LayoutLibrary} services.layoutLibrary Saved layouts.
      * @param {SettingsTransfer} services.settingsTransfer Settings export and import.
+     * @param {function(): void} services.onHide Called when the hide button is clicked.
      */
-    constructor({ preferences, workspace, layoutLibrary, settingsTransfer }) {
+    constructor({ preferences, workspace, layoutLibrary, settingsTransfer, onHide }) {
       this.#preferences = preferences;
       this.#workspace = workspace;
       this.#layoutLibrary = layoutLibrary;
       this.#settingsTransfer = settingsTransfer;
+      this.#onHide = onHide;
       const storedSize = Number.parseFloat(preferences.read(STORAGE_KEYS.messageFontSize));
       const { minimum, maximum, fallback } = Toolbar.#FONT_SIZE;
       this.#messageFontSize = Number.isFinite(storedSize) ? clamp(storedSize, minimum, maximum) : fallback;
@@ -10691,13 +10699,15 @@
         <div class="claude-plus-fill-remaining"></div>
         <button class="claude-plus-toolbar__button" data-name="layoutsButton">Layouts ▾</button>
         <button class="claude-plus-toolbar__button" data-name="settingsButton">Settings ▾</button>
-        <button class="claude-plus-toolbar__button" data-name="resetLayoutButton">Reset layout</button>`,
+        <button class="claude-plus-toolbar__button" data-name="resetLayoutButton">Reset layout</button>
+        <button class="claude-plus-toolbar__close-button" data-name="hideButton" title="Hide ClaudePlus (nothing is lost, click the lightbulb to bring it back)">✕</button>`,
       });
       const elements = collectNamedElements(toolbar);
       elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
       elements.layoutsButton.addEventListener('click', () => this.#showLayoutsMenu(elements.layoutsButton));
       elements.settingsButton.addEventListener('click', () => this.#showSettingsMenu(elements.settingsButton));
       elements.resetLayoutButton.addEventListener('click', () => this.#workspace.resetLayout());
+      elements.hideButton.addEventListener('click', () => this.#onHide());
       this.#applyFontSize(elements.fontSizeLabel);
       document.body.append(toolbar);
     }
@@ -11337,9 +11347,66 @@
   var themeStylesheet = ":root {\r\n  --claude-plus-color-background: #1a1918;\r\n  --claude-plus-color-bar: #1c1b1a;\r\n  --claude-plus-color-raised: #262523;\r\n  --claude-plus-color-raised-hover: #3a3937;\r\n  --claude-plus-color-tool-details: #232221;\r\n  --claude-plus-color-code-block: #101010;\r\n  --claude-plus-color-button: #333;\r\n  --claude-plus-color-button-hover: #444;\r\n  --claude-plus-color-text: #ececec;\r\n  --claude-plus-color-text-muted: #b8b6b3;\r\n  --claude-plus-color-text-faint: #8a8886;\r\n  --claude-plus-color-accent: #d97757;\r\n  --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);\r\n  --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);\r\n  --claude-plus-color-message-human-bg: rgba(255, 255, 255, 0.07);\r\n  --claude-plus-color-error: #e57373;\r\n  --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);\r\n  --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);\r\n  --claude-plus-color-border: rgba(255, 255, 255, 0.08);\r\n  --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);\r\n  --claude-plus-color-hover: rgba(255, 255, 255, 0.06);\r\n  --claude-plus-font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\r\n  --claude-plus-layer-zone-chrome: 2147480000;\r\n  --claude-plus-layer-panel: 2147480500;\r\n  --claude-plus-layer-divider: 2147480600;\r\n  --claude-plus-layer-toolbar: 2147483000;\r\n  --claude-plus-layer-popup-menu: 2147483001;\r\n  --claude-plus-layer-drop-highlight: 2147483646;\r\n  --claude-plus-layer-drag-label: 2147483647;\r\n}\r\n\r\n.claude-plus-themed {\r\n  font-family: var(--claude-plus-font-family);\r\n  color: var(--claude-plus-color-text);\r\n  color-scheme: dark;\r\n}\r\n\r\n.claude-plus-themed [hidden],\r\n.claude-plus-themed[hidden] {\r\n  display: none !important;\r\n}\r\n";
 
   /**
-   * Composes every part of the UI and starts it.
+   * Composes every part of the UI and starts it, only once the launcher button is clicked.
    */
   class ClaudePlusApp {
+    /**
+     * Whether the one-time heavy boot (services, panels, data) has already run.
+     * @type {boolean}
+     */
+    #isStarted = false;
+
+    /**
+     * The stylesheet hiding claude.ai's native app; toggled (not removed) so hiding ClaudePlus
+     * again never loses any state.
+     * @type {?HTMLStyleElement}
+     */
+    #nativeHidingStyle = null;
+
+    /**
+     * Shows the interface: runs the one-time heavy boot on the first call, or just reveals it
+     * again with all state intact on a later one.
+     * @returns {Promise<void>} Resolves once shown.
+     */
+    async launch() {
+      if (this.#isStarted) {
+        this.show();
+        return;
+      }
+      await this.start();
+      this.#isStarted = Boolean(this.#nativeHidingStyle);
+    }
+
+    /**
+     * Reveals the interface and hides claude.ai's native app again.
+     * @returns {void}
+     */
+    show() {
+      if (this.#nativeHidingStyle) this.#nativeHidingStyle.disabled = false;
+      ClaudePlusApp.#setInterfaceVisible(true);
+    }
+
+    /**
+     * Hides the interface and reveals claude.ai's native app, without unmounting anything.
+     * @returns {void}
+     */
+    hide() {
+      if (this.#nativeHidingStyle) this.#nativeHidingStyle.disabled = true;
+      ClaudePlusApp.#setInterfaceVisible(false);
+    }
+
+    /**
+     * Shows or hides every element this script added, other than the launcher button, which stays
+     * on top regardless.
+     * @param {boolean} visible Whether to show them.
+     * @returns {void}
+     */
+    static #setInterfaceVisible(visible) {
+      document.querySelectorAll('body > [class*="claude-plus-"]:not(.claude-plus-launcher)').forEach((element) => {
+        element.style.display = visible ? '' : 'none';
+      });
+    }
+
     /**
      * Creates the object stores that don't exist yet.
      * @param {IDBDatabase} database Database being upgraded.
@@ -11367,19 +11434,24 @@
      * @returns {Promise<void>} Resolves once the first conversation is shown, or after a failed mount.
      */
     async start() {
-      const services = ClaudePlusApp.#mountOrRestore();
-      if (services) await ClaudePlusApp.#loadData(services);
+      const mounted = this.#mountOrRestore();
+      if (!mounted) return;
+      this.#nativeHidingStyle = mounted.nativeHidingStyle;
+      await ClaudePlusApp.#loadData(mounted.services);
     }
 
     /**
      * Mounts the UI and hides the native app, or undoes everything when mounting throws.
-     * @returns {?object} The services needing data (directory, router, paneManager, stats, activity, rateLimits), or null after a failure.
+     * @returns {?{services: object, nativeHidingStyle: HTMLStyleElement}} The services needing data
+     * (directory, router, paneManager, stats, activity, rateLimits) and the native-hiding
+     * stylesheet, or null after a failure.
      */
-    static #mountOrRestore() {
+    #mountOrRestore() {
       try {
-        const services = ClaudePlusApp.#mountInterface();
-        document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: nativeAppHidingStylesheet }));
-        return services;
+        const services = this.#mountInterface();
+        const nativeHidingStyle = createElement('style', { className: 'claude-plus-styles', textContent: nativeAppHidingStylesheet });
+        document.head.append(nativeHidingStyle);
+        return { services, nativeHidingStyle };
       } catch (error) {
         ClaudePlusApp.#removeInterface();
         console.error(LOG_PREFIX, 'failed to start; claude.ai was left unchanged', error);
@@ -11392,7 +11464,7 @@
      * @returns {object} The services needing data: directory, router, paneManager, stats, activity and rateLimits.
      * @throws {Error} When any part fails to build or mount.
      */
-    static #mountInterface() {
+    #mountInterface() {
       document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: ClaudePlusApp.#interfaceStylesheet() }));
       const preferences = new Preferences();
       const api = new ClaudeApi();
@@ -11414,7 +11486,7 @@
       paneManager.attachWorkspace(workspace);
       panelFactory.attachWorkspace(workspace);
       const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
-      new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences) }).mount();
+      new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), onHide: () => this.hide() }).mount();
       workspace.mount();
       ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
       new KeyboardShortcuts(workspace).install();
@@ -11509,11 +11581,12 @@
     }
 
     /**
-     * Removes every element and stylesheet this script added.
+     * Removes every element and stylesheet this script added, other than the launcher button, so a
+     * failed mount can still be retried.
      * @returns {void}
      */
     static #removeInterface() {
-      document.querySelectorAll('.claude-plus-styles, body > [class*="claude-plus-"]').forEach(element => element.remove());
+      document.querySelectorAll('.claude-plus-styles, body > [class*="claude-plus-"]:not(.claude-plus-launcher)').forEach(element => element.remove());
     }
 
     /**
@@ -11536,6 +11609,62 @@
     }
   }
 
-  new ClaudePlusApp().start().catch(error => console.error(LOG_PREFIX, 'failed to start', error));
+  /**
+   * The always-on-top button that starts (or re-shows) ClaudePlus. It exists independently of the
+   * rest of the app and carries its own inline styling, so it works before ClaudePlus's own
+   * stylesheet is injected - which, until the first click, it never is: nothing else about
+   * ClaudePlus loads until this is clicked, so a page nobody interacts with (such as the hidden
+   * iframes the widget extractor briefly opens) never pays for it.
+   */
+  class ClaudePlusLauncher {
+    /**
+     * The button element.
+     * @type {HTMLElement}
+     */
+    #button;
+
+    /**
+     * Creates the launcher.
+     * @param {function(): void} onActivate Called when the button is clicked.
+     */
+    constructor(onActivate) {
+      this.#button = createElement('button', {
+        className: 'claude-plus-launcher',
+        textContent: '💡',
+        title: 'Open ClaudePlus',
+        style: ClaudePlusLauncher.#style(),
+      });
+      this.#button.addEventListener('click', onActivate);
+    }
+
+    /**
+     * Adds the button to the page.
+     * @returns {void}
+     */
+    mount() {
+      document.body.append(this.#button);
+    }
+
+    /**
+     * The button's inline styling, self-contained so it renders correctly before ClaudePlus's own
+     * stylesheet exists.
+     * @returns {string} The CSS text.
+     */
+    static #style() {
+      return [
+        'position:fixed', 'right:16px', 'bottom:16px', 'width:44px', 'height:44px', 'border-radius:50%',
+        'border:none', 'background:#1a1918', 'box-shadow:0 2px 8px rgba(0,0,0,0.4)', 'font-size:20px',
+        'line-height:44px', 'text-align:center', 'padding:0', 'cursor:pointer', 'z-index:2147483647',
+      ].join(';');
+    }
+  }
+
+  /**
+   * The app, not started until the launcher button is clicked.
+   * @type {ClaudePlusApp}
+   */
+  const app = new ClaudePlusApp();
+
+  new ClaudePlusLauncher(() => app.launch().catch(error => console.error(LOG_PREFIX, 'failed to start', error))).mount();
 
 })();

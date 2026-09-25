@@ -45,6 +45,12 @@ export class Toolbar {
   #settingsTransfer;
 
   /**
+   * Called when the hide button is clicked.
+   * @type {function(): void}
+   */
+  #onHide;
+
+  /**
    * The layout and settings menus.
    * @type {PopupMenu}
    */
@@ -63,12 +69,14 @@ export class Toolbar {
    * @param {DockWorkspace} services.workspace Workspace to reset.
    * @param {LayoutLibrary} services.layoutLibrary Saved layouts.
    * @param {SettingsTransfer} services.settingsTransfer Settings export and import.
+   * @param {function(): void} services.onHide Called when the hide button is clicked.
    */
-  constructor({ preferences, workspace, layoutLibrary, settingsTransfer }) {
+  constructor({ preferences, workspace, layoutLibrary, settingsTransfer, onHide }) {
     this.#preferences = preferences;
     this.#workspace = workspace;
     this.#layoutLibrary = layoutLibrary;
     this.#settingsTransfer = settingsTransfer;
+    this.#onHide = onHide;
     const storedSize = Number.parseFloat(preferences.read(STORAGE_KEYS.messageFontSize));
     const { minimum, maximum, fallback } = Toolbar.#FONT_SIZE;
     this.#messageFontSize = Number.isFinite(storedSize) ? clamp(storedSize, minimum, maximum) : fallback;
@@ -92,13 +100,15 @@ export class Toolbar {
         <div class="claude-plus-fill-remaining"></div>
         <button class="claude-plus-toolbar__button" data-name="layoutsButton">Layouts ▾</button>
         <button class="claude-plus-toolbar__button" data-name="settingsButton">Settings ▾</button>
-        <button class="claude-plus-toolbar__button" data-name="resetLayoutButton">Reset layout</button>`,
+        <button class="claude-plus-toolbar__button" data-name="resetLayoutButton">Reset layout</button>
+        <button class="claude-plus-toolbar__close-button" data-name="hideButton" title="Hide ClaudePlus (nothing is lost, click the lightbulb to bring it back)">✕</button>`,
     });
     const elements = collectNamedElements(toolbar);
     elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
     elements.layoutsButton.addEventListener('click', () => this.#showLayoutsMenu(elements.layoutsButton));
     elements.settingsButton.addEventListener('click', () => this.#showSettingsMenu(elements.settingsButton));
     elements.resetLayoutButton.addEventListener('click', () => this.#workspace.resetLayout());
+    elements.hideButton.addEventListener('click', () => this.#onHide());
     this.#applyFontSize(elements.fontSizeLabel);
     document.body.append(toolbar);
   }
