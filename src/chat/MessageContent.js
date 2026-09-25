@@ -1,7 +1,7 @@
 import { ATTACHMENT_NAME_FIELDS } from '../config/ATTACHMENT_NAME_FIELDS.js';
 import { Markdown } from '../text/Markdown.js';
 import { StyleRegistry } from '../styles/StyleRegistry.js';
-import { WIDGET_TOOL_NAMES } from '../config/WIDGET_TOOL_NAMES.js';
+import { WidgetToolCall } from './widgets/WidgetToolCall.js';
 import { escapeHtml } from '../text/escapeHtml.js';
 import stylesheet from './MessageContent.css';
 
@@ -73,7 +73,8 @@ export class MessageContent {
       ...uploads.filter(upload => !MessageContent.#isImageUpload(upload)).map(upload => MessageContent.#fileAttachmentHtml(upload)),
     ].join('');
     const blocks = apiMessage.content ?? [];
-    const rendered = blocks.map(block => MessageContent.#bodyBlock(block));
+    const resultByUseId = MessageContent.#resultsByUseId(blocks);
+    const rendered = blocks.map(block => MessageContent.#bodyBlock(block, resultByUseId));
     const blocksHtml = rendered.map(item => item.html).join('');
     const bodyHtml = blocksHtml || MessageContent.textHtml(apiMessage.text);
     const widgets = rendered.map(item => item.widget).filter(Boolean);
@@ -81,14 +82,25 @@ export class MessageContent {
   }
 
   /**
-   * HTML (and, for a widget, the extraction job) of one content block.
+   * Tool results by the id of the call they answer, to tell a widget call that actually rendered
+   * a card from one that didn't (still pending, or a failed attempt superseded by a retry).
+   * @param {ContentBlock[]} blocks The message's content blocks.
+   * @returns {Map<string, ContentBlock>} The results, by tool_use_id.
+   */
+  static #resultsByUseId(blocks) {
+    return new Map(blocks.filter(block => block.type === 'tool_result').map(block => [block.tool_use_id, block]));
+  }
+
+  /**
+   * HTML (and, for a rendered widget, the extraction job) of one content block.
    * @param {ContentBlock} block The block.
+   * @param {Map<string, ContentBlock>} resultByUseId Tool results by the id of the call they answer.
    * @returns {{html: string, widget: ?{toolName: string, data: object, toolUseId: string}}} The
    * block's HTML, and its widget job if it is one.
    */
-  static #bodyBlock(block) {
+  static #bodyBlock(block, resultByUseId) {
     if (block.type === 'text' && block.text) return { html: MessageContent.textHtml(block.text), widget: null };
-    if (block.type === 'tool_use' && WIDGET_TOOL_NAMES.includes(block.name)) return MessageContent.#widgetBlock(block);
+    if (block.type === 'tool_use' && WidgetToolCall.isRendered(block, resultByUseId.get(block.id))) return MessageContent.#widgetBlock(block);
     return { html: '', widget: null };
   }
 
