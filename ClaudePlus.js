@@ -334,6 +334,7 @@
     effort: 'claudePlus.effort',
     thinkingMode: 'claudePlus.thinkingMode',
     messageFontSize: 'claudePlus.messageFontSize',
+    chatPanes: 'claudePlus.chatPanes',
   });
 
   /**
@@ -1774,9 +1775,11 @@
   }
 
   /**
-   * Composer options persisted in localStorage. Values outside the allowed list read as the default.
+   * Composer options persisted in localStorage, shared by all chat panes. Values outside the allowed
+   * list read as the default.
+   * @fires ComposerSettings#settings An option changed.
    */
-  class ComposerSettings {
+  class ComposerSettings extends EventEmitter {
     /**
      * Backing storage.
      * @type {Preferences}
@@ -1788,6 +1791,7 @@
      * @param {Preferences} preferences Backing storage.
      */
     constructor(preferences) {
+      super();
       this.#preferences = preferences;
     }
 
@@ -1859,14 +1863,16 @@
     }
 
     /**
-     * Stores an option if it is allowed.
+     * Stores an option if it is allowed and announces the change.
      * @param {string} key Storage key.
      * @param {string} value Value to store.
      * @param {string[]} allowedValues Allowed values.
      * @returns {void}
      */
     #writeIfAllowed(key, value, allowedValues) {
-      if (allowedValues.includes(value)) this.#preferences.write(key, value);
+      if (!allowedValues.includes(value)) return;
+      this.#preferences.write(key, value);
+      this.publish('settings');
     }
   }
 
@@ -1895,17 +1901,113 @@
   }
 
   /**
-   * Single source of truth for the conversation list, the open conversation and sending.
-   * @fires ConversationStore#conversations The conversation list changed.
-   * @fires ConversationStore#openConversation The open conversation changed.
-   * @fires ConversationStore#messages The message list changed.
-   * @fires ConversationStore#messageContent One message's content changed; payload is the ChatMessage.
-   * @fires ConversationStore#sending Sending started or ended.
-   * @fires ConversationStore#conversationLoaded A conversation was fetched; payload is the ApiConversation.
-   * @fires ConversationStore#rateLimits Usage windows arrived in a stream; payload is RateLimits.
-   * @fires ConversationStore#conversationDeleted A conversation was deleted; payload is its id.
+   * The shared list of the user's conversations, as shown in the sidebar.
+   * @fires ConversationDirectory#conversations The list changed.
+   * @fires ConversationDirectory#conversationDeleted A conversation was deleted; payload is its id.
    */
-  class ConversationStore extends EventEmitter {
+  class ConversationDirectory extends EventEmitter {
+    /**
+     * API client.
+     * @type {ClaudeApi}
+     */
+    #api;
+
+    /**
+     * Conversations, newest first.
+     * @type {ConversationListing[]}
+     */
+    #conversations = [];
+
+    /**
+     * Creates the directory.
+     * @param {ClaudeApi} api API client.
+     */
+    constructor(api) {
+      super();
+      this.#api = api;
+    }
+
+    /**
+     * The listed conversations.
+     * @returns {ConversationListing[]} Conversations, newest first.
+     */
+    get conversations() {
+      return this.#conversations;
+    }
+
+    /**
+     * Reloads the list. Failures are logged and leave the current list in place.
+     * @returns {Promise<void>} Resolves once reloaded or failed.
+     */
+    async refresh() {
+      try {
+        this.#conversations = await this.#api.listConversations(0, LIMITS.sidebarPageSize);
+      } catch (error) {
+        console.warn(LOG_PREFIX, 'loading conversations failed', error);
+      }
+      this.publish('conversations');
+    }
+
+    /**
+     * Display title of a listed conversation.
+     * @param {string} conversationId Conversation id.
+     * @returns {string} Its title, or UNTITLED when it has none or isn't listed.
+     */
+    titleOf(conversationId) {
+      const conversation = this.#conversations.find(listing => listing.uuid === conversationId);
+      return (conversation && conversation.name) || UNTITLED;
+    }
+
+    /**
+     * Adds a just-created conversation to the top of the list.
+     * @param {string} conversationId Conversation id.
+     * @param {string} prompt First prompt, used as a provisional title.
+     * @returns {void}
+     */
+    registerNewConversation(conversationId, prompt) {
+      const listing = { uuid: conversationId, name: prompt.slice(0, LIMITS.provisionalTitleLength), updated_at: new Date().toISOString() };
+      this.#conversations = [listing, ...this.#conversations];
+      this.publish('conversations');
+    }
+
+    /**
+     * Updates a listed conversation's title and time from the server and moves it to the top.
+     * @param {ApiConversation} conversation The fetched conversation.
+     * @returns {void}
+     */
+    updateListing(conversation) {
+      const existing = this.#conversations.find(listing => listing.uuid === conversation.uuid);
+      if (!existing) return;
+      const updated = { ...existing, name: conversation.name || existing.name, updated_at: conversation.updated_at || existing.updated_at };
+      this.#conversations = [updated, ...this.#conversations.filter(listing => listing !== existing)];
+      this.publish('conversations');
+    }
+
+    /**
+     * Permanently deletes a conversation.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<void>} Resolves once deleted.
+     * @throws {ApiError} When the server refuses; nothing changes locally.
+     */
+    async deleteConversation(conversationId) {
+      await this.#api.deleteConversation(conversationId);
+      this.#conversations = this.#conversations.filter(conversation => conversation.uuid !== conversationId);
+      this.publish('conversations');
+      this.publish('conversationDeleted', conversationId);
+    }
+  }
+
+  /**
+   * One chat: the conversation open in a chat pane, its messages and the prompt being sent. Every
+   * chat pane has its own session, so several conversations can be open and streaming at once.
+   * @fires ChatSession#openConversation The open conversation changed.
+   * @fires ChatSession#messages The message list changed.
+   * @fires ChatSession#messageContent One message's content changed; payload is the ChatMessage.
+   * @fires ChatSession#sending Sending started or ended.
+   * @fires ChatSession#conversationLoaded A conversation was fetched; payload is the ApiConversation.
+   * @fires ChatSession#rateLimits Usage windows arrived in a stream; payload is RateLimits.
+   */
+  class ChatSession extends EventEmitter {
     /**
      * API client.
      * @type {ClaudeApi}
@@ -1919,10 +2021,10 @@
     #settings;
 
     /**
-     * Sidebar listing, newest first.
-     * @type {ConversationListing[]}
+     * Shared conversation list, updated when this session creates or reloads a conversation.
+     * @type {ConversationDirectory}
      */
-    #conversations = [];
+    #directory;
 
     /**
      * Open conversation id, or null for a new chat.
@@ -1966,22 +2068,16 @@
     ]);
 
     /**
-     * Creates the store.
+     * Creates an empty session showing a new chat.
      * @param {ClaudeApi} api API client.
      * @param {ComposerSettings} settings Model options for new prompts.
+     * @param {ConversationDirectory} directory Shared conversation list.
      */
-    constructor(api, settings) {
+    constructor(api, settings, directory) {
       super();
       this.#api = api;
       this.#settings = settings;
-    }
-
-    /**
-     * Sidebar listing.
-     * @returns {ConversationListing[]} Conversations, newest first.
-     */
-    get conversations() {
-      return this.#conversations;
+      this.#directory = directory;
     }
 
     /**
@@ -2006,19 +2102,6 @@
      */
     get isSending() {
       return this.#isSending;
-    }
-
-    /**
-     * Reloads the sidebar listing. Failures are logged and leave the current listing in place.
-     * @returns {Promise<void>} Resolves once reloaded or failed.
-     */
-    async refreshConversations() {
-      try {
-        this.#conversations = await this.#api.listConversations(0, LIMITS.sidebarPageSize);
-      } catch (error) {
-        console.warn(LOG_PREFIX, 'loading conversations failed', error);
-      }
-      this.publish('conversations');
     }
 
     /**
@@ -2076,20 +2159,6 @@
     }
 
     /**
-     * Permanently deletes a conversation; switches to a new chat when it was open.
-     * @param {string} conversationId Conversation id.
-     * @returns {Promise<void>} Resolves once deleted.
-     * @throws {ApiError} When the server refuses; nothing changes locally.
-     */
-    async deleteConversation(conversationId) {
-      await this.#api.deleteConversation(conversationId);
-      this.#conversations = this.#conversations.filter(conversation => conversation.uuid !== conversationId);
-      this.publish('conversations');
-      this.publish('conversationDeleted', conversationId);
-      if (this.#openConversationId === conversationId) this.startNewConversation();
-    }
-
-    /**
      * Stops any reply, clears the messages and makes a conversation (or a new chat) open.
      * @param {?string} conversationId Conversation to open, or null for a new chat.
      * @returns {number} Number identifying this navigation.
@@ -2120,7 +2189,7 @@
     #showLoadError(navigation, error) {
       if (!this.#isLatestNavigation(navigation)) return;
       console.warn(LOG_PREFIX, 'loading conversation failed', error);
-      this.#setMessages([ConversationStore.#createErrorNotice(`Could not load this conversation (${error.message}).`)]);
+      this.#setMessages([ChatSession.#createErrorNotice(`Could not load this conversation (${error.message}).`)]);
     }
 
     /**
@@ -2142,7 +2211,7 @@
     }
 
     /**
-     * Shows the prompt and marks the store as sending.
+     * Shows the prompt and marks the session as sending.
      * @param {string} prompt Prompt text.
      * @param {?string} parentMessageId Message to reply to.
      * @returns {Turn} The new turn.
@@ -2212,7 +2281,7 @@
      * @returns {void}
      */
     #onContentDelta(turn, event) {
-      if (!turn.replyMessage || !ConversationStore.#isTextDelta(event)) return;
+      if (!turn.replyMessage || !ChatSession.#isTextDelta(event)) return;
       turn.replyMessage.appendText(event.delta.text);
       this.publish('messageContent', turn.replyMessage);
     }
@@ -2259,7 +2328,7 @@
       turn.hasFailed = true;
       console.warn(LOG_PREFIX, 'send failed', error);
       if (turn.replyMessage) turn.replyMessage.errorText = error.message;
-      else this.#messages.push(ConversationStore.#createErrorNotice(error.message));
+      else this.#messages.push(ChatSession.#createErrorNotice(error.message));
     }
 
     /**
@@ -2276,7 +2345,7 @@
     }
 
     /**
-     * Fetches the conversation after a send to update the listing and the stats, and replaces the
+     * Fetches the conversation after a send to update the list and the stats, and replaces the
      * optimistic messages with the server's copy (real tool blocks and parent ids).
      * @param {string} conversationId Conversation id.
      * @param {boolean} replaceMessages False after a failure, so the error stays on screen.
@@ -2285,16 +2354,16 @@
     async #reloadAfterSend(conversationId, replaceMessages) {
       try {
         const conversation = await this.#api.getConversation(conversationId);
-        this.#updateConversationListing(conversation);
+        this.#directory.updateListing(conversation);
         this.publish('conversationLoaded', conversation);
-        if (replaceMessages && this.#isOpenAndIdle(conversationId)) this.#setMessages(ConversationStore.#branchMessages(conversation));
+        if (replaceMessages && this.#isOpenAndIdle(conversationId)) this.#setMessages(ChatSession.#branchMessages(conversation));
       } catch (error) {
         console.warn(LOG_PREFIX, 'refreshing conversation failed', error);
       }
     }
 
     /**
-     * Whether a conversation is open and not sending.
+     * Whether a conversation is open here and not sending.
      * @param {string} conversationId Conversation id.
      * @returns {boolean} True when its messages can be replaced safely.
      */
@@ -2308,7 +2377,7 @@
      * @returns {void}
      */
     #showConversation(conversation) {
-      this.#setMessages(ConversationStore.#branchMessages(conversation));
+      this.#setMessages(ChatSession.#branchMessages(conversation));
       this.publish('conversationLoaded', conversation);
     }
 
@@ -2322,29 +2391,14 @@
     }
 
     /**
-     * Adds a just-created conversation to the top of the listing and opens it.
+     * Lists a just-created conversation and makes it the open one.
      * @param {string} conversationId Conversation id.
      * @param {string} prompt First prompt, used as a provisional title.
      * @returns {void}
      */
     #registerNewConversation(conversationId, prompt) {
-      const listing = { uuid: conversationId, name: prompt.slice(0, LIMITS.provisionalTitleLength), updated_at: new Date().toISOString() };
-      this.#conversations = [listing, ...this.#conversations];
-      this.publish('conversations');
+      this.#directory.registerNewConversation(conversationId, prompt);
       this.#setOpenConversation(conversationId);
-    }
-
-    /**
-     * Updates a listed conversation's title and time from the server and moves it to the top.
-     * @param {ApiConversation} conversation The fetched conversation.
-     * @returns {void}
-     */
-    #updateConversationListing(conversation) {
-      const existing = this.#conversations.find(listing => listing.uuid === conversation.uuid);
-      if (!existing) return;
-      const updated = { ...existing, name: conversation.name || existing.name, updated_at: conversation.updated_at || existing.updated_at };
-      this.#conversations = [updated, ...this.#conversations.filter(listing => listing !== existing)];
-      this.publish('conversations');
     }
 
     /**
@@ -2399,69 +2453,374 @@
   }
 
   /**
-   * Keeps the URL in sync with the open conversation and handles back/forward navigation.
+   * Owns the chat panes: creates, restores, focuses and closes them, and remembers which
+   * conversation each one shows. The focused pane is the one the sidebar, the URL and the export act on.
+   * @fires ChatPaneManager#focus The focused pane changed.
+   * @fires ChatPaneManager#paneConversations A pane opened another conversation; payload is the pane id.
+   * @fires ChatPaneManager#conversationLoaded A pane fetched a conversation; payload is the ApiConversation.
+   * @fires ChatPaneManager#rateLimits A pane received usage windows; payload is RateLimits.
    */
-  class Router {
+  class ChatPaneManager extends EventEmitter {
     /**
-     * Conversation state.
-     * @type {ConversationStore}
+     * API client.
+     * @type {ClaudeApi}
      */
-    #store;
+    #api;
 
     /**
-     * Creates the router.
-     * @param {ConversationStore} store Conversation state.
+     * Shared model options.
+     * @type {ComposerSettings}
      */
-    constructor(store) {
-      this.#store = store;
+    #settings;
+
+    /**
+     * Shared conversation list.
+     * @type {ConversationDirectory}
+     */
+    #directory;
+
+    /**
+     * Storage for the open panes.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * Session and panel of every pane, by pane id, in creation order.
+     * @type {Map<string, {session: ChatSession, panel: ChatPanel}>}
+     */
+    #panes = new Map();
+
+    /**
+     * Conversations to reopen in restored panes once the data has loaded, by pane id.
+     * @type {Map<string, string>}
+     */
+    #conversationsToRestore = new Map();
+
+    /**
+     * Id of the focused pane.
+     * @type {?string}
+     */
+    #focusedPaneId = null;
+
+    /**
+     * Workspace the panes are docked in; set by attachWorkspace.
+     * @type {?DockWorkspace}
+     */
+    #workspace = null;
+
+    /**
+     * Creates the manager without any pane.
+     * @param {object} services Shared services.
+     * @param {ClaudeApi} services.api API client.
+     * @param {ComposerSettings} services.settings Shared model options.
+     * @param {ConversationDirectory} services.directory Shared conversation list.
+     * @param {Preferences} services.preferences Storage for the open panes.
+     */
+    constructor({ api, settings, directory, preferences }) {
+      super();
+      this.#api = api;
+      this.#settings = settings;
+      this.#directory = directory;
+      this.#preferences = preferences;
+      directory.subscribe('conversationDeleted', conversationId => this.#closeDeletedConversation(conversationId));
     }
 
     /**
-     * Opens what the current URL points to and starts following navigation.
+     * Ids of all panes.
+     * @returns {string[]} The ids, in creation order.
+     */
+    get paneIds() {
+      return [...this.#panes.keys()];
+    }
+
+    /**
+     * Number of open panes.
+     * @returns {number} The count.
+     */
+    get paneCount() {
+      return this.#panes.size;
+    }
+
+    /**
+     * The focused pane.
+     * @returns {string} Its id.
+     */
+    get focusedPaneId() {
+      return this.#focusedPaneId;
+    }
+
+    /**
+     * Session of the focused pane.
+     * @returns {ChatSession} The session.
+     */
+    get focusedSession() {
+      return this.#panes.get(this.#focusedPaneId).session;
+    }
+
+    /**
+     * Recreates the panes stored by the last visit, or one empty pane. Focuses the pane that showed
+     * the preferred conversation, otherwise the first one. Their conversations are reopened later by
+     * openRestoredConversations.
+     * @param {?string} preferredConversationId Conversation in the URL, or null.
+     * @returns {void}
+     */
+    restorePanes(preferredConversationId) {
+      const storedPanes = ChatPaneManager.#validStoredPanes(this.#preferences.readJson(STORAGE_KEYS.chatPanes));
+      const panes = storedPanes.length ? storedPanes : [{ paneId: ChatPaneManager.#createPaneId(), conversationId: null }];
+      panes.forEach(pane => this.#restorePane(pane));
+      const preferredPane = panes.find(pane => pane.conversationId !== null && pane.conversationId === preferredConversationId);
+      this.#focusedPaneId = (preferredPane || panes[0]).paneId;
+    }
+
+    /**
+     * The panel of every pane, for docking.
+     * @returns {Array<[string, ChatPanel]>} [pane id, panel] pairs.
+     */
+    panelEntries() {
+      return [...this.#panes].map(([paneId, pane]) => [paneId, pane.panel]);
+    }
+
+    /**
+     * Connects the workspace that new panes are docked in.
+     * @param {DockWorkspace} workspace The workspace.
+     * @returns {void}
+     */
+    attachWorkspace(workspace) {
+      this.#workspace = workspace;
+    }
+
+    /**
+     * Reopens the stored conversations of every restored pane except the focused one, whose
+     * conversation comes from the URL.
+     * @returns {void}
+     */
+    openRestoredConversations() {
+      this.#conversationsToRestore.delete(this.#focusedPaneId);
+      this.#conversationsToRestore.forEach((conversationId, paneId) => this.#panes.get(paneId).session.openConversation(conversationId));
+      this.#conversationsToRestore.clear();
+    }
+
+    /**
+     * Opens a new pane next to the focused one and focuses it.
+     * @param {?string} conversationId Conversation to show, or null for a new chat.
+     * @returns {void}
+     */
+    openPane(conversationId) {
+      const paneId = ChatPaneManager.#createPaneId();
+      const pane = this.#createPane(paneId);
+      this.#workspace.addPanel(paneId, pane.panel, this.#focusedPaneId);
+      this.focusPane(paneId);
+      if (conversationId) pane.session.openConversation(conversationId);
+      this.#savePanes();
+    }
+
+    /**
+     * Closes a pane, stopping its reply. The last remaining pane can't be closed.
+     * @param {string} paneId Pane id.
+     * @returns {void}
+     */
+    closePane(paneId) {
+      if (this.#panes.size <= 1 || !this.#panes.has(paneId)) return;
+      if (this.#focusedPaneId === paneId) this.focusPane(this.paneIds.find(id => id !== paneId));
+      this.#panes.get(paneId).session.stopReply();
+      this.#panes.delete(paneId);
+      this.#workspace.removePanel(paneId);
+      this.#savePanes();
+    }
+
+    /**
+     * Makes a pane the focused one.
+     * @param {string} paneId Pane id; unknown ids are ignored.
+     * @returns {void}
+     */
+    focusPane(paneId) {
+      if (this.#focusedPaneId === paneId || !this.#panes.has(paneId)) return;
+      this.#focusedPaneId = paneId;
+      this.publish('focus');
+    }
+
+    /**
+     * Opens a conversation in the focused pane.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<void>} Resolves once it is shown.
+     */
+    openInFocusedPane(conversationId) {
+      return this.focusedSession.openConversation(conversationId);
+    }
+
+    /**
+     * Starts a new chat in the focused pane.
+     * @returns {void}
+     */
+    startNewInFocusedPane() {
+      this.focusedSession.startNewConversation();
+    }
+
+    /**
+     * Conversations shown in any pane.
+     * @returns {Set<string>} Their ids.
+     */
+    openConversationIds() {
+      return new Set([...this.#panes.values()].map(pane => pane.session.openConversationId).filter(Boolean));
+    }
+
+    /**
+     * Creates a pane from its stored state, remembering its conversation for later.
+     * @param {{paneId: string, conversationId: ?string}} storedPane Stored pane.
+     * @returns {void}
+     */
+    #restorePane({ paneId, conversationId }) {
+      this.#createPane(paneId);
+      if (conversationId) this.#conversationsToRestore.set(paneId, conversationId);
+    }
+
+    /**
+     * Creates a pane's session and panel and forwards the session's events.
+     * @param {string} paneId Pane id.
+     * @returns {{session: ChatSession, panel: ChatPanel}} The pane.
+     */
+    #createPane(paneId) {
+      const session = new ChatSession(this.#api, this.#settings, this.#directory);
+      const panel = new ChatPanel({ paneId, session, settings: this.#settings, directory: this.#directory, paneManager: this });
+      session.subscribe('openConversation', () => this.#onPaneConversationChanged(paneId));
+      session.subscribe('conversationLoaded', conversation => this.publish('conversationLoaded', conversation));
+      session.subscribe('rateLimits', limits => this.publish('rateLimits', limits));
+      const pane = { session, panel };
+      this.#panes.set(paneId, pane);
+      return pane;
+    }
+
+    /**
+     * Saves the panes and announces that a pane shows another conversation.
+     * @param {string} paneId Pane id.
+     * @returns {void}
+     */
+    #onPaneConversationChanged(paneId) {
+      this.#savePanes();
+      this.publish('paneConversations', paneId);
+    }
+
+    /**
+     * Switches every pane showing a deleted conversation to a new chat.
+     * @param {string} conversationId The deleted conversation.
+     * @returns {void}
+     */
+    #closeDeletedConversation(conversationId) {
+      for (const pane of this.#panes.values()) {
+        if (pane.session.openConversationId === conversationId) pane.session.startNewConversation();
+      }
+    }
+
+    /**
+     * Stores every pane and its conversation.
+     * @returns {void}
+     */
+    #savePanes() {
+      const storedPanes = [...this.#panes].map(([paneId, pane]) => ({ paneId, conversationId: pane.session.openConversationId }));
+      this.#preferences.writeJson(STORAGE_KEYS.chatPanes, storedPanes);
+    }
+
+    /**
+     * Creates a unique pane id.
+     * @returns {string} An id starting with "chat-".
+     */
+    static #createPaneId() {
+      return `chat-${crypto.randomUUID()}`;
+    }
+
+    /**
+     * The well-formed entries of a stored pane list.
+     * @param {*} storedPanes Parsed stored value.
+     * @returns {Array<{paneId: string, conversationId: ?string}>} Valid panes; empty when nothing valid is stored.
+     */
+    static #validStoredPanes(storedPanes) {
+      return Array.isArray(storedPanes) ? storedPanes.filter(ChatPaneManager.#isValidStoredPane) : [];
+    }
+
+    /**
+     * Whether a stored pane entry is well formed.
+     * @param {*} storedPane Stored entry.
+     * @returns {boolean} True for an object with a "chat-" pane id and a string or null conversation id.
+     */
+    static #isValidStoredPane(storedPane) {
+      return Boolean(storedPane) && String(storedPane.paneId).startsWith('chat-') && (storedPane.conversationId === null || typeof storedPane.conversationId === 'string');
+    }
+  }
+
+  /**
+   * Keeps the URL in sync with the focused pane's conversation and handles back/forward navigation.
+   */
+  class Router {
+    /**
+     * Chat panes.
+     * @type {ChatPaneManager}
+     */
+    #paneManager;
+
+    /**
+     * Creates the router.
+     * @param {ChatPaneManager} paneManager Chat panes.
+     */
+    constructor(paneManager) {
+      this.#paneManager = paneManager;
+    }
+
+    /**
+     * Opens what the current URL points to in the focused pane and starts following navigation.
      * @returns {Promise<void>} Resolves once the conversation is shown.
      */
     async start() {
       window.addEventListener('popstate', () => this.#openFromUrl());
-      this.#store.subscribe('openConversation', () => this.#updateUrlToOpenConversation());
+      this.#paneManager.subscribe('focus', () => this.#updateUrlToFocusedConversation());
+      this.#paneManager.subscribe('paneConversations', paneId => this.#onPaneConversationChanged(paneId));
       await this.#openFromUrl();
     }
 
     /**
-     * Opens a conversation as a user navigation, adding a history entry.
+     * Opens a conversation in the focused pane as a user navigation, adding a history entry.
      * @param {string} conversationId Conversation id.
      * @returns {Promise<void>} Resolves once the conversation is shown.
      */
     openConversation(conversationId) {
       if (conversationIdFromPath(location.pathname) !== conversationId) history.pushState(null, '', conversationPath(conversationId));
-      return this.#store.openConversation(conversationId);
+      return this.#paneManager.openInFocusedPane(conversationId);
     }
 
     /**
-     * Starts a new chat as a user navigation, adding a history entry.
+     * Starts a new chat in the focused pane as a user navigation, adding a history entry.
      * @returns {void}
      */
     startNewConversation() {
       if (location.pathname !== NEW_CHAT_PATH) history.pushState(null, '', NEW_CHAT_PATH);
-      this.#store.startNewConversation();
+      this.#paneManager.startNewInFocusedPane();
     }
 
     /**
-     * Opens the conversation in the URL, or a new chat.
+     * Opens the conversation in the URL, or a new chat, in the focused pane.
      * @returns {Promise<void>} Resolves once a conversation is shown.
      */
     async #openFromUrl() {
       const conversationId = conversationIdFromPath(location.pathname);
-      if (conversationId) await this.#store.openConversation(conversationId);
-      else this.#store.startNewConversation();
+      if (conversationId) await this.#paneManager.openInFocusedPane(conversationId);
+      else this.#paneManager.startNewInFocusedPane();
     }
 
     /**
-     * Updates the URL after a change made by the store (a conversation created, the open one
-     * deleted), replacing the history entry rather than adding one.
+     * Follows conversation changes of the focused pane only.
+     * @param {string} paneId Pane whose conversation changed.
      * @returns {void}
      */
-    #updateUrlToOpenConversation() {
-      const openId = this.#store.openConversationId;
+    #onPaneConversationChanged(paneId) {
+      if (paneId === this.#paneManager.focusedPaneId) this.#updateUrlToFocusedConversation();
+    }
+
+    /**
+     * Points the URL at the focused pane's conversation, replacing the history entry rather than adding one.
+     * @returns {void}
+     */
+    #updateUrlToFocusedConversation() {
+      const openId = this.#paneManager.focusedSession.openConversationId;
       if (openId === conversationIdFromPath(location.pathname)) return;
       history.replaceState(null, '', openId ? conversationPath(openId) : NEW_CHAT_PATH);
     }
@@ -3154,7 +3513,8 @@
   /**
    * A dockable panel. Its DOM is built on first access and immediately rendered from current state,
    * so a panel opened late is never blank. Subclasses override createBodyHtml, bindEvents and
-   * render, and look up elements only inside their own root through elements.
+   * render, look up elements only inside their own root through elements, and subscribe through
+   * listenTo so dispose can undo every subscription.
    */
   class Panel {
     /**
@@ -3164,12 +3524,32 @@
     #root = null;
 
     /**
+     * Tab title.
+     * @type {string}
+     */
+    #title;
+
+    /**
+     * Undoes each subscription made through listenTo.
+     * @type {Array<function(): void>}
+     */
+    #unsubscribers = [];
+
+    /**
      * Creates the panel.
      * @param {string} title Tab title.
      */
     constructor(title) {
-      this.title = title;
+      this.#title = title;
       this.elements = {};
+    }
+
+    /**
+     * Tab title.
+     * @returns {string} The title.
+     */
+    get title() {
+      return this.#title;
     }
 
     /**
@@ -3187,6 +3567,43 @@
     get element() {
       if (!this.#root) this.#buildElement();
       return this.#root;
+    }
+
+    /**
+     * Whether the panel's tab offers a close button.
+     * @returns {boolean} False; closable panels override this.
+     */
+    canClose() {
+      return false;
+    }
+
+    /**
+     * Handles the tab's close button.
+     * @returns {void}
+     */
+    close() {
+      return undefined;
+    }
+
+    /**
+     * Subscribes to an emitter for as long as the panel exists.
+     * @param {EventEmitter} emitter Event source.
+     * @param {string} eventName Event name.
+     * @param {function(*): void} listener Called with the event payload.
+     * @returns {void}
+     */
+    listenTo(emitter, eventName, listener) {
+      this.#unsubscribers.push(emitter.subscribe(eventName, listener));
+    }
+
+    /**
+     * Ends every subscription and removes the panel from the page.
+     * @returns {void}
+     */
+    dispose() {
+      this.#unsubscribers.forEach(unsubscribe => unsubscribe());
+      this.#unsubscribers = [];
+      if (this.#root) this.#root.remove();
     }
 
     /**
@@ -3226,14 +3643,15 @@
   }
 
   /**
-   * Conversation list with search, new chat and delete.
+   * Conversation list with search, new chat, open in a new pane, and delete. Clicking a conversation
+   * opens it in the focused chat pane.
    */
   class ConversationListPanel extends Panel {
     /**
-     * Conversation state.
-     * @type {ConversationStore}
+     * Shared conversation list.
+     * @type {ConversationDirectory}
      */
-    #store;
+    #directory;
 
     /**
      * Navigation.
@@ -3242,20 +3660,38 @@
     #router;
 
     /**
+     * Chat panes.
+     * @type {ChatPaneManager}
+     */
+    #paneManager;
+
+    /**
      * Lower-case search text.
      * @type {string}
      */
     #searchText = '';
 
     /**
-     * Creates the panel.
-     * @param {ConversationStore} store Conversation state.
-     * @param {Router} router Navigation.
+     * Handler per button data-action value inside a conversation entry.
+     * @type {Map<string, function(HTMLElement): void>}
      */
-    constructor(store, router) {
+    #entryActionHandlers = new Map([
+      ['delete', entry => this.#confirmAndDelete(entry)],
+      ['openInNewPane', entry => this.#paneManager.openPane(entry.dataset.conversationId)],
+    ]);
+
+    /**
+     * Creates the panel.
+     * @param {object} services Panel dependencies.
+     * @param {ConversationDirectory} services.directory Shared conversation list.
+     * @param {Router} services.router Navigation.
+     * @param {ChatPaneManager} services.paneManager Chat panes.
+     */
+    constructor({ directory, router, paneManager }) {
       super('Chats');
-      this.#store = store;
+      this.#directory = directory;
       this.#router = router;
+      this.#paneManager = paneManager;
     }
 
     /**
@@ -3270,25 +3706,29 @@
     }
 
     /**
-     * Wires the buttons, search and list, and follows listing and open-conversation changes.
+     * Wires the buttons, search and list, and follows list, focus and pane changes.
      * @returns {void}
      */
     bindEvents() {
       this.elements.newChatButton.addEventListener('click', () => this.#router.startNewConversation());
       this.elements.searchInput.addEventListener('input', () => this.#applySearch(this.elements.searchInput.value));
       this.elements.conversationList.addEventListener('click', event => this.#onConversationListClick(event));
-      this.#store.subscribe('conversations', () => this.render());
-      this.#store.subscribe('openConversation', () => this.render());
+      this.listenTo(this.#directory, 'conversations', () => this.render());
+      this.listenTo(this.#paneManager, 'focus', () => this.render());
+      this.listenTo(this.#paneManager, 'paneConversations', () => this.render());
     }
 
     /**
-     * Shows the conversations matching the search, highlighting the open one.
+     * Shows the conversations matching the search, marking the focused pane's conversation and
+     * those open in other panes.
      * @returns {void}
      */
     render() {
-      const matching = this.#store.conversations.filter(conversation => this.#matchesSearch(conversation));
+      const openIds = this.#paneManager.openConversationIds();
+      const focusedId = this.#paneManager.focusedSession.openConversationId;
+      const matching = this.#directory.conversations.filter(conversation => this.#matchesSearch(conversation));
       const emptyText = this.#searchText ? 'No chats match your search.' : 'No conversations yet.';
-      this.elements.conversationList.innerHTML = matching.map(conversation => this.#conversationHtml(conversation)).join('') || emptyStateHtml(emptyText);
+      this.elements.conversationList.innerHTML = matching.map(conversation => ConversationListPanel.#conversationHtml(conversation, focusedId, openIds)).join('') || emptyStateHtml(emptyText);
     }
 
     /**
@@ -3322,30 +3762,45 @@
     /**
      * HTML of one conversation entry.
      * @param {ConversationListing} conversation The conversation.
+     * @param {?string} focusedId Conversation of the focused pane.
+     * @param {Set<string>} openIds Conversations open in any pane.
      * @returns {string} The entry.
      */
-    #conversationHtml(conversation) {
-      const activeModifier = conversation.uuid === this.#store.openConversationId ? ' claude-plus-conversation--active' : '';
+    static #conversationHtml(conversation, focusedId, openIds) {
       const date = conversation.updated_at ? new Date(conversation.updated_at).toLocaleDateString() : '';
       return `
-        <div class="claude-plus-conversation${activeModifier}" data-conversation-id="${escapeHtml(conversation.uuid)}">
+        <div class="claude-plus-conversation${ConversationListPanel.#stateModifier(conversation.uuid, focusedId, openIds)}" data-conversation-id="${escapeHtml(conversation.uuid)}">
           <div class="claude-plus-conversation__summary">
             <div class="claude-plus-conversation__title">${escapeHtml(conversation.name || UNTITLED)}</div>
             <div class="claude-plus-conversation__date">${escapeHtml(date)}</div>
           </div>
-          <button class="claude-plus-conversation__delete-button" title="Delete chat">🗑</button>
+          <button class="claude-plus-conversation__action-button" data-action="openInNewPane" title="Open in new pane">⧉</button>
+          <button class="claude-plus-conversation__action-button" data-action="delete" title="Delete chat">🗑</button>
         </div>`;
     }
 
     /**
-     * Opens the clicked conversation, or asks to delete it when the delete button was clicked.
+     * Modifier class marking where a conversation is open.
+     * @param {string} conversationId Conversation id.
+     * @param {?string} focusedId Conversation of the focused pane.
+     * @param {Set<string>} openIds Conversations open in any pane.
+     * @returns {string} The active modifier, the open-elsewhere modifier, or an empty string.
+     */
+    static #stateModifier(conversationId, focusedId, openIds) {
+      if (conversationId === focusedId) return ' claude-plus-conversation--active';
+      return openIds.has(conversationId) ? ' claude-plus-conversation--open-elsewhere' : '';
+    }
+
+    /**
+     * Runs the clicked entry button's action, or opens the clicked conversation in the focused pane.
      * @param {MouseEvent} event Click inside the list.
      * @returns {void}
      */
     #onConversationListClick(event) {
       const entry = event.target.closest('.claude-plus-conversation');
       if (!entry) return;
-      if (event.target.closest('.claude-plus-conversation__delete-button')) this.#confirmAndDelete(entry);
+      const button = event.target.closest('[data-action]');
+      if (button) this.#entryActionHandlers.get(button.dataset.action)(entry);
       else this.#router.openConversation(entry.dataset.conversationId);
     }
 
@@ -3357,37 +3812,33 @@
      */
     async #confirmAndDelete(entry) {
       const conversationId = entry.dataset.conversationId;
-      if (!window.confirm(`Delete "${this.#titleOf(conversationId)}"? This cannot be undone.`)) return;
+      if (!window.confirm(`Delete "${this.#directory.titleOf(conversationId)}"? This cannot be undone.`)) return;
       entry.classList.add('claude-plus-pending');
       try {
-        await this.#store.deleteConversation(conversationId);
+        await this.#directory.deleteConversation(conversationId);
       } catch (error) {
         console.warn(LOG_PREFIX, 'delete failed', error);
         entry.classList.remove('claude-plus-pending');
       }
     }
-
-    /**
-     * Display title of a listed conversation.
-     * @param {string} conversationId Conversation id.
-     * @returns {string} Its title, or UNTITLED.
-     */
-    #titleOf(conversationId) {
-      const conversation = this.#store.conversations.find(listing => listing.uuid === conversationId);
-      return (conversation && conversation.name) || UNTITLED;
-    }
   }
 
   /**
-   * The open conversation's messages with copy and retry actions. Streaming updates re-render only
+   * The messages of a chat session with copy and retry actions. Streaming updates re-render only
    * the affected message, at most once per animation frame.
    */
-  class ChatPanel extends Panel {
+  class MessageListView {
     /**
-     * Conversation state.
-     * @type {ConversationStore}
+     * List element the messages are rendered into.
+     * @type {HTMLElement}
      */
-    #store;
+    #listElement;
+
+    /**
+     * Session whose messages are shown.
+     * @type {ChatSession}
+     */
+    #session;
 
     /**
      * Messages whose content changed since the last frame.
@@ -3406,36 +3857,23 @@
      * @type {Map<string, function(HTMLElement): void>}
      */
     #actionHandlers = new Map([
-      ['retry', () => this.#store.retryLastPrompt()],
+      ['retry', () => this.#session.retryLastPrompt()],
       ['copy', button => this.#copyMessageText(button)],
     ]);
 
     /**
-     * Creates the panel.
-     * @param {ConversationStore} store Conversation state.
+     * Wires the view to its list element and session.
+     * @param {Panel} ownerPanel Panel owning the subscriptions.
+     * @param {HTMLElement} listElement List element the messages are rendered into.
+     * @param {ChatSession} session Session whose messages are shown.
      */
-    constructor(store) {
-      super('Chat');
-      this.#store = store;
-    }
-
-    /**
-     * HTML of the panel body.
-     * @returns {string} The message list container.
-     */
-    createBodyHtml() {
-      return '<div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-message-list" data-name="messageList"></div>';
-    }
-
-    /**
-     * Wires the actions and follows message and sending changes.
-     * @returns {void}
-     */
-    bindEvents() {
-      this.elements.messageList.addEventListener('click', event => this.#onMessageListClick(event));
-      this.#store.subscribe('messages', () => this.render());
-      this.#store.subscribe('sending', () => this.render());
-      this.#store.subscribe('messageContent', message => this.#scheduleMessageUpdate(message));
+    constructor(ownerPanel, listElement, session) {
+      this.#listElement = listElement;
+      this.#session = session;
+      listElement.addEventListener('click', event => this.#onClick(event));
+      ownerPanel.listenTo(session, 'messages', () => this.render());
+      ownerPanel.listenTo(session, 'sending', () => this.render());
+      ownerPanel.listenTo(session, 'messageContent', message => this.#scheduleMessageUpdate(message));
     }
 
     /**
@@ -3446,10 +3884,10 @@
       this.#changedMessages.clear();
       this.#updateScheduler.cancel();
       const wasAtBottom = this.#isScrolledToBottom();
-      const messages = this.#store.messages;
-      const retryableIndex = this.#store.isSending ? -1 : messages.findLastIndex(message => message.sender === 'assistant');
-      this.elements.messageList.innerHTML = messages.map((message, index) => this.#messageHtml(message, index, index === retryableIndex)).join('')
-        || '<div class="claude-plus-empty-state claude-plus-empty-state--padded">Start a conversation using the composer.</div>';
+      const messages = this.#session.messages;
+      const retryableIndex = this.#session.isSending ? -1 : messages.findLastIndex(message => message.sender === 'assistant');
+      this.#listElement.innerHTML = messages.map((message, index) => MessageListView.#messageHtml(message, index, index === retryableIndex)).join('')
+        || '<div class="claude-plus-empty-state claude-plus-empty-state--padded">Start a conversation using the message box below.</div>';
       this.#scrollToBottomIf(wasAtBottom);
     }
 
@@ -3480,9 +3918,9 @@
      * @returns {void}
      */
     #renderMessageBody(message) {
-      const index = this.#store.messages.indexOf(message);
-      const body = this.elements.messageList.querySelector(`[data-message-index="${index}"] .claude-plus-message__body`);
-      if (body) body.innerHTML = ChatPanel.#messageBodyHtml(message);
+      const index = this.#session.messages.indexOf(message);
+      const body = this.#listElement.querySelector(`[data-message-index="${index}"] .claude-plus-message__body`);
+      if (body) body.innerHTML = MessageListView.#messageBodyHtml(message);
     }
 
     /**
@@ -3492,13 +3930,13 @@
      * @param {boolean} offersRetry Whether to offer retry on it.
      * @returns {string} The message.
      */
-    #messageHtml(message, index, offersRetry) {
+    static #messageHtml(message, index, offersRetry) {
       const sender = message.sender === 'human' ? 'human' : 'assistant';
       return `
         <div class="claude-plus-message claude-plus-message--${sender}" data-message-index="${index}">
           <div class="claude-plus-message__sender">${sender === 'human' ? 'You' : 'Claude'}</div>
-          <div class="claude-plus-message__body">${ChatPanel.#messageBodyHtml(message)}</div>
-          ${message.isStreaming ? '' : ChatPanel.#actionButtonsHtml(offersRetry)}
+          <div class="claude-plus-message__body">${MessageListView.#messageBodyHtml(message)}</div>
+          ${message.isStreaming ? '' : MessageListView.#actionButtonsHtml(offersRetry)}
         </div>`;
     }
 
@@ -3528,7 +3966,7 @@
      * @param {MouseEvent} event Click inside the list.
      * @returns {void}
      */
-    #onMessageListClick(event) {
+    #onClick(event) {
       const button = event.target.closest('[data-action]');
       const handleAction = button ? this.#actionHandlers.get(button.dataset.action) : null;
       if (handleAction) handleAction(button);
@@ -3540,8 +3978,8 @@
      * @returns {void}
      */
     #copyMessageText(button) {
-      const message = this.#store.messages[Number(button.closest('.claude-plus-message').dataset.messageIndex)];
-      navigator.clipboard.writeText(ChatPanel.#copyableText(message)).catch(() => undefined);
+      const message = this.#session.messages[Number(button.closest('.claude-plus-message').dataset.messageIndex)];
+      navigator.clipboard.writeText(MessageListView.#copyableText(message)).catch(() => undefined);
       button.textContent = '✓';
       setTimeout(() => { button.textContent = '📋'; }, TIMING.copyFeedbackMs);
     }
@@ -3560,8 +3998,8 @@
      * @returns {boolean} True within LIMITS.followOutputDistance of the bottom.
      */
     #isScrolledToBottom() {
-      const { messageList } = this.elements;
-      return messageList.scrollHeight - messageList.scrollTop - messageList.clientHeight < LIMITS.followOutputDistance;
+      const list = this.#listElement;
+      return list.scrollHeight - list.scrollTop - list.clientHeight < LIMITS.followOutputDistance;
     }
 
     /**
@@ -3570,65 +4008,49 @@
      * @returns {void}
      */
     #scrollToBottomIf(wasAtBottom) {
-      if (wasAtBottom) this.elements.messageList.scrollTop = this.elements.messageList.scrollHeight;
+      if (wasAtBottom) this.#listElement.scrollTop = this.#listElement.scrollHeight;
     }
   }
 
   /**
-   * Prompt input with model, effort and thinking options, and a send/stop button.
+   * Prompt input of a chat session with model, effort and thinking options, and a send/stop button.
+   * The options are shared by all panes and stay in sync between them.
    */
-  class ComposerPanel extends Panel {
+  class ComposerView {
     /**
-     * Conversation state.
-     * @type {ConversationStore}
+     * Session prompts are sent in.
+     * @type {ChatSession}
      */
-    #store;
+    #session;
 
     /**
-     * Persisted model options.
+     * Shared model options.
      * @type {ComposerSettings}
      */
     #settings;
 
     /**
-     * Creates the panel.
-     * @param {ConversationStore} store Conversation state.
-     * @param {ComposerSettings} settings Persisted model options.
+     * Named elements of the composer.
+     * @type {Object<string, HTMLElement>}
      */
-    constructor(store, settings) {
-      super('Message');
-      this.#store = store;
+    #elements;
+
+    /**
+     * Builds the composer into its container and wires it.
+     * @param {Panel} ownerPanel Panel owning the subscriptions.
+     * @param {HTMLElement} container Element the composer is built into.
+     * @param {ChatSession} session Session prompts are sent in.
+     * @param {ComposerSettings} settings Shared model options.
+     */
+    constructor(ownerPanel, container, session, settings) {
+      this.#session = session;
       this.#settings = settings;
-    }
-
-    /**
-     * HTML of the panel body, preselecting the stored options.
-     * @returns {string} Option controls, text area and button.
-     */
-    createBodyHtml() {
-      const checkedAttribute = this.#settings.thinkingMode === THINKING_MODES.extended ? ' checked' : '';
-      return `
-        <div class="claude-plus-composer__options">
-          <select data-name="modelSelect">${optionsHtml(MODELS, this.#settings.model)}</select>
-          <select data-name="effortSelect">${optionsHtml(EFFORTS, this.#settings.effort)}</select>
-          <label class="claude-plus-composer__thinking-toggle"><input type="checkbox" data-name="thinkingCheckbox"${checkedAttribute} /> Extended thinking</label>
-        </div>
-        <textarea class="claude-plus-composer__input" data-name="promptInput" placeholder="Message Claude…" rows="3"></textarea>
-        <button class="claude-plus-primary-button claude-plus-composer__send-button" data-name="sendButton">Send</button>`;
-    }
-
-    /**
-     * Wires the options, the button and Enter-to-send, and follows the sending state.
-     * @returns {void}
-     */
-    bindEvents() {
-      const { modelSelect, effortSelect, thinkingCheckbox, promptInput, sendButton } = this.elements;
-      modelSelect.addEventListener('change', () => { this.#settings.model = modelSelect.value; });
-      effortSelect.addEventListener('change', () => { this.#settings.effort = effortSelect.value; });
-      thinkingCheckbox.addEventListener('change', () => { this.#settings.thinkingMode = thinkingCheckbox.checked ? THINKING_MODES.extended : THINKING_MODES.off; });
-      sendButton.addEventListener('click', () => this.#onSendButtonClick());
-      promptInput.addEventListener('keydown', event => this.#onPromptKeydown(event));
-      this.#store.subscribe('sending', () => this.render());
+      container.innerHTML = ComposerView.#bodyHtml();
+      this.#elements = collectNamedElements(container);
+      this.#bindControls();
+      ownerPanel.listenTo(session, 'sending', () => this.render());
+      ownerPanel.listenTo(settings, 'settings', () => this.#showSettings());
+      this.#showSettings();
     }
 
     /**
@@ -3636,9 +4058,47 @@
      * @returns {void}
      */
     render() {
-      const { sendButton } = this.elements;
-      sendButton.textContent = this.#store.isSending ? 'Stop' : 'Send';
-      sendButton.classList.toggle('claude-plus-composer__send-button--stop', this.#store.isSending);
+      const { sendButton } = this.#elements;
+      sendButton.textContent = this.#session.isSending ? 'Stop' : 'Send';
+      sendButton.classList.toggle('claude-plus-composer__send-button--stop', this.#session.isSending);
+    }
+
+    /**
+     * HTML of the composer.
+     * @returns {string} Option controls, text area and button.
+     */
+    static #bodyHtml() {
+      return `
+        <div class="claude-plus-composer__options">
+          <select data-name="modelSelect">${optionsHtml(MODELS, '')}</select>
+          <select data-name="effortSelect">${optionsHtml(EFFORTS, '')}</select>
+          <label class="claude-plus-composer__thinking-toggle"><input type="checkbox" data-name="thinkingCheckbox" /> Extended thinking</label>
+        </div>
+        <textarea class="claude-plus-composer__input" data-name="promptInput" placeholder="Message Claude…" rows="3"></textarea>
+        <button class="claude-plus-primary-button claude-plus-composer__send-button" data-name="sendButton">Send</button>`;
+    }
+
+    /**
+     * Wires the options, the button and Enter-to-send.
+     * @returns {void}
+     */
+    #bindControls() {
+      const { modelSelect, effortSelect, thinkingCheckbox, promptInput, sendButton } = this.#elements;
+      modelSelect.addEventListener('change', () => { this.#settings.model = modelSelect.value; });
+      effortSelect.addEventListener('change', () => { this.#settings.effort = effortSelect.value; });
+      thinkingCheckbox.addEventListener('change', () => { this.#settings.thinkingMode = thinkingCheckbox.checked ? THINKING_MODES.extended : THINKING_MODES.off; });
+      sendButton.addEventListener('click', () => this.#onSendButtonClick());
+      promptInput.addEventListener('keydown', event => this.#onPromptKeydown(event));
+    }
+
+    /**
+     * Shows the current shared options.
+     * @returns {void}
+     */
+    #showSettings() {
+      this.#elements.modelSelect.value = this.#settings.model;
+      this.#elements.effortSelect.value = this.#settings.effort;
+      this.#elements.thinkingCheckbox.checked = this.#settings.thinkingMode === THINKING_MODES.extended;
     }
 
     /**
@@ -3646,7 +4106,7 @@
      * @returns {void}
      */
     #onSendButtonClick() {
-      if (this.#store.isSending) this.#store.stopReply();
+      if (this.#session.isSending) this.#session.stopReply();
       else this.#sendTypedPrompt();
     }
 
@@ -3656,7 +4116,7 @@
      * @returns {void}
      */
     #onPromptKeydown(event) {
-      if (!ComposerPanel.#isSendShortcut(event)) return;
+      if (!ComposerView.#isSendShortcut(event)) return;
       event.preventDefault();
       this.#sendTypedPrompt();
     }
@@ -3675,11 +4135,142 @@
      * @returns {void}
      */
     #sendTypedPrompt() {
-      const { promptInput } = this.elements;
-      if (!promptInput.value.trim() || this.#store.isSending) return;
+      const { promptInput } = this.#elements;
+      if (!promptInput.value.trim() || this.#session.isSending) return;
       const prompt = promptInput.value;
       promptInput.value = '';
-      this.#store.sendPrompt(prompt);
+      this.#session.sendPrompt(prompt);
+    }
+  }
+
+  /**
+   * A chat pane: one session's messages above its composer. Its tab shows the conversation title,
+   * it becomes the focused pane when clicked or typed in, and it can be closed while other panes exist.
+   */
+  class ChatPanel extends Panel {
+    /**
+     * Pane id.
+     * @type {string}
+     */
+    #paneId;
+
+    /**
+     * Session shown in this pane.
+     * @type {ChatSession}
+     */
+    #session;
+
+    /**
+     * Shared model options.
+     * @type {ComposerSettings}
+     */
+    #settings;
+
+    /**
+     * Shared conversation list, for the tab title.
+     * @type {ConversationDirectory}
+     */
+    #directory;
+
+    /**
+     * Chat panes, for focus and closing.
+     * @type {ChatPaneManager}
+     */
+    #paneManager;
+
+    /**
+     * The message list.
+     * @type {?MessageListView}
+     */
+    #messageListView = null;
+
+    /**
+     * The composer.
+     * @type {?ComposerView}
+     */
+    #composerView = null;
+
+    /**
+     * Creates the pane's panel.
+     * @param {object} services Panel dependencies.
+     * @param {string} services.paneId Pane id.
+     * @param {ChatSession} services.session Session shown in this pane.
+     * @param {ComposerSettings} services.settings Shared model options.
+     * @param {ConversationDirectory} services.directory Shared conversation list, for the tab title.
+     * @param {ChatPaneManager} services.paneManager Chat panes, for focus and closing.
+     */
+    constructor({ paneId, session, settings, directory, paneManager }) {
+      super('Chat');
+      this.#paneId = paneId;
+      this.#session = session;
+      this.#settings = settings;
+      this.#directory = directory;
+      this.#paneManager = paneManager;
+    }
+
+    /**
+     * Tab title.
+     * @returns {string} Title of the open conversation, or "New chat".
+     */
+    get title() {
+      const conversationId = this.#session.openConversationId;
+      return conversationId ? this.#directory.titleOf(conversationId) : 'New chat';
+    }
+
+    /**
+     * Whether the tab offers a close button.
+     * @returns {boolean} True while other panes exist.
+     */
+    canClose() {
+      return this.#paneManager.paneCount > 1;
+    }
+
+    /**
+     * Closes this pane.
+     * @returns {void}
+     */
+    close() {
+      this.#paneManager.closePane(this.#paneId);
+    }
+
+    /**
+     * HTML of the panel body.
+     * @returns {string} Containers for the message list and the composer.
+     */
+    createBodyHtml() {
+      return `
+        <div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-message-list" data-name="messageList"></div>
+        <div class="claude-plus-composer" data-name="composer"></div>`;
+    }
+
+    /**
+     * Creates the views, focuses the pane on interaction and follows focus changes.
+     * @returns {void}
+     */
+    bindEvents() {
+      this.#messageListView = new MessageListView(this, this.elements.messageList, this.#session);
+      this.#composerView = new ComposerView(this, this.elements.composer, this.#session, this.#settings);
+      this.element.addEventListener('mousedown', () => this.#paneManager.focusPane(this.#paneId));
+      this.element.addEventListener('focusin', () => this.#paneManager.focusPane(this.#paneId));
+      this.listenTo(this.#paneManager, 'focus', () => this.#renderFocus());
+    }
+
+    /**
+     * Renders the focus marker, the messages and the composer.
+     * @returns {void}
+     */
+    render() {
+      this.#renderFocus();
+      this.#messageListView.render();
+      this.#composerView.render();
+    }
+
+    /**
+     * Marks the pane while it is the focused one.
+     * @returns {void}
+     */
+    #renderFocus() {
+      this.element.classList.toggle('claude-plus-panel--focused', this.#paneManager.focusedPaneId === this.#paneId);
     }
   }
 
@@ -3744,10 +4335,10 @@
      */
     bindEvents() {
       this.elements.backfillButton.addEventListener('click', () => this.#toggleBackfill());
-      this.#activity.subscribe('activity', () => this.#renderActivity());
-      this.#rateLimits.subscribe('rateLimits', () => this.#renderRateLimits());
-      this.#stats.subscribe('aggregate', () => this.#renderAggregate());
-      this.#stats.subscribe('backfill', () => this.#renderBackfill());
+      this.listenTo(this.#activity, 'activity', () => this.#renderActivity());
+      this.listenTo(this.#rateLimits, 'rateLimits', () => this.#renderRateLimits());
+      this.listenTo(this.#stats, 'aggregate', () => this.#renderAggregate());
+      this.listenTo(this.#stats, 'backfill', () => this.#renderBackfill());
     }
 
     /**
@@ -3879,7 +4470,7 @@
     bindEvents() {
       this.elements.topLevelDomainSelect.addEventListener('change', () => this.#renderSourceList());
       this.elements.outletInput.addEventListener('input', () => this.#renderSourceList());
-      this.#stats.subscribe('aggregate', () => this.render());
+      this.listenTo(this.#stats, 'aggregate', () => this.render());
     }
 
     /**
@@ -4019,7 +4610,7 @@
       this.elements.breadcrumb.addEventListener('click', event => this.#onBreadcrumbClick(event));
       this.elements.folderGrid.addEventListener('dblclick', event => this.#onFolderDoubleClick(event));
       this.elements.fileTableHeader.addEventListener('click', event => this.#onColumnHeaderClick(event));
-      this.#stats.subscribe('aggregate', () => this.render());
+      this.listenTo(this.#stats, 'aggregate', () => this.render());
     }
 
     /**
@@ -4161,19 +4752,17 @@
     }
 
     /**
-     * The default layout: chats on the left, chat above composer in the middle, stats, sources and
-     * files tabbed on the right.
+     * The default layout: the conversation list on the left, the chat panes tabbed in the middle,
+     * stats, web sources and files tabbed on the right.
+     * @param {string[]} chatPaneIds Panel ids of the chat panes, at least one.
      * @returns {DockTree} A new tree.
      */
-    static createDefault() {
+    static createDefault(chatPaneIds) {
       return new DockTree({
         type: 'split', direction: 'row', sizes: [0.18, 0.62, 0.2],
         children: [
           DockTree.#createLeaf(['conversations'], 'leaf-conversations'),
-          {
-            type: 'split', direction: 'column', sizes: [0.78, 0.22],
-            children: [DockTree.#createLeaf(['chat'], 'leaf-chat'), DockTree.#createLeaf(['composer'], 'leaf-composer')],
-          },
+          DockTree.#createLeaf(chatPaneIds, 'leaf-chat'),
           DockTree.#createLeaf(['stats', 'webSources', 'files'], 'leaf-extras'),
         ],
       });
@@ -4183,11 +4772,11 @@
      * Rebuilds a stored layout, dropping anything malformed, unknown or duplicated.
      * @param {*} storedLayout Parsed stored layout.
      * @param {Iterable<string>} knownPanelIds Ids of the existing panels.
-     * @returns {DockTree} The restored tree, or the default when nothing valid remains.
+     * @returns {?DockTree} The restored tree, or null when nothing valid remains.
      */
     static fromStored(storedLayout, knownPanelIds) {
       const root = DockTree.#sanitizeNode(storedLayout, new Set(knownPanelIds), new Set());
-      return root ? new DockTree(root) : DockTree.createDefault();
+      return root ? new DockTree(root) : null;
     }
 
     /**
@@ -4764,14 +5353,33 @@
     #addPanelMenu = new PopupMenu();
 
     /**
-     * Creates the workspace from the stored layout, or the default one.
-     * @param {Map<string, Panel>} panels Panels by id.
-     * @param {Preferences} preferences Layout storage.
+     * Creates the default layout.
+     * @type {function(): DockTree}
      */
-    constructor(panels, preferences) {
+    #createDefaultTree;
+
+    /**
+     * Ids of the panels that must always be docked.
+     * @type {function(): string[]}
+     */
+    #requiredPanelIds;
+
+    /**
+     * Creates the workspace from the stored layout, or the default one, and docks any required
+     * panel the layout lacks.
+     * @param {object} options Workspace options.
+     * @param {Map<string, Panel>} options.panels Panels by id; panels can be added and removed later.
+     * @param {Preferences} options.preferences Layout storage.
+     * @param {function(): DockTree} options.createDefaultTree Creates the default layout.
+     * @param {function(): string[]} options.requiredPanelIds Ids of the panels that must always be docked.
+     */
+    constructor({ panels, preferences, createDefaultTree, requiredPanelIds }) {
       this.#panels = panels;
       this.#preferences = preferences;
-      this.#tree = DockTree.fromStored(preferences.readJson(STORAGE_KEYS.dockLayout), panels.keys());
+      this.#createDefaultTree = createDefaultTree;
+      this.#requiredPanelIds = requiredPanelIds;
+      this.#tree = DockTree.fromStored(preferences.readJson(STORAGE_KEYS.dockLayout), panels.keys()) ?? createDefaultTree();
+      this.#dockMissingRequiredPanels();
     }
 
     /**
@@ -4792,8 +5400,45 @@
      */
     resetLayout() {
       this.#preferences.remove(STORAGE_KEYS.dockLayout);
-      this.#tree = DockTree.createDefault();
+      this.#tree = this.#createDefaultTree();
       this.layout();
+    }
+
+    /**
+     * Adds a panel and docks it to the right of another one, or into the first zone.
+     * @param {string} panelId Id of the new panel.
+     * @param {Panel} panel The panel.
+     * @param {string} besidePanelId Panel to dock it next to.
+     * @returns {void}
+     */
+    addPanel(panelId, panel, besidePanelId) {
+      this.#panels.set(panelId, panel);
+      const besideLeaf = this.#tree.findLeafContaining(besidePanelId) || this.#tree.firstLeaf();
+      this.#tree.dockPanel(panelId, besideLeaf.id, 'right');
+      this.#layoutAndSave();
+    }
+
+    /**
+     * Undocks a panel, disposes it and forgets it.
+     * @param {string} panelId Panel id.
+     * @returns {void}
+     */
+    removePanel(panelId) {
+      const panel = this.#panels.get(panelId);
+      if (!panel) return;
+      this.#tree.removePanel(panelId);
+      this.#panels.delete(panelId);
+      panel.dispose();
+      this.#layoutAndSave();
+    }
+
+    /**
+     * Adds every required panel missing from the layout as a tab of the first zone.
+     * @returns {void}
+     */
+    #dockMissingRequiredPanels() {
+      const missing = this.#requiredPanelIds().filter(panelId => !this.#tree.findLeafContaining(panelId));
+      missing.forEach(panelId => this.#tree.dockPanel(panelId, this.#tree.firstLeaf().id, 'center'));
     }
 
     /**
@@ -4907,10 +5552,37 @@
      */
     #createTab(leaf, panelId) {
       const className = panelId === leaf.activeTab ? 'claude-plus-tab claude-plus-tab--active' : 'claude-plus-tab';
-      const tab = createElement('div', { className, textContent: this.#panelTitle(panelId) });
+      const tab = createElement('div', { className, title: this.#panelTitle(panelId) });
+      tab.append(createElement('span', { className: 'claude-plus-tab__label', textContent: this.#panelTitle(panelId) }));
       tab.addEventListener('mousedown', event => this.#onTabPress(event, panelId));
       tab.addEventListener('click', () => this.#activateTab(leaf.id, panelId));
+      if (this.#canClosePanel(panelId)) tab.append(this.#createCloseButton(panelId));
       return tab;
+    }
+
+    /**
+     * Whether a panel's tab offers a close button.
+     * @param {string} panelId Panel id.
+     * @returns {boolean} True when the panel exists and allows closing.
+     */
+    #canClosePanel(panelId) {
+      const panel = this.#panels.get(panelId);
+      return Boolean(panel) && panel.canClose();
+    }
+
+    /**
+     * Creates a tab's close button; pressing it neither activates nor drags the tab.
+     * @param {string} panelId Panel id.
+     * @returns {HTMLElement} The button.
+     */
+    #createCloseButton(panelId) {
+      const button = createElement('span', { className: 'claude-plus-tab__close-button', textContent: '×', title: 'Close' });
+      button.addEventListener('mousedown', event => event.stopPropagation());
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.#panels.get(panelId).close();
+      });
+      return button;
     }
 
     /**
@@ -5525,7 +6197,7 @@
   }
 
   /**
-   * Exports the open conversation to a file, fetching it fresh so the export is complete.
+   * Exports the focused pane's conversation to a file, fetching it fresh so the export is complete.
    */
   class ConversationExporter {
     /**
@@ -5545,29 +6217,29 @@
     #api;
 
     /**
-     * Conversation state, for the open conversation.
-     * @type {ConversationStore}
+     * Chat panes, for the focused pane's conversation.
+     * @type {ChatPaneManager}
      */
-    #store;
+    #paneManager;
 
     /**
      * Creates the exporter.
      * @param {ClaudeApi} api API client.
-     * @param {ConversationStore} store Conversation state, for the open conversation.
+     * @param {ChatPaneManager} paneManager Chat panes, for the focused pane's conversation.
      */
-    constructor(api, store) {
+    constructor(api, paneManager) {
       this.#api = api;
-      this.#store = store;
+      this.#paneManager = paneManager;
     }
 
     /**
-     * Downloads the open conversation in a format. Does nothing in an unsaved new chat; a failure is
-     * logged and shown in an alert.
+     * Downloads the focused pane's conversation in a format. Does nothing in an unsaved new chat; a
+     * failure is logged and shown in an alert.
      * @param {string} formatId Key of ConversationExporter.FORMATS.
      * @returns {Promise<void>} Resolves once the download has started or failed.
      */
     async exportOpenConversation(formatId) {
-      const conversationId = this.#store.openConversationId;
+      const conversationId = this.#paneManager.focusedSession.openConversationId;
       if (!conversationId) return;
       try {
         const conversation = ConversationExportBuilder.build(await this.#api.getConversation(conversationId));
@@ -5591,7 +6263,7 @@
   }
 
   /**
-   * Top bar with the title, the message font size slider, chat export and layout reset.
+   * Top bar with the title, the message font size slider, new chat panes, chat export and layout reset.
    */
   class Toolbar {
     /**
@@ -5619,13 +6291,13 @@
     #messageFontSize;
 
     /**
-     * Conversation state, for enabling the export button.
-     * @type {ConversationStore}
+     * Chat panes, for opening panes and enabling the export button.
+     * @type {ChatPaneManager}
      */
-    #store;
+    #paneManager;
 
     /**
-     * Exports the open conversation.
+     * Exports the focused pane's conversation.
      * @type {ConversationExporter}
      */
     #exporter;
@@ -5641,13 +6313,13 @@
      * @param {object} services Toolbar dependencies.
      * @param {Preferences} services.preferences Font size storage.
      * @param {DockWorkspace} services.workspace Workspace to reset.
-     * @param {ConversationStore} services.store Conversation state, for enabling the export button.
-     * @param {ConversationExporter} services.exporter Exports the open conversation.
+     * @param {ChatPaneManager} services.paneManager Chat panes, for opening panes and enabling the export button.
+     * @param {ConversationExporter} services.exporter Exports the focused pane's conversation.
      */
-    constructor({ preferences, workspace, store, exporter }) {
+    constructor({ preferences, workspace, paneManager, exporter }) {
       this.#preferences = preferences;
       this.#workspace = workspace;
-      this.#store = store;
+      this.#paneManager = paneManager;
       this.#exporter = exporter;
       const storedSize = Number.parseFloat(preferences.read(STORAGE_KEYS.messageFontSize));
       const { minimum, maximum, fallback } = Toolbar.#FONT_SIZE;
@@ -5670,12 +6342,14 @@
             <span data-name="fontSizeLabel"></span>
           </label>
           <div class="claude-plus-fill-remaining"></div>
+          <button class="claude-plus-toolbar__button" data-name="newPaneButton" title="Open another chat next to the focused one">+ Chat pane</button>
           <button class="claude-plus-toolbar__button" data-name="exportButton">Export chat ▾</button>
           <button class="claude-plus-toolbar__button" data-name="resetLayoutButton">Reset layout</button>`,
       });
       const elements = collectNamedElements(toolbar);
       elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
       elements.resetLayoutButton.addEventListener('click', () => this.#workspace.resetLayout());
+      elements.newPaneButton.addEventListener('click', () => this.#paneManager.openPane(null));
       this.#bindExportButton(elements.exportButton);
       this.#applyFontSize(elements.fontSizeLabel);
       document.body.append(toolbar);
@@ -5688,17 +6362,18 @@
      */
     #bindExportButton(exportButton) {
       exportButton.addEventListener('click', () => this.#showExportMenu(exportButton));
-      this.#store.subscribe('openConversation', () => this.#updateExportButton(exportButton));
+      this.#paneManager.subscribe('focus', () => this.#updateExportButton(exportButton));
+      this.#paneManager.subscribe('paneConversations', () => this.#updateExportButton(exportButton));
       this.#updateExportButton(exportButton);
     }
 
     /**
-     * Enables the export button only while a saved conversation is open.
+     * Enables the export button only while the focused pane shows a saved conversation.
      * @param {HTMLButtonElement} exportButton The export button.
      * @returns {void}
      */
     #updateExportButton(exportButton) {
-      exportButton.disabled = !this.#store.openConversationId;
+      exportButton.disabled = !this.#paneManager.focusedSession.openConversationId;
     }
 
     /**
@@ -5799,6 +6474,10 @@
     .claude-plus-tab-strip { position: fixed; display: flex; align-items: center; background: var(--claude-plus-color-bar); border-bottom: 1px solid var(--claude-plus-color-border); overflow-x: auto; box-sizing: border-box; pointer-events: auto; }
     .claude-plus-tab { padding: 5px 12px; font-size: 12px; color: var(--claude-plus-color-text-muted); cursor: pointer; white-space: nowrap; border-right: 1px solid var(--claude-plus-color-border-faint); user-select: none; }
     .claude-plus-tab--active { color: var(--claude-plus-color-text); border-bottom: 2px solid var(--claude-plus-color-accent); }
+    .claude-plus-tab { display: flex; align-items: center; min-width: 0; max-width: 220px; }
+    .claude-plus-tab__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .claude-plus-tab__close-button { flex-shrink: 0; margin-left: 8px; padding: 0 3px; border-radius: 3px; color: var(--claude-plus-color-text-faint); }
+    .claude-plus-tab__close-button:hover { background: var(--claude-plus-color-hover); color: var(--claude-plus-color-text); }
     .claude-plus-tab-strip__add-button { padding: 5px 10px; cursor: pointer; color: var(--claude-plus-color-text-faint); user-select: none; }
     .claude-plus-tab-strip__add-button:hover { color: var(--claude-plus-color-text); }
     .claude-plus-divider-layer { position: fixed; inset: 0; pointer-events: none; z-index: var(--claude-plus-layer-divider); }
@@ -5814,6 +6493,7 @@
 
     .claude-plus-panel { position: fixed; z-index: var(--claude-plus-layer-panel); box-sizing: border-box; padding: 10px 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; font-size: 13px; background: var(--claude-plus-color-background); }
     .claude-plus-panel summary { cursor: pointer; padding: 4px 0; }
+    .claude-plus-panel--focused { box-shadow: inset 0 2px 0 var(--claude-plus-color-accent); }
     .claude-plus-panel select, .claude-plus-panel input[type=text], .claude-plus-panel textarea { background: var(--claude-plus-color-bar); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; color: var(--claude-plus-color-text); font-size: 12px; font-family: inherit; }
     .claude-plus-panel__section { padding: 8px 0; border-bottom: 1px solid var(--claude-plus-color-hover); flex-shrink: 0; }
     .claude-plus-panel__section:last-child { border-bottom: none; }
@@ -5833,13 +6513,14 @@
     .claude-plus-search-input { flex-shrink: 0; padding: 6px 8px; }
     .claude-plus-conversation { padding: 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
     .claude-plus-conversation:hover { background: var(--claude-plus-color-hover); }
-    .claude-plus-conversation:hover .claude-plus-conversation__delete-button { visibility: visible; }
+    .claude-plus-conversation:hover .claude-plus-conversation__action-button { visibility: visible; }
     .claude-plus-conversation--active { background: var(--claude-plus-color-accent-soft); }
+    .claude-plus-conversation--open-elsewhere { box-shadow: inset 2px 0 0 var(--claude-plus-color-accent); }
     .claude-plus-conversation__summary { flex: 1; min-width: 0; }
     .claude-plus-conversation__title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .claude-plus-conversation__date { font-size: 11px; color: var(--claude-plus-color-text-faint); }
-    .claude-plus-conversation__delete-button { visibility: hidden; background: none; border: none; cursor: pointer; font-size: 12px; padding: 4px; border-radius: 4px; flex-shrink: 0; }
-    .claude-plus-conversation__delete-button:hover { background: rgba(255, 255, 255, 0.1); }
+    .claude-plus-conversation__action-button { visibility: hidden; background: none; border: none; cursor: pointer; font-size: 12px; padding: 4px; border-radius: 4px; flex-shrink: 0; }
+    .claude-plus-conversation__action-button:hover { background: rgba(255, 255, 255, 0.1); }
 
     .claude-plus-message-list { display: flex; flex-direction: column; gap: 14px; }
     .claude-plus-message { padding: 10px 12px; border-radius: 8px; max-width: 100%; }
@@ -5860,10 +6541,11 @@
     .claude-plus-streaming-cursor { animation: claude-plus-blink 1s step-start infinite; }
     @keyframes claude-plus-blink { 50% { opacity: 0; } }
 
+    .claude-plus-composer { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; padding-top: 8px; border-top: 1px solid var(--claude-plus-color-border); }
     .claude-plus-composer__options { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex-shrink: 0; }
     .claude-plus-composer__options select { padding: 4px 6px; }
     .claude-plus-composer__thinking-toggle { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--claude-plus-color-text-muted); cursor: pointer; }
-    .claude-plus-panel .claude-plus-composer__input { flex: 1; resize: none; border-radius: 8px; padding: 8px; font-size: 14px; }
+    .claude-plus-panel .claude-plus-composer__input { resize: vertical; min-height: 60px; border-radius: 8px; padding: 8px; font-size: 14px; }
     .claude-plus-composer__send-button--stop { background: var(--claude-plus-color-button-hover); }
 
     .claude-plus-source-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; flex-shrink: 0; }
@@ -5903,21 +6585,21 @@
     }
 
     /**
-     * Creates every panel, keyed by panel id.
+     * Creates every panel, keyed by panel id: the conversation list, one panel per chat pane and
+     * the stats, web sources and files panels.
      * @param {object} services Shared services.
-     * @param {ConversationStore} services.store Conversation state.
+     * @param {ConversationDirectory} services.directory Shared conversation list.
      * @param {Router} services.router Navigation.
-     * @param {ComposerSettings} services.settings Composer options.
+     * @param {ChatPaneManager} services.paneManager Chat panes.
      * @param {StatsIndex} services.stats Conversation statistics.
      * @param {ActivityTracker} services.activity Active-time tracking.
      * @param {RateLimitMonitor} services.rateLimits Usage windows.
      * @returns {Map<string, Panel>} The panels.
      */
-    static #createPanels({ store, router, settings, stats, activity, rateLimits }) {
+    static #createPanels({ directory, router, paneManager, stats, activity, rateLimits }) {
       return new Map([
-        ['conversations', new ConversationListPanel(store, router)],
-        ['chat', new ChatPanel(store)],
-        ['composer', new ComposerPanel(store, settings)],
+        ['conversations', new ConversationListPanel({ directory, router, paneManager })],
+        ...paneManager.panelEntries(),
         ['stats', new StatsPanel(stats, activity, rateLimits)],
         ['webSources', new WebSourcesPanel(stats)],
         ['files', new FilesPanel(stats)],
@@ -5936,7 +6618,7 @@
 
     /**
      * Mounts the UI and hides the native app, or undoes everything when mounting throws.
-     * @returns {?object} The services needing data (store, router, stats, activity, rateLimits), or null after a failure.
+     * @returns {?object} The services needing data (directory, router, paneManager, stats, activity, rateLimits), or null after a failure.
      */
     static #mountOrRestore() {
       try {
@@ -5952,7 +6634,7 @@
 
     /**
      * Injects the styles, builds every component and mounts the toolbar and the workspace.
-     * @returns {object} The services needing data: store, router, stats, activity and rateLimits.
+     * @returns {object} The services needing data: directory, router, paneManager, stats, activity and rateLimits.
      * @throws {Error} When any part fails to build or mount.
      */
     static #mountInterface() {
@@ -5961,22 +6643,55 @@
       const api = new ClaudeApi();
       const database = new IndexedDbStore({ name: DATABASE.name, version: DATABASE.version, upgrade: ClaudePlusApp.#createMissingStores });
       const settings = new ComposerSettings(preferences);
-      const store = new ConversationStore(api, settings);
-      const router = new Router(store);
+      const directory = new ConversationDirectory(api);
+      const paneManager = new ChatPaneManager({ api, settings, directory, preferences });
+      const router = new Router(paneManager);
       const stats = new StatsIndex(api, database);
       const activity = new ActivityTracker(database);
       const rateLimits = new RateLimitMonitor(api);
+      ClaudePlusApp.#connectServices({ directory, paneManager, stats, rateLimits });
+      paneManager.restorePanes(conversationIdFromPath(location.pathname));
 
-      store.subscribe('conversationLoaded', conversation => stats.indexConversation(conversation));
-      store.subscribe('conversationDeleted', conversationId => stats.removeConversation(conversationId));
-      store.subscribe('rateLimits', limits => rateLimits.setLimits(limits));
-
-      const panels = ClaudePlusApp.#createPanels({ store, router, settings, stats, activity, rateLimits });
-      const workspace = new DockWorkspace(panels, preferences);
-      new Toolbar({ preferences, workspace, store, exporter: new ConversationExporter(api, store) }).mount();
+      const panels = ClaudePlusApp.#createPanels({ directory, router, paneManager, stats, activity, rateLimits });
+      const workspace = new DockWorkspace({
+        panels,
+        preferences,
+        createDefaultTree: () => DockTree.createDefault(paneManager.paneIds),
+        requiredPanelIds: () => paneManager.paneIds,
+      });
+      paneManager.attachWorkspace(workspace);
+      new Toolbar({ preferences, workspace, paneManager, exporter: new ConversationExporter(api, paneManager) }).mount();
       workspace.mount();
+      ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
       new KeyboardShortcuts(workspace, panels.get('conversations')).install();
-      return { store, router, stats, activity, rateLimits };
+      return { directory, router, paneManager, stats, activity, rateLimits };
+    }
+
+    /**
+     * Feeds loaded and deleted conversations to the stats and streamed usage windows to the monitor.
+     * @param {object} services Services to connect.
+     * @param {ConversationDirectory} services.directory Shared conversation list.
+     * @param {ChatPaneManager} services.paneManager Chat panes.
+     * @param {StatsIndex} services.stats Conversation statistics.
+     * @param {RateLimitMonitor} services.rateLimits Usage windows.
+     * @returns {void}
+     */
+    static #connectServices({ directory, paneManager, stats, rateLimits }) {
+      paneManager.subscribe('conversationLoaded', conversation => stats.indexConversation(conversation));
+      paneManager.subscribe('rateLimits', limits => rateLimits.setLimits(limits));
+      directory.subscribe('conversationDeleted', conversationId => stats.removeConversation(conversationId));
+    }
+
+    /**
+     * Redraws the tab strips when a chat pane's title can have changed.
+     * @param {DockWorkspace} workspace The workspace.
+     * @param {ConversationDirectory} directory Shared conversation list, whose titles the chat tabs show.
+     * @param {ChatPaneManager} paneManager Chat panes.
+     * @returns {void}
+     */
+    static #refreshTabTitlesOnChange(workspace, directory, paneManager) {
+      directory.subscribe('conversations', () => workspace.layout());
+      paneManager.subscribe('paneConversations', () => workspace.layout());
     }
 
     /**
@@ -5988,18 +6703,21 @@
     }
 
     /**
-     * Starts polling, loads stats, activity and the conversation list, then opens the conversation in the URL.
+     * Starts polling, loads stats, activity and the conversation list, opens the URL's conversation
+     * in the focused pane and reopens the other panes' conversations.
      * @param {object} services Services created by #mountInterface.
-     * @param {ConversationStore} services.store Conversation state.
+     * @param {ConversationDirectory} services.directory Shared conversation list.
      * @param {Router} services.router Navigation.
+     * @param {ChatPaneManager} services.paneManager Chat panes.
      * @param {StatsIndex} services.stats Conversation statistics.
      * @param {ActivityTracker} services.activity Active-time tracking.
      * @param {RateLimitMonitor} services.rateLimits Usage windows.
-     * @returns {Promise<void>} Resolves once the first conversation is shown.
+     * @returns {Promise<void>} Resolves once the focused pane's conversation is shown.
      */
-    static async #loadData({ store, router, stats, activity, rateLimits }) {
+    static async #loadData({ directory, router, paneManager, stats, activity, rateLimits }) {
       rateLimits.start();
-      await Promise.all([stats.refreshAggregate(), activity.start(), store.refreshConversations()]);
+      await Promise.all([stats.refreshAggregate(), activity.start(), directory.refresh()]);
+      paneManager.openRestoredConversations();
       await router.start();
     }
   }
