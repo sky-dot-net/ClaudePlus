@@ -1,5 +1,4 @@
 import { TIMING } from '../../config/TIMING.js';
-import { canonicalJson } from '../../text/canonicalJson.js';
 import { createElement } from '../../dom/createElement.js';
 
 /**
@@ -37,7 +36,10 @@ export class WidgetIframeSource {
   /**
    * Extracts a widget's rendered card.
    * @param {string} conversationId Conversation the widget's message belongs to.
-   * @param {object} data The widget's own data (its tool call's input), to match against.
+   * @param {object} data The widget's own data (its tool call's input), to match against. The
+   * rendered widget's own input prop can carry more than this (some widgets enrich it client-side,
+   * e.g. with unit conversions or fetched images), so a fiber matches when this data is a subset
+   * of its input, not only on an exact match.
    * @returns {Promise<{html: string, cssHrefs: string[]}>} The card's outer HTML and the
    * stylesheet URLs it depends on.
    * @throws {Error} When the widget doesn't appear within the timeout.
@@ -46,7 +48,7 @@ export class WidgetIframeSource {
     const iframe = WidgetIframeSource.#createHiddenIframe(conversationId);
     document.body.append(iframe);
     try {
-      return await WidgetIframeSource.#searchAllPositions(iframe, canonicalJson(data));
+      return await WidgetIframeSource.#searchAllPositions(iframe, data);
     } finally {
       iframe.remove();
     }
@@ -67,17 +69,17 @@ export class WidgetIframeSource {
   /**
    * Tries each scroll position in turn until the widget is found or the overall timeout elapses.
    * @param {HTMLIFrameElement} iframe The extraction iframe.
-   * @param {string} dataJson The widget's data, pre-serialized for comparison.
+   * @param {object} expectedData The widget's own data, to match against.
    * @returns {Promise<{html: string, cssHrefs: string[]}>} The extracted card.
    * @throws {Error} When the widget doesn't appear within the timeout.
    */
-  static async #searchAllPositions(iframe, dataJson) {
+  static async #searchAllPositions(iframe, expectedData) {
     const deadline = Date.now() + WidgetIframeSource.#TIMEOUT_MS;
     for (const fraction of WidgetIframeSource.#SCROLL_FRACTIONS) {
       if (Date.now() >= deadline) break;
       if (fraction !== null) WidgetIframeSource.#scrollTo(iframe, fraction);
       const stepDeadline = Math.min(deadline, Date.now() + WidgetIframeSource.#STEP_TIMEOUT_MS);
-      const found = await WidgetIframeSource.#pollUntil(iframe, dataJson, stepDeadline);
+      const found = await WidgetIframeSource.#pollUntil(iframe, expectedData, stepDeadline);
       if (found) return found;
     }
     throw new Error('widget did not render within the timeout');
@@ -86,14 +88,14 @@ export class WidgetIframeSource {
   /**
    * Polls the current scroll position until the widget appears or its step deadline elapses.
    * @param {HTMLIFrameElement} iframe The extraction iframe.
-   * @param {string} dataJson The widget's data, pre-serialized for comparison.
+   * @param {object} expectedData The widget's own data, to match against.
    * @param {number} stepDeadline Epoch ms after which to stop trying this position.
    * @returns {Promise<?{html: string, cssHrefs: string[]}>} The extracted card, or null when this
    * position never showed it.
    */
-  static #pollUntil(iframe, dataJson, stepDeadline) {
+  static #pollUntil(iframe, expectedData, stepDeadline) {
     return new Promise(resolve => {
-      const poll = () => WidgetIframeSource.#pollOnce(iframe, dataJson, stepDeadline, poll, resolve);
+      const poll = () => WidgetIframeSource.#pollOnce(iframe, expectedData, stepDeadline, poll, resolve);
       poll();
     });
   }
@@ -102,14 +104,14 @@ export class WidgetIframeSource {
    * One poll attempt: resolves with the card if found, with null past the step deadline, else
    * schedules another attempt.
    * @param {HTMLIFrameElement} iframe The extraction iframe.
-   * @param {string} dataJson The widget's data, pre-serialized for comparison.
+   * @param {object} expectedData The widget's own data, to match against.
    * @param {number} stepDeadline Epoch ms after which to stop trying this position.
    * @param {function(): void} poll This function, to schedule the next attempt.
    * @param {function(?{html: string, cssHrefs: string[]}): void} resolve Resolves this position's search.
    * @returns {void}
    */
-  static #pollOnce(iframe, dataJson, stepDeadline, poll, resolve) {
-    const found = WidgetIframeSource.#tryFind(iframe, dataJson);
+  static #pollOnce(iframe, expectedData, stepDeadline, poll, resolve) {
+    const found = WidgetIframeSource.#tryFind(iframe, expectedData);
     if (found) resolve(found);
     else if (Date.now() > stepDeadline) resolve(null);
     else setTimeout(poll, TIMING.widgetExtractPollMs);
@@ -152,15 +154,15 @@ export class WidgetIframeSource {
   /**
    * Looks for the widget in the iframe's current document, if it has loaded far enough to have one.
    * @param {HTMLIFrameElement} iframe The extraction iframe.
-   * @param {string} dataJson The widget's data, pre-serialized for comparison.
+   * @param {object} expectedData The widget's own data, to match against.
    * @returns {?{html: string, cssHrefs: string[]}} The extracted card, or null when not found yet.
    */
-  static #tryFind(iframe, dataJson) {
+  static #tryFind(iframe, expectedData) {
     const documentInFrame = WidgetIframeSource.#documentOf(iframe);
     const rootElement = documentInFrame?.getElementById('root');
     const rootFiber = rootElement ? WidgetIframeSource.#fiberOf(rootElement) : null;
     if (!rootFiber) return null;
-    const hostElement = WidgetIframeSource.#findWidgetElement(rootFiber, dataJson);
+    const hostElement = WidgetIframeSource.#findWidgetElement(rootFiber, expectedData);
     if (!hostElement) return null;
     const cssHrefs = [...documentInFrame.querySelectorAll('link[rel="stylesheet"]')].map(link => link.href);
     return { html: hostElement.outerHTML, cssHrefs };
@@ -198,47 +200,84 @@ export class WidgetIframeSource {
    * behind a Suspense boundary) doesn't stop the search - it continues into that fiber's own
    * descendants, where a fully-rendered layer is found.
    * @param {object} rootFiber Root fiber to search from.
-   * @param {string} dataJson The widget's data, pre-serialized for comparison.
+   * @param {object} expectedData The widget's own data, to match against.
    * @returns {?HTMLElement} The widget's outermost rendered element, or null when not found.
    */
-  static #findWidgetElement(rootFiber, dataJson) {
-    return WidgetIframeSource.#searchForHostElement(rootFiber, new Set(), dataJson);
+  static #findWidgetElement(rootFiber, expectedData) {
+    return WidgetIframeSource.#searchForHostElement(rootFiber, new Set(), expectedData);
   }
 
   /**
    * Depth-first search of the fiber tree for a matching node with a resolvable DOM element.
    * @param {?object} fiber Fiber to check, or null past the end of a branch.
    * @param {Set<object>} visited Fibers already checked, since child/sibling links can cross-reference.
-   * @param {string} dataJson The widget's data, pre-serialized for comparison.
+   * @param {object} expectedData The widget's own data, to match against.
    * @returns {?HTMLElement} The element, or null.
    */
-  static #searchForHostElement(fiber, visited, dataJson) {
+  static #searchForHostElement(fiber, visited, expectedData) {
     if (!fiber || visited.has(fiber)) return null;
     visited.add(fiber);
-    return WidgetIframeSource.#ownHostElement(fiber, dataJson)
-      || WidgetIframeSource.#searchForHostElement(fiber.child, visited, dataJson)
-      || WidgetIframeSource.#searchForHostElement(fiber.sibling, visited, dataJson);
+    return WidgetIframeSource.#ownHostElement(fiber, expectedData)
+      || WidgetIframeSource.#searchForHostElement(fiber.child, visited, expectedData)
+      || WidgetIframeSource.#searchForHostElement(fiber.sibling, visited, expectedData);
   }
 
   /**
    * A fiber's own resolvable DOM element, if it matches the target data and renders one.
    * @param {object} fiber The fiber.
-   * @param {string} dataJson The widget's data, pre-serialized for comparison.
+   * @param {object} expectedData The widget's own data, to match against.
    * @returns {?HTMLElement} The element, or null.
    */
-  static #ownHostElement(fiber, dataJson) {
-    return WidgetIframeSource.#isWidgetFiber(fiber, dataJson) ? WidgetIframeSource.#firstHostElement(fiber) : null;
+  static #ownHostElement(fiber, expectedData) {
+    return WidgetIframeSource.#isWidgetFiber(fiber, expectedData) ? WidgetIframeSource.#firstHostElement(fiber) : null;
   }
 
   /**
-   * Whether a fiber's props identify it as the widget with matching data.
+   * Whether a fiber's props identify it as the widget with matching data: its input prop carries
+   * expectedData as a subset (not necessarily an exact match, since some widgets enrich their
+   * input client-side beyond what their tool call originally requested).
    * @param {object} fiber The fiber.
-   * @param {string} dataJson The widget's data, pre-serialized for comparison.
-   * @returns {boolean} True when its input prop matches.
+   * @param {object} expectedData The widget's own data, to match against.
+   * @returns {boolean} True when its input prop is a superset of expectedData.
    */
-  static #isWidgetFiber(fiber, dataJson) {
+  static #isWidgetFiber(fiber, expectedData) {
     const props = fiber.memoizedProps;
-    return Boolean(props) && typeof props === 'object' && 'input' in props && canonicalJson(props.input) === dataJson;
+    return Boolean(props) && typeof props === 'object' && 'input' in props && WidgetIframeSource.#isSubset(expectedData, props.input);
+  }
+
+  /**
+   * Whether expected is contained within actual: every array holds the same-length, pairwise
+   * matching elements; every object's keys all have a matching value in actual, extra keys in
+   * actual are ignored; anything else compares with strict equality.
+   * @param {*} expected The data we already know about the widget.
+   * @param {*} actual The candidate value found in the iframe.
+   * @returns {boolean} True when expected is a subset of actual.
+   */
+  static #isSubset(expected, actual) {
+    if (Array.isArray(expected)) return WidgetIframeSource.#isArraySubset(expected, actual);
+    if (expected && typeof expected === 'object') return WidgetIframeSource.#isObjectSubset(expected, actual);
+    return expected === actual;
+  }
+
+  /**
+   * Whether every element of an expected array matches its counterpart in a same-length actual array.
+   * @param {Array} expected The expected array.
+   * @param {*} actual The candidate value.
+   * @returns {boolean} True when it's a same-length array whose elements all match pairwise.
+   */
+  static #isArraySubset(expected, actual) {
+    return Array.isArray(actual) && expected.length === actual.length && expected.every((item, index) => WidgetIframeSource.#isSubset(item, actual[index]));
+  }
+
+  /**
+   * Whether every key of an expected object has a matching value in an actual object, ignoring
+   * any extra keys actual has.
+   * @param {object} expected The expected object.
+   * @param {*} actual The candidate value.
+   * @returns {boolean} True when actual is an object carrying at least expected's own keys, matching.
+   */
+  static #isObjectSubset(expected, actual) {
+    return Boolean(actual) && typeof actual === 'object' && Object.keys(expected).every(key => WidgetIframeSource.#isSubset(expected[key], actual[key]));
   }
 
   /**
