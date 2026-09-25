@@ -81,7 +81,7 @@
     maxResponseGapMs: 30 * 60 * 1000,
     copyFeedbackMs: 1_000,
     downloadUrlLifetimeMs: 10_000,
-    widgetExtractPollMs: 200,
+    widgetExtractPollMs: 500,
   });
 
   /**
@@ -10871,7 +10871,7 @@
      * How long to wait for a widget to appear before giving up.
      * @type {number}
      */
-    static #TIMEOUT_MS = 20000;
+    static #TIMEOUT_MS = 30000;
 
     /**
      * Extracts a widget's rendered card.
@@ -11075,7 +11075,7 @@
      * Iframe extractions allowed to run at once.
      * @type {number}
      */
-    static #MAX_CONCURRENT_EXTRACTIONS = 2;
+    static #MAX_CONCURRENT_EXTRACTIONS = 1;
 
     /**
      * A stylesheet URL's already-started fetch, kept for the page's lifetime so every widget shares it.
