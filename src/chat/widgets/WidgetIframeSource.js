@@ -109,10 +109,37 @@ export class WidgetIframeSource {
    * @returns {void}
    */
   static #pollOnce(iframe, dataJson, stepDeadline, poll, resolve) {
+    WidgetIframeSource.#debugLog(iframe, dataJson);
     const found = WidgetIframeSource.#tryFind(iframe, dataJson);
     if (found) resolve(found);
     else if (Date.now() > stepDeadline) resolve(null);
     else setTimeout(poll, TIMING.widgetExtractPollMs);
+  }
+
+  /**
+   * Temporary diagnostic: logs every input-bearing fiber's canonical JSON alongside the target's,
+   * to see whether any candidate is a near-miss.
+   * @param {HTMLIFrameElement} iframe The extraction iframe.
+   * @param {string} dataJson The widget's data, pre-serialized for comparison.
+   * @returns {void}
+   */
+  static #debugLog(iframe, dataJson) {
+    const documentInFrame = WidgetIframeSource.#documentOf(iframe);
+    const rootElement = documentInFrame?.getElementById('root');
+    const rootFiber = rootElement ? WidgetIframeSource.#fiberOf(rootElement) : null;
+    if (!rootFiber) return;
+    const candidates = [];
+    const visited = new Set();
+    const collect = fiber => {
+      if (!fiber || visited.has(fiber) || candidates.length > 5) return;
+      visited.add(fiber);
+      const props = fiber.memoizedProps;
+      if (props && typeof props === 'object' && 'input' in props) candidates.push(canonicalJson(props.input));
+      collect(fiber.child);
+      collect(fiber.sibling);
+    };
+    collect(rootFiber);
+    console.warn('[widget-debug]', JSON.stringify({ target: dataJson, candidates }));
   }
 
   /**
