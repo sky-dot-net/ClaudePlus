@@ -109,38 +109,10 @@ export class WidgetIframeSource {
    * @returns {void}
    */
   static #pollOnce(iframe, dataJson, stepDeadline, poll, resolve) {
-    WidgetIframeSource.#debugLog(iframe, dataJson);
     const found = WidgetIframeSource.#tryFind(iframe, dataJson);
     if (found) resolve(found);
     else if (Date.now() > stepDeadline) resolve(null);
     else setTimeout(poll, TIMING.widgetExtractPollMs);
-  }
-
-  /**
-   * Temporary diagnostic: logs every input-bearing fiber's canonical JSON alongside the target's,
-   * to see whether any candidate is a near-miss.
-   * @param {HTMLIFrameElement} iframe The extraction iframe.
-   * @param {string} dataJson The widget's data, pre-serialized for comparison.
-   * @returns {void}
-   */
-  static #debugLog(iframe, dataJson) {
-    const documentInFrame = WidgetIframeSource.#documentOf(iframe);
-    const rootElement = documentInFrame?.getElementById('root');
-    const rootFiber = rootElement ? WidgetIframeSource.#fiberOf(rootElement) : null;
-    if (!rootFiber) return;
-    const candidates = [];
-    const visited = new Set();
-    const collect = fiber => {
-      if (!fiber || visited.has(fiber) || candidates.length > 5) return;
-      visited.add(fiber);
-      const props = fiber.memoizedProps;
-      if (props && typeof props === 'object' && 'input' in props) candidates.push(canonicalJson(props.input));
-      collect(fiber.child);
-      collect(fiber.sibling);
-    };
-    collect(rootFiber);
-    const matches = candidates.map(candidate => candidate === dataJson);
-    console.warn('[widget-debug]', JSON.stringify({ matches, targetLen: dataJson.length, candidateLens: candidates.map(candidate => candidate.length) }));
   }
 
   /**
@@ -220,28 +192,42 @@ export class WidgetIframeSource {
   /**
    * The rendered DOM element of the widget whose data matches, searching the whole fiber tree
    * generically (works for every widget type: every widget wrapper mirrors its tool call's input
-   * back as a prop, so matching on that needs no per-type layout knowledge).
+   * back as a prop, so matching on that needs no per-type layout knowledge). A logical widget
+   * commonly has several fiber layers (an outer wrapper, a memoized copy, an inner component) that
+   * all carry the same matching props, so a match without a resolvable DOM element yet (still
+   * behind a Suspense boundary) doesn't stop the search - it continues into that fiber's own
+   * descendants, where a fully-rendered layer is found.
    * @param {object} rootFiber Root fiber to search from.
    * @param {string} dataJson The widget's data, pre-serialized for comparison.
    * @returns {?HTMLElement} The widget's outermost rendered element, or null when not found.
    */
   static #findWidgetElement(rootFiber, dataJson) {
-    const matchingFiber = WidgetIframeSource.#findMatchingFiber(rootFiber, new Set(), dataJson);
-    return matchingFiber ? WidgetIframeSource.#firstHostElement(matchingFiber) : null;
+    return WidgetIframeSource.#searchForHostElement(rootFiber, new Set(), dataJson);
   }
 
   /**
-   * Depth-first search of the fiber tree for a node whose props carry matching data.
+   * Depth-first search of the fiber tree for a matching node with a resolvable DOM element.
    * @param {?object} fiber Fiber to check, or null past the end of a branch.
    * @param {Set<object>} visited Fibers already checked, since child/sibling links can cross-reference.
    * @param {string} dataJson The widget's data, pre-serialized for comparison.
-   * @returns {?object} The matching fiber, or null.
+   * @returns {?HTMLElement} The element, or null.
    */
-  static #findMatchingFiber(fiber, visited, dataJson) {
+  static #searchForHostElement(fiber, visited, dataJson) {
     if (!fiber || visited.has(fiber)) return null;
     visited.add(fiber);
-    if (WidgetIframeSource.#isWidgetFiber(fiber, dataJson)) return fiber;
-    return WidgetIframeSource.#findMatchingFiber(fiber.child, visited, dataJson) || WidgetIframeSource.#findMatchingFiber(fiber.sibling, visited, dataJson);
+    return WidgetIframeSource.#ownHostElement(fiber, dataJson)
+      || WidgetIframeSource.#searchForHostElement(fiber.child, visited, dataJson)
+      || WidgetIframeSource.#searchForHostElement(fiber.sibling, visited, dataJson);
+  }
+
+  /**
+   * A fiber's own resolvable DOM element, if it matches the target data and renders one.
+   * @param {object} fiber The fiber.
+   * @param {string} dataJson The widget's data, pre-serialized for comparison.
+   * @returns {?HTMLElement} The element, or null.
+   */
+  static #ownHostElement(fiber, dataJson) {
+    return WidgetIframeSource.#isWidgetFiber(fiber, dataJson) ? WidgetIframeSource.#firstHostElement(fiber) : null;
   }
 
   /**
