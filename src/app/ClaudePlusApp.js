@@ -99,7 +99,7 @@ export class ClaudePlusApp {
     paneManager.restorePanes(conversationIdFromPath(location.pathname));
 
     const panelFactory = new PanelFactory({ directory, router, paneManager, stats, activity, rateLimits, preferences });
-    const composer = new ComposerPanel({ paneManager, settings, exporter: new ConversationExporter(api, paneManager) });
+    const composer = new ComposerPanel({ paneManager, settings, stats, exporter: new ConversationExporter(api, paneManager) });
     const workspace = ClaudePlusApp.#createWorkspace({ preferences, paneManager, panelFactory, composer });
     paneManager.attachWorkspace(workspace);
     panelFactory.attachWorkspace(workspace);

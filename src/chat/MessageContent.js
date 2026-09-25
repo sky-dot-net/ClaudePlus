@@ -69,8 +69,10 @@ export class MessageContent {
    * @returns {string} The HTML, or a "(no content)" placeholder.
    */
   static toHtml(apiMessage) {
+    const uploads = MessageContent.uploads(apiMessage);
     const parts = [
-      ...MessageContent.uploads(apiMessage).map(upload => MessageContent.#uploadHtml(upload)),
+      MessageContent.#imageGalleryHtml(uploads.filter(upload => MessageContent.#isImageUpload(upload))),
+      ...uploads.filter(upload => !MessageContent.#isImageUpload(upload)).map(upload => MessageContent.#fileAttachmentHtml(upload)),
       MessageContent.#textFieldHtml(apiMessage),
       ...(apiMessage.content ?? []).map(block => MessageContent.#contentBlockHtml(block)),
     ];
@@ -78,12 +80,13 @@ export class MessageContent {
   }
 
   /**
-   * HTML of one upload: an inline, clickable image for an image upload, else a plain attachment chip.
-   * @param {object} upload The upload.
-   * @returns {string} The HTML.
+   * HTML of a message's image uploads, laid out in a horizontal row rather than stacked.
+   * @param {object[]} imageUploads The image uploads, if any.
+   * @returns {string} The gallery, or an empty string when there are none.
    */
-  static #uploadHtml(upload) {
-    return MessageContent.#isImageUpload(upload) ? MessageContent.#imageUploadHtml(upload) : MessageContent.#fileAttachmentHtml(upload);
+  static #imageGalleryHtml(imageUploads) {
+    if (imageUploads.length === 0) return '';
+    return `<div class="claude-plus-message-images">${imageUploads.map(upload => MessageContent.#imageUploadHtml(upload)).join('')}</div>`;
   }
 
   /**

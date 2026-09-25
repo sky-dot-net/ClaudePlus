@@ -1877,7 +1877,7 @@
     }
   }
 
-  var stylesheet$g = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 18px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  padding: 10px 14px;\n  border-radius: 16px;\n  max-width: 78%;\n  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);\n}\n\n.claude-plus-message--human {\n  background: var(--claude-plus-color-accent-soft);\n  align-self: flex-end;\n  border-bottom-right-radius: 4px;\n  text-align: right;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message-image {\n  margin-left: auto;\n}\n\n.claude-plus-message--assistant {\n  background: var(--claude-plus-color-raised);\n  align-self: flex-start;\n  border-bottom-left-radius: 4px;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__sender {\n  font-size: 11px;\n  color: var(--claude-plus-color-text-faint);\n  margin-bottom: 4px;\n  font-weight: 600;\n  text-transform: uppercase;\n  letter-spacing: 0.04em;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  margin-top: 8px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: rgba(255, 255, 255, 0.06);\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 5px 10px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
+  var stylesheet$g = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  padding: 6px 4px;\n  border-radius: 12px;\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  background: var(--claude-plus-color-message-human-bg);\n  align-self: flex-end;\n  padding: 8px 12px;\n  text-align: right;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 2px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
 
   StyleRegistry.register(stylesheet$g);
 
@@ -1888,12 +1888,6 @@
    * animation frame.
    */
   class MessageListView {
-    /**
-     * Sender label shown above a message's bubble.
-     * @type {Readonly<Record<string, string>>}
-     */
-    static #SENDER_LABELS = Object.freeze({ human: 'You', assistant: 'Claude' });
-
     /**
      * List element the messages are rendered into.
      * @type {HTMLElement}
@@ -2016,7 +2010,6 @@
       const sender = message.sender === 'human' ? 'human' : 'assistant';
       return `
       <div class="claude-plus-message claude-plus-message--${sender}" data-message-index="${index}">
-        <div class="claude-plus-message__sender">${MessageListView.#SENDER_LABELS[sender]}</div>
         <div class="claude-plus-message__body">${MessageListView.#messageBodyHtml(message)}</div>
         ${this.#actionsHtmlOrEmpty(sender, message, offersRetry)}
       </div>`;
@@ -2044,7 +2037,6 @@
     static #editingMessageHtml(message, index) {
       return `
       <div class="claude-plus-message claude-plus-message--human claude-plus-message--editing" data-message-index="${index}">
-        <div class="claude-plus-message__sender">You</div>
         <textarea class="claude-plus-message__edit-input" data-name="editInput">${escapeHtml(message.text)}</textarea>
         <div class="claude-plus-message__actions">
           <button class="claude-plus-message__action-button" data-action="cancelEdit">Cancel</button>
@@ -2064,12 +2056,12 @@
     #actionsHtml(sender, message, offersRetry, branchInfo) {
       const branchNavHtml = branchInfo ? MessageListView.#branchNavHtml(branchInfo) : '';
       const editButton = sender === 'human' && message.isPersisted
-        ? '<button class="claude-plus-message__action-button" data-action="startEdit" title="Edit and branch from here">✎ Edit</button>' : '';
-      const retryButton = offersRetry ? '<button class="claude-plus-message__action-button" data-action="retry" title="Retry">🔁 Retry</button>' : '';
+        ? '<button class="claude-plus-message__action-button" data-action="startEdit" title="Edit and branch from here">✎</button>' : '';
+      const retryButton = offersRetry ? '<button class="claude-plus-message__action-button" data-action="retry" title="Retry">🔁</button>' : '';
       return `
       <div class="claude-plus-message__actions">
         ${branchNavHtml}
-        <button class="claude-plus-message__action-button" data-action="copy" title="Copy">📋 Copy</button>
+        <button class="claude-plus-message__action-button" data-action="copy" title="Copy">📋</button>
         ${editButton}
         ${retryButton}
       </div>`;
@@ -2225,7 +2217,7 @@
       const message = this.#session.messages[MessageListView.#indexOf(button)];
       navigator.clipboard.writeText(MessageListView.#copyableText(message)).catch(() => undefined);
       const label = button.textContent;
-      button.textContent = '✓ Copied';
+      button.textContent = '✓';
       setTimeout(() => { button.textContent = label; }, TIMING.copyFeedbackMs);
     }
 
@@ -2550,12 +2542,15 @@
     }
 
     /**
-     * Opens a sub-pane on the right edge, unless one of that kind is already open.
+     * Opens a sub-pane on the right edge, or closes it if one of that kind is already open.
      * @param {string} kind 'files' or 'sources'.
      * @returns {void}
      */
     openSubPane(kind) {
-      if (this.#subPanes.has(kind)) return;
+      if (this.#subPanes.has(kind)) {
+        this.#closeSubPane(kind);
+        return;
+      }
       const subPane = new ConversationSubPane({
         kind,
         session: this.#session,
@@ -2682,7 +2677,7 @@
     }
   }
 
-  var stylesheet$c = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  margin-bottom: 6px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n.claude-plus-tool-details {\r\n  margin: 6px 0;\r\n  background: var(--claude-plus-color-tool-details);\r\n  border-radius: 6px;\r\n  padding: 4px 8px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-tool-details pre {\r\n  white-space: pre-wrap;\r\n  overflow-wrap: break-word;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
+  var stylesheet$c = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-images {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  margin-bottom: 6px;\r\n}\r\n\r\n.claude-plus-message--human .claude-plus-message-images {\r\n  justify-content: flex-end;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n.claude-plus-tool-details {\r\n  margin: 6px 0;\r\n  background: var(--claude-plus-color-tool-details);\r\n  border-radius: 6px;\r\n  padding: 4px 8px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-tool-details pre {\r\n  white-space: pre-wrap;\r\n  overflow-wrap: break-word;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$c);
 
@@ -2748,8 +2743,10 @@
      * @returns {string} The HTML, or a "(no content)" placeholder.
      */
     static toHtml(apiMessage) {
+      const uploads = MessageContent.uploads(apiMessage);
       const parts = [
-        ...MessageContent.uploads(apiMessage).map(upload => MessageContent.#uploadHtml(upload)),
+        MessageContent.#imageGalleryHtml(uploads.filter(upload => MessageContent.#isImageUpload(upload))),
+        ...uploads.filter(upload => !MessageContent.#isImageUpload(upload)).map(upload => MessageContent.#fileAttachmentHtml(upload)),
         MessageContent.#textFieldHtml(apiMessage),
         ...(apiMessage.content ?? []).map(block => MessageContent.#contentBlockHtml(block)),
       ];
@@ -2757,12 +2754,13 @@
     }
 
     /**
-     * HTML of one upload: an inline, clickable image for an image upload, else a plain attachment chip.
-     * @param {object} upload The upload.
-     * @returns {string} The HTML.
+     * HTML of a message's image uploads, laid out in a horizontal row rather than stacked.
+     * @param {object[]} imageUploads The image uploads, if any.
+     * @returns {string} The gallery, or an empty string when there are none.
      */
-    static #uploadHtml(upload) {
-      return MessageContent.#isImageUpload(upload) ? MessageContent.#imageUploadHtml(upload) : MessageContent.#fileAttachmentHtml(upload);
+    static #imageGalleryHtml(imageUploads) {
+      if (imageUploads.length === 0) return '';
+      return `<div class="claude-plus-message-images">${imageUploads.map(upload => MessageContent.#imageUploadHtml(upload)).join('')}</div>`;
     }
 
     /**
@@ -5433,6 +5431,12 @@
     #settings;
 
     /**
+     * Conversation statistics, to hide the files/sources buttons when the active chat has none.
+     * @type {StatsIndex}
+     */
+    #stats;
+
+    /**
      * Exports the active chat.
      * @type {ConversationExporter}
      */
@@ -5467,12 +5471,14 @@
      * @param {object} services Panel dependencies.
      * @param {ChatPaneManager} services.paneManager Chat panes; the focused one is the active chat.
      * @param {ComposerSettings} services.settings Shared model options.
+     * @param {StatsIndex} services.stats Conversation statistics, to hide the files/sources buttons when empty.
      * @param {ConversationExporter} services.exporter Exports the active chat.
      */
-    constructor({ paneManager, settings, exporter }) {
+    constructor({ paneManager, settings, stats, exporter }) {
       super('Message');
       this.#paneManager = paneManager;
       this.#settings = settings;
+      this.#stats = stats;
       this.#exporter = exporter;
     }
 
@@ -5515,17 +5521,31 @@
       this.listenTo(this.#settings, 'settings', () => this.#optionsView.showSettings());
       this.listenTo(this.#paneManager, 'focus', () => this.#followActiveChat());
       this.listenTo(this.#paneManager, 'paneConversations', () => this.render());
+      this.listenTo(this.#stats, 'aggregate', () => this.render());
       this.#followActiveChat();
     }
 
     /**
-     * Shows Stop only while the active chat streams a reply, and enables export only for a saved conversation.
+     * Shows Stop only while the active chat streams a reply, enables export only for a saved
+     * conversation, and shows the files/sources buttons only when the active chat has any.
      * @returns {void}
      */
     render() {
       const session = this.#paneManager.focusedSession;
       this.elements.stopButton.hidden = !session.isSending;
       this.#exportButton.setEnabled(Boolean(session.openConversationId));
+      this.elements.filesButton.hidden = !this.#activeChatHas('folders');
+      this.elements.sourcesButton.hidden = !this.#activeChatHas('sources');
+    }
+
+    /**
+     * Whether the active chat has any entries in an aggregate list.
+     * @param {'folders'|'sources'} listName The aggregate list to check.
+     * @returns {boolean} True while a conversation is open and it has a matching entry.
+     */
+    #activeChatHas(listName) {
+      const conversationId = this.#paneManager.focusedSession.openConversationId;
+      return Boolean(conversationId) && this.#stats.aggregate[listName].some(entry => entry.conversationId === conversationId);
     }
 
     /**
@@ -10164,7 +10184,7 @@
 
   var nativeAppHidingStylesheet = "#root,\r\n#portal-root {\r\n  display: none !important;\r\n}\r\n";
 
-  var themeStylesheet = ":root {\r\n  --claude-plus-color-background: #1a1918;\r\n  --claude-plus-color-bar: #1c1b1a;\r\n  --claude-plus-color-raised: #262523;\r\n  --claude-plus-color-raised-hover: #3a3937;\r\n  --claude-plus-color-tool-details: #232221;\r\n  --claude-plus-color-code-block: #101010;\r\n  --claude-plus-color-button: #333;\r\n  --claude-plus-color-button-hover: #444;\r\n  --claude-plus-color-text: #ececec;\r\n  --claude-plus-color-text-muted: #b8b6b3;\r\n  --claude-plus-color-text-faint: #8a8886;\r\n  --claude-plus-color-accent: #d97757;\r\n  --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);\r\n  --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);\r\n  --claude-plus-color-error: #e57373;\r\n  --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);\r\n  --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);\r\n  --claude-plus-color-border: rgba(255, 255, 255, 0.08);\r\n  --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);\r\n  --claude-plus-color-hover: rgba(255, 255, 255, 0.06);\r\n  --claude-plus-font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\r\n  --claude-plus-layer-zone-chrome: 2147480000;\r\n  --claude-plus-layer-panel: 2147480500;\r\n  --claude-plus-layer-divider: 2147480600;\r\n  --claude-plus-layer-toolbar: 2147483000;\r\n  --claude-plus-layer-popup-menu: 2147483001;\r\n  --claude-plus-layer-drop-highlight: 2147483646;\r\n  --claude-plus-layer-drag-label: 2147483647;\r\n}\r\n\r\n.claude-plus-themed {\r\n  font-family: var(--claude-plus-font-family);\r\n  color: var(--claude-plus-color-text);\r\n  color-scheme: dark;\r\n}\r\n\r\n.claude-plus-themed [hidden],\r\n.claude-plus-themed[hidden] {\r\n  display: none !important;\r\n}\r\n";
+  var themeStylesheet = ":root {\r\n  --claude-plus-color-background: #1a1918;\r\n  --claude-plus-color-bar: #1c1b1a;\r\n  --claude-plus-color-raised: #262523;\r\n  --claude-plus-color-raised-hover: #3a3937;\r\n  --claude-plus-color-tool-details: #232221;\r\n  --claude-plus-color-code-block: #101010;\r\n  --claude-plus-color-button: #333;\r\n  --claude-plus-color-button-hover: #444;\r\n  --claude-plus-color-text: #ececec;\r\n  --claude-plus-color-text-muted: #b8b6b3;\r\n  --claude-plus-color-text-faint: #8a8886;\r\n  --claude-plus-color-accent: #d97757;\r\n  --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);\r\n  --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);\r\n  --claude-plus-color-message-human-bg: rgba(255, 255, 255, 0.07);\r\n  --claude-plus-color-error: #e57373;\r\n  --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);\r\n  --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);\r\n  --claude-plus-color-border: rgba(255, 255, 255, 0.08);\r\n  --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);\r\n  --claude-plus-color-hover: rgba(255, 255, 255, 0.06);\r\n  --claude-plus-font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\r\n  --claude-plus-layer-zone-chrome: 2147480000;\r\n  --claude-plus-layer-panel: 2147480500;\r\n  --claude-plus-layer-divider: 2147480600;\r\n  --claude-plus-layer-toolbar: 2147483000;\r\n  --claude-plus-layer-popup-menu: 2147483001;\r\n  --claude-plus-layer-drop-highlight: 2147483646;\r\n  --claude-plus-layer-drag-label: 2147483647;\r\n}\r\n\r\n.claude-plus-themed {\r\n  font-family: var(--claude-plus-font-family);\r\n  color: var(--claude-plus-color-text);\r\n  color-scheme: dark;\r\n}\r\n\r\n.claude-plus-themed [hidden],\r\n.claude-plus-themed[hidden] {\r\n  display: none !important;\r\n}\r\n";
 
   /**
    * Composes every part of the UI and starts it.
@@ -10238,7 +10258,7 @@
       paneManager.restorePanes(conversationIdFromPath(location.pathname));
 
       const panelFactory = new PanelFactory({ directory, router, paneManager, stats, activity, rateLimits, preferences });
-      const composer = new ComposerPanel({ paneManager, settings, exporter: new ConversationExporter(api, paneManager) });
+      const composer = new ComposerPanel({ paneManager, settings, stats, exporter: new ConversationExporter(api, paneManager) });
       const workspace = ClaudePlusApp.#createWorkspace({ preferences, paneManager, panelFactory, composer });
       paneManager.attachWorkspace(workspace);
       panelFactory.attachWorkspace(workspace);

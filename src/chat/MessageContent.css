@@ -12,12 +12,22 @@
   margin-bottom: 4px;
 }
 
+.claude-plus-message-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.claude-plus-message--human .claude-plus-message-images {
+  justify-content: flex-end;
+}
+
 .claude-plus-message-image {
   display: block;
   max-height: 300px;
   max-width: 100%;
   border-radius: 8px;
-  margin-bottom: 6px;
   cursor: zoom-in;
 }
 

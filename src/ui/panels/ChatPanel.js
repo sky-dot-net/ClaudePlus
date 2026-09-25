@@ -144,12 +144,15 @@ export class ChatPanel extends Panel {
   }
 
   /**
-   * Opens a sub-pane on the right edge, unless one of that kind is already open.
+   * Opens a sub-pane on the right edge, or closes it if one of that kind is already open.
    * @param {string} kind 'files' or 'sources'.
    * @returns {void}
    */
   openSubPane(kind) {
-    if (this.#subPanes.has(kind)) return;
+    if (this.#subPanes.has(kind)) {
+      this.#closeSubPane(kind);
+      return;
+    }
     const subPane = new ConversationSubPane({
       kind,
       session: this.#session,

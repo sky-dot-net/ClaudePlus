@@ -13,6 +13,7 @@
   --claude-plus-color-accent: #d97757;
   --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);
   --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);
+  --claude-plus-color-message-human-bg: rgba(255, 255, 255, 0.07);
   --claude-plus-color-error: #e57373;
   --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);
   --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);

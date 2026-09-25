@@ -16,12 +16,6 @@ StyleRegistry.register(stylesheet);
  */
 export class MessageListView {
   /**
-   * Sender label shown above a message's bubble.
-   * @type {Readonly<Record<string, string>>}
-   */
-  static #SENDER_LABELS = Object.freeze({ human: 'You', assistant: 'Claude' });
-
-  /**
    * List element the messages are rendered into.
    * @type {HTMLElement}
    */
@@ -143,7 +137,6 @@ export class MessageListView {
     const sender = message.sender === 'human' ? 'human' : 'assistant';
     return `
       <div class="claude-plus-message claude-plus-message--${sender}" data-message-index="${index}">
-        <div class="claude-plus-message__sender">${MessageListView.#SENDER_LABELS[sender]}</div>
         <div class="claude-plus-message__body">${MessageListView.#messageBodyHtml(message)}</div>
         ${this.#actionsHtmlOrEmpty(sender, message, offersRetry)}
       </div>`;
@@ -171,7 +164,6 @@ export class MessageListView {
   static #editingMessageHtml(message, index) {
     return `
       <div class="claude-plus-message claude-plus-message--human claude-plus-message--editing" data-message-index="${index}">
-        <div class="claude-plus-message__sender">You</div>
         <textarea class="claude-plus-message__edit-input" data-name="editInput">${escapeHtml(message.text)}</textarea>
         <div class="claude-plus-message__actions">
           <button class="claude-plus-message__action-button" data-action="cancelEdit">Cancel</button>
@@ -191,12 +183,12 @@ export class MessageListView {
   #actionsHtml(sender, message, offersRetry, branchInfo) {
     const branchNavHtml = branchInfo ? MessageListView.#branchNavHtml(branchInfo) : '';
     const editButton = sender === 'human' && message.isPersisted
-      ? '<button class="claude-plus-message__action-button" data-action="startEdit" title="Edit and branch from here">✎ Edit</button>' : '';
-    const retryButton = offersRetry ? '<button class="claude-plus-message__action-button" data-action="retry" title="Retry">🔁 Retry</button>' : '';
+      ? '<button class="claude-plus-message__action-button" data-action="startEdit" title="Edit and branch from here">✎</button>' : '';
+    const retryButton = offersRetry ? '<button class="claude-plus-message__action-button" data-action="retry" title="Retry">🔁</button>' : '';
     return `
       <div class="claude-plus-message__actions">
         ${branchNavHtml}
-        <button class="claude-plus-message__action-button" data-action="copy" title="Copy">📋 Copy</button>
+        <button class="claude-plus-message__action-button" data-action="copy" title="Copy">📋</button>
         ${editButton}
         ${retryButton}
       </div>`;
@@ -352,7 +344,7 @@ export class MessageListView {
     const message = this.#session.messages[MessageListView.#indexOf(button)];
     navigator.clipboard.writeText(MessageListView.#copyableText(message)).catch(() => undefined);
     const label = button.textContent;
-    button.textContent = '✓ Copied';
+    button.textContent = '✓';
     setTimeout(() => { button.textContent = label; }, TIMING.copyFeedbackMs);
   }
 

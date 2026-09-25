@@ -31,6 +31,12 @@ export class ComposerPanel extends Panel {
   #settings;
 
   /**
+   * Conversation statistics, to hide the files/sources buttons when the active chat has none.
+   * @type {StatsIndex}
+   */
+  #stats;
+
+  /**
    * Exports the active chat.
    * @type {ConversationExporter}
    */
@@ -65,12 +71,14 @@ export class ComposerPanel extends Panel {
    * @param {object} services Panel dependencies.
    * @param {ChatPaneManager} services.paneManager Chat panes; the focused one is the active chat.
    * @param {ComposerSettings} services.settings Shared model options.
+   * @param {StatsIndex} services.stats Conversation statistics, to hide the files/sources buttons when empty.
    * @param {ConversationExporter} services.exporter Exports the active chat.
    */
-  constructor({ paneManager, settings, exporter }) {
+  constructor({ paneManager, settings, stats, exporter }) {
     super('Message');
     this.#paneManager = paneManager;
     this.#settings = settings;
+    this.#stats = stats;
     this.#exporter = exporter;
   }
 
@@ -113,17 +121,31 @@ export class ComposerPanel extends Panel {
     this.listenTo(this.#settings, 'settings', () => this.#optionsView.showSettings());
     this.listenTo(this.#paneManager, 'focus', () => this.#followActiveChat());
     this.listenTo(this.#paneManager, 'paneConversations', () => this.render());
+    this.listenTo(this.#stats, 'aggregate', () => this.render());
     this.#followActiveChat();
   }
 
   /**
-   * Shows Stop only while the active chat streams a reply, and enables export only for a saved conversation.
+   * Shows Stop only while the active chat streams a reply, enables export only for a saved
+   * conversation, and shows the files/sources buttons only when the active chat has any.
    * @returns {void}
    */
   render() {
     const session = this.#paneManager.focusedSession;
     this.elements.stopButton.hidden = !session.isSending;
     this.#exportButton.setEnabled(Boolean(session.openConversationId));
+    this.elements.filesButton.hidden = !this.#activeChatHas('folders');
+    this.elements.sourcesButton.hidden = !this.#activeChatHas('sources');
+  }
+
+  /**
+   * Whether the active chat has any entries in an aggregate list.
+   * @param {'folders'|'sources'} listName The aggregate list to check.
+   * @returns {boolean} True while a conversation is open and it has a matching entry.
+   */
+  #activeChatHas(listName) {
+    const conversationId = this.#paneManager.focusedSession.openConversationId;
+    return Boolean(conversationId) && this.#stats.aggregate[listName].some(entry => entry.conversationId === conversationId);
   }
 
   /**
