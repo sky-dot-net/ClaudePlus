@@ -10930,9 +10930,53 @@
      */
     static #pollOnce(iframe, toolUseId, deadline, poll, resolve, reject) {
       const found = WidgetIframeSource.#tryFind(iframe, toolUseId);
+      console.warn('[widget-debug]', toolUseId, JSON.stringify(WidgetIframeSource.#debugSnapshot(iframe, toolUseId)));
       if (found) resolve(found);
       else if (Date.now() > deadline) reject(new Error(`widget ${toolUseId} did not render within the timeout`));
       else setTimeout(poll, TIMING.widgetExtractPollMs);
+    }
+
+    /**
+     * Temporary diagnostic snapshot of the iframe's state for one poll attempt.
+     * @param {HTMLIFrameElement} iframe The extraction iframe.
+     * @param {string} toolUseId Id of the widget's tool_use block.
+     * @returns {object} The snapshot.
+     */
+    static #debugSnapshot(iframe, toolUseId) {
+      let doc;
+      let docError = null;
+      try {
+        doc = iframe.contentDocument;
+      } catch (error) {
+        docError = error.message;
+      }
+      const rootElement = doc ? doc.getElementById('root') : null;
+      const rootFiber = rootElement ? WidgetIframeSource.#fiberOf(rootElement) : null;
+      let fiberCount = 0;
+      let toolUseIdSample = [];
+      if (rootFiber) {
+        const seen = new Set();
+        const collect = fiber => {
+          if (!fiber || seen.has(fiber) || fiberCount > 5000) return;
+          seen.add(fiber);
+          fiberCount += 1;
+          const props = fiber.memoizedProps;
+          if (props && typeof props === 'object' && 'toolUseId' in props && toolUseIdSample.length < 8) toolUseIdSample.push(props.toolUseId);
+          collect(fiber.child);
+          collect(fiber.sibling);
+        };
+        collect(rootFiber);
+      }
+      return {
+        docError,
+        readyState: doc?.readyState,
+        currentUrl: doc?.location?.href,
+        hasRoot: Boolean(rootElement),
+        hasFiber: Boolean(rootFiber),
+        fiberCount,
+        toolUseIdSample,
+        targetPresent: toolUseIdSample.includes(toolUseId),
+      };
     }
 
     /**
