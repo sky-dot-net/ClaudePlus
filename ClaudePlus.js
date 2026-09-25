@@ -103,8 +103,20 @@
    * @property {string} [text] Plain text, used by older messages.
    * @property {ContentBlock[]} [content] Structured content.
    * @property {Array<object>} [attachments] Uploaded attachments.
-   * @property {Array<object>} [files] Uploaded files.
+   * @property {UploadedFile[]} [files] Uploaded files.
    * @property {string} created_at ISO creation timestamp.
+   */
+
+  /**
+   * The server's record of a file uploaded with ClaudeApi#uploadFile, also the shape a persisted
+   * message's files carry. file_kind is 'image' for an image (with thumbnail_url/preview_url set) or
+   * 'blob' for anything else.
+   * @typedef {object} UploadedFile
+   * @property {string} file_uuid Id to send back in a completion request's files array.
+   * @property {string} file_name Original file name.
+   * @property {'image'|'blob'|string} file_kind Kind of upload.
+   * @property {string} [thumbnail_url] Small preview URL, images only.
+   * @property {string} [preview_url] Display-size preview URL, images only.
    */
 
   /**
@@ -851,6 +863,70 @@
   }
 
   /**
+   * Opens a full-size view of an image over a dark backdrop, capped at 90% of the viewport.
+   * Scrolling zooms; dragging pans once the image is too big to fit fully. A button below opens the
+   * same image in a new browser tab.
+   * @param {string} src Image URL.
+   * @param {string} altText Alt text for the image.
+   * @returns {void}
+   */
+  function openImageViewer(src, altText) {
+    const overlay = createElement('div', { className: 'claude-plus-themed claude-plus-image-viewer-overlay' });
+    const frame = createElement('div', { className: 'claude-plus-image-viewer__frame' });
+    const image = createElement('img', { className: 'claude-plus-image-viewer__image', src, alt: altText });
+    const openButton = createElement('button', {
+      className: 'claude-plus-toolbar__button claude-plus-image-viewer__open-button',
+      textContent: 'Open in new window',
+    });
+    frame.append(image);
+    overlay.append(frame, openButton);
+    document.body.append(overlay);
+
+    let scale = 1;
+    let offsetX = 0;
+    let offsetY = 0;
+    const applyTransform = () => {
+      image.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+    };
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKeydown);
+    };
+    const onKeydown = event => {
+      if (event.key === 'Escape') close();
+    };
+
+    frame.addEventListener('wheel', event => {
+      event.preventDefault();
+      const previousScale = scale;
+      scale = clamp(scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15), 1, 8);
+      const scaleRatio = scale / previousScale;
+      offsetX *= scaleRatio;
+      offsetY *= scaleRatio;
+      applyTransform();
+    }, { passive: false });
+    image.addEventListener('mousedown', startEvent => {
+      startEvent.preventDefault();
+      const startOffsetX = offsetX;
+      const startOffsetY = offsetY;
+      new DragGesture(startEvent, {
+        threshold: 0,
+        onMove: event => {
+          offsetX = startOffsetX + (event.clientX - startEvent.clientX);
+          offsetY = startOffsetY + (event.clientY - startEvent.clientY);
+          applyTransform();
+        },
+        onEnd: () => undefined,
+      });
+    });
+    openButton.addEventListener('click', () => window.open(src, '_blank', 'noopener'));
+    overlay.addEventListener('mousedown', event => {
+      if (event.target === overlay) close();
+    });
+    document.addEventListener('keydown', onKeydown);
+  }
+
+  /**
    * Positions a fixed-position element over a rectangle.
    * @param {HTMLElement} element The element.
    * @param {Rect} rect Target rectangle.
@@ -1475,6 +1551,23 @@
     }
 
     /**
+     * Uploads a file for attaching to a prompt. The conversation id must be the one the prompt itself
+     * will use: for a chat that hasn't sent its first message yet, that's the id the caller intends
+     * to reuse as the new conversation's id, not one generated fresh at send time.
+     * @param {string} conversationId Conversation the file will be attached in.
+     * @param {File} file File to upload.
+     * @returns {Promise<UploadedFile>} The server's record of the upload.
+     * @throws {ApiError} When the request fails.
+     */
+    async uploadFile(conversationId, file) {
+      const body = new FormData();
+      body.append('file', file);
+      const url = await this.#organizationUrl(`/conversations/${conversationId}/wiggle/upload-file`, {});
+      const response = await this.#fetchSuccessful(url, { method: 'POST', body });
+      return response.json();
+    }
+
+    /**
      * Sends a prompt and streams the reply. The first event has type STREAM_START and carries the
      * client-generated humanMessageId and assistantMessageId; every following event is a parsed
      * server-sent event.
@@ -1484,14 +1577,15 @@
      * @param {string} request.parentMessageId Message to reply to; ignored when isNew.
      * @param {boolean} request.isNew Whether this creates the conversation.
      * @param {ComposerSnapshot} request.settings Model options.
+     * @param {string[]} [request.fileUuids] Ids of files uploaded beforehand to attach.
      * @param {AbortSignal} request.signal Aborts the request and the stream.
      * @yields {StreamEvent} The start event, then each server-sent event.
      * @returns {AsyncGenerator<StreamEvent, void, void>} The events in order.
      * @throws {ApiError} When the server rejects the request.
      * @throws {DOMException} An AbortError when aborted.
      */
-    async *streamCompletion({ conversationId, prompt, parentMessageId, isNew, settings, signal }) {
-      const body = ClaudeApi.#buildCompletionBody({ prompt, parentMessageId, isNew, settings });
+    async *streamCompletion({ conversationId, prompt, parentMessageId, isNew, settings, fileUuids, signal }) {
+      const body = ClaudeApi.#buildCompletionBody({ prompt, parentMessageId, isNew, settings, fileUuids });
       const response = await this.#fetchSuccessful(await this.#organizationUrl(`/chat_conversations/${conversationId}/completion`, {}), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', accept: 'text/event-stream', 'Content-Encoding': 'gzip' },
@@ -1510,9 +1604,10 @@
      * @param {string} request.parentMessageId Message to reply to; ignored when isNew.
      * @param {boolean} request.isNew Whether to create the conversation.
      * @param {ComposerSnapshot} request.settings Model options.
+     * @param {string[]} [request.fileUuids] Ids of files uploaded beforehand to attach.
      * @returns {object} The body, with conversation-creation parameters or a parent message id.
      */
-    static #buildCompletionBody({ prompt, parentMessageId, isNew, settings }) {
+    static #buildCompletionBody({ prompt, parentMessageId, isNew, settings, fileUuids }) {
       const body = {
         prompt,
         timezone: currentTimezone(),
@@ -1523,7 +1618,7 @@
         tools: [],
         turn_message_uuids: { human_message_uuid: crypto.randomUUID(), assistant_message_uuid: crypto.randomUUID() },
         attachments: [],
-        files: [],
+        files: fileUuids ?? [],
         sync_sources: [],
         completion_request_id: crypto.randomUUID(),
         rendering_mode: 'messages',
@@ -1745,11 +1840,49 @@
      */
     static toHtml(apiMessage) {
       const parts = [
-        ...MessageContent.uploads(apiMessage).map(upload => `<div class="claude-plus-message-attachment">📎 ${escapeHtml(MessageContent.uploadName(upload))}</div>`),
+        ...MessageContent.uploads(apiMessage).map(upload => MessageContent.#uploadHtml(upload)),
         MessageContent.#textFieldHtml(apiMessage),
         ...(apiMessage.content ?? []).map(block => MessageContent.#contentBlockHtml(block)),
       ];
       return parts.join('') || MessageContent.#NO_CONTENT_HTML;
+    }
+
+    /**
+     * HTML of one upload: an inline, clickable image for an image upload, else a plain attachment chip.
+     * @param {object} upload The upload.
+     * @returns {string} The HTML.
+     */
+    static #uploadHtml(upload) {
+      return MessageContent.#isImageUpload(upload) ? MessageContent.#imageUploadHtml(upload) : MessageContent.#fileAttachmentHtml(upload);
+    }
+
+    /**
+     * Whether an upload is an image with a URL to display.
+     * @param {object} upload The upload.
+     * @returns {boolean} True for an image upload.
+     */
+    static #isImageUpload(upload) {
+      return upload.file_kind === 'image' && Boolean(upload.preview_url);
+    }
+
+    /**
+     * HTML of an inline image upload: capped at 300px tall, opening the full-size viewer on click.
+     * @param {object} upload The image upload.
+     * @returns {string} The HTML.
+     */
+    static #imageUploadHtml(upload) {
+      const src = escapeHtml(upload.preview_url);
+      const name = escapeHtml(MessageContent.uploadName(upload));
+      return `<img class="claude-plus-message-image" src="${src}" data-action="openImage" data-full-src="${src}" alt="${name}" loading="lazy" />`;
+    }
+
+    /**
+     * HTML of a non-image upload, shown as a plain named chip.
+     * @param {object} upload The upload.
+     * @returns {string} The HTML.
+     */
+    static #fileAttachmentHtml(upload) {
+      return `<div class="claude-plus-message-attachment">📎 ${escapeHtml(MessageContent.uploadName(upload))}</div>`;
     }
 
     /**
@@ -2054,13 +2187,15 @@
      * @param {boolean} fields.isNewConversation Whether the prompt creates the conversation.
      * @param {string} fields.prompt Prompt text.
      * @param {ChatMessage} fields.promptMessage The prompt's message.
+     * @param {UploadedFile[]} fields.files Files uploaded beforehand to attach.
      * @param {AbortController} fields.abortController Aborts the request.
      */
-    constructor({ conversationId, isNewConversation, prompt, promptMessage, abortController }) {
+    constructor({ conversationId, isNewConversation, prompt, promptMessage, files, abortController }) {
       this.conversationId = conversationId;
       this.isNewConversation = isNewConversation;
       this.prompt = prompt;
       this.promptMessage = promptMessage;
+      this.files = files;
       this.abortController = abortController;
       this.replyMessage = null;
       this.hasFailed = false;
@@ -2200,6 +2335,13 @@
     #openConversationId = null;
 
     /**
+     * Id generated for a new chat's conversation as soon as a file is uploaded to it, so the upload
+     * and the first prompt land in the same conversation. Cleared once the open conversation changes.
+     * @type {?string}
+     */
+    #draftConversationId = null;
+
+    /**
      * Messages of the open conversation's current branch.
      * @type {ChatMessage[]}
      */
@@ -2272,6 +2414,26 @@
     }
 
     /**
+     * Id of the conversation a file uploaded right now would belong to: the open conversation, or a
+     * stable id generated on first use so an upload and the prompt that follows it share one
+     * conversation, even before that conversation exists on the server.
+     * @returns {string} The conversation id.
+     */
+    get targetConversationId() {
+      return this.#openConversationId ?? (this.#draftConversationId ??= crypto.randomUUID());
+    }
+
+    /**
+     * Uploads a file to the conversation a prompt sent right now would use.
+     * @param {File} file File to upload.
+     * @returns {Promise<UploadedFile>} The server's record of the upload.
+     * @throws {ApiError} When the request fails.
+     */
+    uploadFile(file) {
+      return this.#api.uploadFile(this.targetConversationId, file);
+    }
+
+    /**
      * Opens a conversation, stopping any reply in progress. A load failure is shown as an error notice.
      * @param {string} conversationId Conversation id.
      * @returns {Promise<void>} Resolves once the messages or the error notice are shown.
@@ -2305,10 +2467,11 @@
     /**
      * Sends a prompt as a reply to the last persisted message. Ignored while sending or for blank prompts.
      * @param {string} prompt Prompt text.
+     * @param {UploadedFile[]} [files] Files uploaded beforehand to attach.
      * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
      */
-    sendPrompt(prompt) {
-      return this.#sendPromptAfter(prompt, this.#lastPersistedMessageIdBefore(this.#messages.length));
+    sendPrompt(prompt, files = []) {
+      return this.#sendPromptAfter(prompt, this.#lastPersistedMessageIdBefore(this.#messages.length), files);
     }
 
     /**
@@ -2322,7 +2485,7 @@
       if (promptIndex === -1) return;
       const promptMessage = this.#messages[promptIndex];
       this.#setMessages(this.#messages.slice(0, promptIndex));
-      this.#sendPromptAfter(promptMessage.text, promptMessage.parentId ?? this.#lastPersistedMessageIdBefore(promptIndex));
+      this.#sendPromptAfter(promptMessage.text, promptMessage.parentId ?? this.#lastPersistedMessageIdBefore(promptIndex), []);
     }
 
     /**
@@ -2363,11 +2526,12 @@
      * Sends a prompt as a reply to a given message and streams the answer into the chat.
      * @param {string} prompt Prompt text; ignored if blank.
      * @param {?string} parentMessageId Message to reply to; null for the conversation root.
+     * @param {UploadedFile[]} files Files uploaded beforehand to attach.
      * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
      */
-    async #sendPromptAfter(prompt, parentMessageId) {
+    async #sendPromptAfter(prompt, parentMessageId, files) {
       if (!prompt.trim() || this.#isSending) return;
-      const turn = this.#beginTurn(prompt, parentMessageId);
+      const turn = this.#beginTurn(prompt, parentMessageId, files);
       try {
         await this.#streamReply(turn);
       } catch (error) {
@@ -2381,15 +2545,20 @@
      * Shows the prompt and marks the session as sending.
      * @param {string} prompt Prompt text.
      * @param {?string} parentMessageId Message to reply to.
+     * @param {UploadedFile[]} files Files uploaded beforehand to attach.
      * @returns {Turn} The new turn.
      */
-    #beginTurn(prompt, parentMessageId) {
-      const promptMessage = new ChatMessage({ id: createLocalMessageId(), parentId: parentMessageId, sender: 'human', text: prompt, isPersisted: false });
+    #beginTurn(prompt, parentMessageId, files) {
+      const promptMessage = new ChatMessage({
+        id: createLocalMessageId(), parentId: parentMessageId, sender: 'human', text: prompt, isPersisted: false,
+        apiMessage: files.length ? { text: prompt, attachments: [], files, content: [] } : null,
+      });
       const turn = new Turn({
-        conversationId: this.#openConversationId ?? crypto.randomUUID(),
+        conversationId: this.targetConversationId,
         isNewConversation: this.#openConversationId === null,
         prompt,
         promptMessage,
+        files,
         abortController: new AbortController(),
       });
       this.#abortController = turn.abortController;
@@ -2411,6 +2580,7 @@
         parentMessageId: turn.promptMessage.parentId ?? ROOT_MESSAGE_UUID,
         isNew: turn.isNewConversation,
         settings: this.#settings.snapshot(),
+        fileUuids: turn.files.map(file => file.file_uuid),
         signal: turn.abortController.signal,
       });
       for await (const event of events) this.#handleStreamEvent(turn, event);
@@ -2595,6 +2765,7 @@
     #setOpenConversation(conversationId) {
       if (this.#openConversationId === conversationId) return;
       this.#openConversationId = conversationId;
+      this.#draftConversationId = null;
       this.publish('openConversation');
     }
 
@@ -5226,6 +5397,7 @@
     #actionHandlers = new Map([
       ['retry', () => this.#session.retryLastPrompt()],
       ['copy', button => this.#copyMessageText(button)],
+      ['openImage', image => openImageViewer(image.dataset.fullSrc, image.alt)],
     ]);
 
     /**
@@ -5417,6 +5589,14 @@
     #sessionUnsubscribers = [];
 
     /**
+     * Files pasted or dropped in, attached to the next prompt. Each entry is
+     * {key: string, name: string, isUploading: boolean, upload: ?UploadedFile}; a failed upload is
+     * dropped from the list rather than kept as an entry.
+     * @type {Array<object>}
+     */
+    #stagedFiles = [];
+
+    /**
      * Creates the panel.
      * @param {object} services Panel dependencies.
      * @param {ChatPaneManager} services.paneManager Chat panes; the focused one is the active chat.
@@ -5445,7 +5625,8 @@
           <button class="claude-plus-toolbar__button" data-name="sourcesButton" title="Web sources of the active chat">🌐</button>
           <button class="claude-plus-toolbar__button" data-name="exportButton" title="Export the active chat">Export ▾</button>
         </div>
-        <textarea class="claude-plus-composer__input" data-name="promptInput" placeholder="Message Claude… (Enter sends, Shift+Enter adds a line)" rows="3"></textarea>
+        <div class="claude-plus-staged-files" data-name="stagedFiles" hidden></div>
+        <textarea class="claude-plus-composer__input" data-name="promptInput" placeholder="Message Claude… (Enter sends, Shift+Enter adds a line — paste or drop files to attach them)" rows="3"></textarea>
         <button class="claude-plus-primary-button claude-plus-composer__stop-button" data-name="stopButton" hidden>Stop</button>`;
     }
 
@@ -5454,11 +5635,15 @@
      * @returns {void}
      */
     bindEvents() {
-      const { modelSelect, effortSelect, thinkingCheckbox, promptInput, stopButton, filesButton, sourcesButton, exportButton } = this.elements;
+      const { modelSelect, effortSelect, thinkingCheckbox, promptInput, stopButton, filesButton, sourcesButton, exportButton, stagedFiles } = this.elements;
       modelSelect.addEventListener('change', () => { this.#settings.model = modelSelect.value; });
       effortSelect.addEventListener('change', () => { this.#settings.effort = effortSelect.value; });
       thinkingCheckbox.addEventListener('change', () => { this.#settings.thinkingMode = thinkingCheckbox.checked ? THINKING_MODES.extended : THINKING_MODES.off; });
       promptInput.addEventListener('keydown', event => this.#onPromptKeydown(event));
+      promptInput.addEventListener('paste', event => this.#onPaste(event));
+      this.element.addEventListener('dragover', event => event.preventDefault());
+      this.element.addEventListener('drop', event => this.#onDrop(event));
+      stagedFiles.addEventListener('click', event => this.#onStagedFilesClick(event));
       stopButton.addEventListener('click', () => this.#paneManager.focusedSession.stopReply());
       filesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('files'));
       sourcesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('sources'));
@@ -5497,6 +5682,7 @@
     #followActiveChat() {
       this.#unsubscribeFromSession();
       this.#sessionUnsubscribers = [this.#paneManager.focusedSession.subscribe('sending', () => this.render())];
+      this.#clearStagedFiles();
       this.render();
     }
 
@@ -5554,17 +5740,129 @@
     }
 
     /**
-     * Sends the typed prompt to the active chat and clears the input; ignored for blank input or
-     * while the active chat is sending.
+     * Sends the typed prompt and any successfully staged files to the active chat, then clears both;
+     * ignored for blank input, while the active chat is sending, or while a file is still uploading.
      * @returns {void}
      */
     #sendTypedPrompt() {
       const { promptInput } = this.elements;
       const session = this.#paneManager.focusedSession;
-      if (!promptInput.value.trim() || session.isSending) return;
+      if (!promptInput.value.trim() || session.isSending || this.#stagedFiles.some(entry => entry.isUploading)) return;
       const prompt = promptInput.value;
+      const files = this.#stagedFiles.map(entry => entry.upload);
       promptInput.value = '';
-      session.sendPrompt(prompt);
+      this.#stagedFiles = [];
+      this.#renderStagedFiles();
+      session.sendPrompt(prompt, files);
+    }
+
+    /**
+     * Intercepts a paste that carries one or more files, uploading each and leaving any pasted text
+     * to paste normally. A paste with no files is left alone.
+     * @param {ClipboardEvent} event The paste.
+     * @returns {void}
+     */
+    #onPaste(event) {
+      const files = [...(event.clipboardData?.items ?? [])]
+        .filter(item => item.kind === 'file')
+        .map(item => item.getAsFile())
+        .filter(Boolean);
+      if (!files.length) return;
+      event.preventDefault();
+      files.forEach(file => this.#attachFile(file));
+    }
+
+    /**
+     * Uploads every file dropped onto the composer.
+     * @param {DragEvent} event The drop.
+     * @returns {void}
+     */
+    #onDrop(event) {
+      event.preventDefault();
+      [...(event.dataTransfer?.files ?? [])].forEach(file => this.#attachFile(file));
+    }
+
+    /**
+     * Uploads a file to the active chat's conversation and shows it as a staged attachment chip,
+     * replacing the placeholder once the upload settles.
+     * @param {File} file File to upload.
+     * @returns {Promise<void>} Resolves once uploaded or failed.
+     */
+    async #attachFile(file) {
+      const key = crypto.randomUUID();
+      this.#stagedFiles = [...this.#stagedFiles, { key, name: file.name, isUploading: true, upload: null }];
+      this.#renderStagedFiles();
+      try {
+        const upload = await this.#paneManager.focusedSession.uploadFile(file);
+        this.#updateStagedFile(key, { isUploading: false, upload });
+      } catch (error) {
+        this.#stagedFiles = this.#stagedFiles.filter(entry => entry.key !== key);
+        this.#renderStagedFiles();
+        await alertDialog(`Uploading "${file.name}" failed: ${error.message}`);
+      }
+    }
+
+    /**
+     * Merges changes into a staged file entry, unless it was removed while the upload was in flight.
+     * @param {string} key Entry key.
+     * @param {object} changes Fields to merge in.
+     * @returns {void}
+     */
+    #updateStagedFile(key, changes) {
+      if (!this.#stagedFiles.some(entry => entry.key === key)) return;
+      this.#stagedFiles = this.#stagedFiles.map(entry => (entry.key === key ? { ...entry, ...changes } : entry));
+      this.#renderStagedFiles();
+    }
+
+    /**
+     * Removes a staged file the user clicked the remove button of.
+     * @param {MouseEvent} event Click inside the staged files row.
+     * @returns {void}
+     */
+    #onStagedFilesClick(event) {
+      const button = event.target.closest('[data-key]');
+      if (!button) return;
+      this.#stagedFiles = this.#stagedFiles.filter(entry => entry.key !== button.dataset.key);
+      this.#renderStagedFiles();
+    }
+
+    /**
+     * Discards every staged file, without cancelling uploads already in flight; a late response is
+     * ignored by #updateStagedFile once its entry is gone.
+     * @returns {void}
+     */
+    #clearStagedFiles() {
+      if (!this.#stagedFiles.length) return;
+      this.#stagedFiles = [];
+      this.#renderStagedFiles();
+    }
+
+    /**
+     * Shows the staged files as removable chips, hiding the row when there are none.
+     * @returns {void}
+     */
+    #renderStagedFiles() {
+      const { stagedFiles } = this.elements;
+      stagedFiles.hidden = this.#stagedFiles.length === 0;
+      stagedFiles.innerHTML = this.#stagedFiles.map(entry => ComposerPanel.#stagedFileHtml(entry)).join('');
+    }
+
+    /**
+     * HTML of one staged file chip: a thumbnail for an uploaded image, else a generic file icon.
+     * @param {object} entry A #stagedFiles entry.
+     * @returns {string} The chip.
+     */
+    static #stagedFileHtml(entry) {
+      const thumbnailHtml = entry.upload?.thumbnail_url
+        ? `<img class="claude-plus-staged-file__thumb" src="${escapeHtml(entry.upload.thumbnail_url)}" alt="" />`
+        : '<span class="claude-plus-staged-file__icon">📎</span>';
+      const stateClass = entry.isUploading ? ' claude-plus-staged-file--uploading' : '';
+      return `
+        <span class="claude-plus-staged-file${stateClass}">
+          ${thumbnailHtml}
+          <span class="claude-plus-staged-file__name">${escapeHtml(entry.name)}</span>
+          <button class="claude-plus-staged-file__remove" data-key="${escapeHtml(entry.key)}" title="Remove">×</button>
+        </span>`;
     }
   }
 
@@ -8827,6 +9125,11 @@
     .claude-plus-dialog__input { width: 100%; box-sizing: border-box; margin: 0 0 14px; padding: 6px 8px; background: var(--claude-plus-color-bar); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; color: var(--claude-plus-color-text); font: inherit; }
     .claude-plus-dialog__actions { display: flex; justify-content: flex-end; gap: 8px; }
 
+    .claude-plus-image-viewer-overlay { position: fixed; inset: 0; z-index: var(--claude-plus-layer-drag-label); background: rgba(0, 0, 0, 0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+    .claude-plus-image-viewer__frame { max-width: 90vw; max-height: 90vh; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .claude-plus-image-viewer__image { max-width: 90vw; max-height: 90vh; width: auto; height: auto; cursor: grab; user-select: none; }
+    .claude-plus-image-viewer__open-button { flex-shrink: 0; }
+
     .claude-plus-panel { position: fixed; z-index: var(--claude-plus-layer-panel); box-sizing: border-box; padding: 10px 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; font-size: 13px; background: var(--claude-plus-color-background); }
     .claude-plus-panel summary { cursor: pointer; padding: 4px 0; }
     .claude-plus-panel--active-among-several { box-shadow: inset 0 0 0 1px var(--claude-plus-color-active-chat); }
@@ -8870,6 +9173,7 @@
     .claude-plus-message-text { white-space: normal; }
     .claude-plus-message-text a { color: var(--claude-plus-color-accent); }
     .claude-plus-message-attachment { color: var(--claude-plus-color-text-muted); font-size: 12px; margin-bottom: 4px; }
+    .claude-plus-message-image { display: block; max-height: 300px; max-width: 100%; border-radius: 8px; margin-bottom: 6px; cursor: zoom-in; }
     .claude-plus-message-error { color: var(--claude-plus-color-error); margin-top: 6px; }
     .claude-plus-tool-details { margin: 6px 0; background: var(--claude-plus-color-tool-details); border-radius: 6px; padding: 4px 8px; font-size: 12px; }
     .claude-plus-tool-details pre { white-space: pre-wrap; overflow-wrap: break-word; font-size: 11px; color: var(--claude-plus-color-text-muted); }
@@ -8881,6 +9185,15 @@
     .claude-plus-composer__options select { padding: 4px 6px; }
     .claude-plus-composer__thinking-toggle { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--claude-plus-color-text-muted); cursor: pointer; }
     .claude-plus-panel .claude-plus-composer__input { flex: 1; resize: none; min-height: 40px; border-radius: 8px; padding: 8px; font-size: 14px; }
+
+    .claude-plus-staged-files { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
+    .claude-plus-staged-file { display: inline-flex; align-items: center; gap: 4px; background: var(--claude-plus-color-bar); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; padding: 3px 4px 3px 3px; font-size: 12px; max-width: 200px; }
+    .claude-plus-staged-file--uploading { opacity: 0.6; }
+    .claude-plus-staged-file__thumb { width: 20px; height: 20px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+    .claude-plus-staged-file__icon { flex-shrink: 0; }
+    .claude-plus-staged-file__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .claude-plus-staged-file__remove { background: none; border: none; color: var(--claude-plus-color-text-faint); cursor: pointer; padding: 0 2px; border-radius: 4px; flex-shrink: 0; }
+    .claude-plus-staged-file__remove:hover { background: var(--claude-plus-color-hover); color: var(--claude-plus-color-text); }
 
 
     .claude-plus-table-host { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; }
