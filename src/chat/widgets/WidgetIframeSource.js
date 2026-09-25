@@ -139,7 +139,8 @@ export class WidgetIframeSource {
       collect(fiber.sibling);
     };
     collect(rootFiber);
-    console.warn('[widget-debug]', JSON.stringify({ target: dataJson, candidates }));
+    const matches = candidates.map(candidate => candidate === dataJson);
+    console.warn('[widget-debug]', JSON.stringify({ matches, targetLen: dataJson.length, candidateLens: candidates.map(candidate => candidate.length) }));
   }
 
   /**
