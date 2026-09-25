@@ -748,9 +748,9 @@
     return String(value ?? '').replace(/[&<>"']/g, character => HTML_ENTITIES[character]);
   }
 
-  var stylesheet$l = ".claude-plus-empty-state {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-style: italic;\r\n  padding: 6px 0;\r\n}\r\n\r\n.claude-plus-empty-state--padded {\r\n  padding: 24px;\r\n}\r\n";
+  var stylesheet$m = ".claude-plus-empty-state {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-style: italic;\r\n  padding: 6px 0;\r\n}\r\n\r\n.claude-plus-empty-state--padded {\r\n  padding: 24px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$l);
+  StyleRegistry.register(stylesheet$m);
 
   /**
    * HTML for an empty-state message.
@@ -761,9 +761,9 @@
     return `<div class="claude-plus-empty-state">${escapeHtml(message)}</div>`;
   }
 
-  var stylesheet$k = ".claude-plus-value-combobox {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  max-height: 240px;\r\n  overflow-y: auto;\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-value-combobox__entry {\r\n  padding: 4px 8px;\r\n  border-radius: 4px;\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-value-combobox__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
+  var stylesheet$l = ".claude-plus-value-combobox {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  max-height: 240px;\r\n  overflow-y: auto;\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-value-combobox__entry {\r\n  padding: 4px 8px;\r\n  border-radius: 4px;\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-value-combobox__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$k);
+  StyleRegistry.register(stylesheet$l);
 
   /**
    * A text input that shows the distinct values it can filter by in a list below it while focused.
@@ -907,9 +907,9 @@
     return FILTER_CONTROLS[column.filter ?? 'none'](column);
   }
 
-  var stylesheet$j = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
+  var stylesheet$k = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$j);
+  StyleRegistry.register(stylesheet$k);
 
   /**
    * A reusable table with toggleable columns, sorting by clicking a header (clicking again reverses
@@ -1206,6 +1206,41 @@
   }
 
   /**
+   * The header shared by every dockable sub-pane: a title, dock-edge arrows and a close button.
+   */
+  class SubPaneHeader {
+    /**
+     * HTML of the header.
+     * @param {string} title Header title.
+     * @returns {string} The header element's HTML.
+     */
+    static html(title) {
+      return `
+      <header class="claude-plus-subpane__header">
+        <span class="claude-plus-subpane__title">${escapeHtml(title)}</span>
+        <button class="claude-plus-subpane__button" data-edge="left" title="Dock left">←</button>
+        <button class="claude-plus-subpane__button" data-edge="top" title="Dock top">↑</button>
+        <button class="claude-plus-subpane__button" data-edge="right" title="Dock right">→</button>
+        <button class="claude-plus-subpane__button" data-action="close" title="Close">×</button>
+      </header>`;
+    }
+
+    /**
+     * Runs the clicked header button: a dock arrow or close.
+     * @param {MouseEvent} event Click inside the header.
+     * @param {function(): void} onClose Close callback.
+     * @param {function(string): void} onMove Redock callback, called with 'left', 'top' or 'right'.
+     * @returns {void}
+     */
+    static onClick(event, onClose, onMove) {
+      const button = event.target.closest('button');
+      if (!button) return;
+      if (button.dataset.edge) onMove(button.dataset.edge);
+      else onClose();
+    }
+  }
+
+  /**
    * A column naming the conversation a row belongs to, read from the row's conversationTitle.
    * @returns {TableColumn} The column.
    */
@@ -1301,9 +1336,9 @@
     return includesConversation ? [...columns, createConversationColumn()] : columns;
   }
 
-  var stylesheet$i = ".claude-plus-subpane {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  min-height: 0;\r\n  flex: 1;\r\n  padding: 6px;\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  background: var(--claude-plus-color-bar);\r\n}\r\n\r\n.claude-plus-subpane__header {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 2px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-subpane__title {\r\n  flex: 1;\r\n  min-width: 0;\r\n  font-size: 12px;\r\n  font-weight: 600;\r\n  white-space: nowrap;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-subpane__button {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 2px 5px;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-subpane__button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
+  var stylesheet$j = ".claude-plus-subpane {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  min-height: 0;\r\n  flex: 1;\r\n  padding: 6px;\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  background: var(--claude-plus-color-bar);\r\n}\r\n\r\n.claude-plus-subpane__header {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 2px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-subpane__title {\r\n  flex: 1;\r\n  min-width: 0;\r\n  font-size: 12px;\r\n  font-weight: 600;\r\n  white-space: nowrap;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-subpane__button {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 2px 5px;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-subpane__button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$i);
+  StyleRegistry.register(stylesheet$j);
 
   /**
    * A sub-pane inside a chat pane listing the web sources or files of that pane's conversation.
@@ -1390,7 +1425,7 @@
         rowAttributes: () => '',
         emptyText: 'Nothing recorded for this chat yet.',
       });
-      this.#element.querySelector('header').addEventListener('click', event => ConversationSubPane.#onHeaderClick(event, kind, onClose, onMove));
+      this.#element.querySelector('header').addEventListener('click', event => SubPaneHeader.onClick(event, () => onClose(kind), edge => onMove(kind, edge)));
       this.#unsubscribers.push(stats.subscribe('aggregate', () => this.render()), session.subscribe('openConversation', () => this.render()));
       this.render();
     }
@@ -1429,30 +1464,7 @@
      * @returns {string} The HTML.
      */
     static #bodyHtml(title) {
-      return `
-      <header class="claude-plus-subpane__header">
-        <span class="claude-plus-subpane__title">${escapeHtml(title)}</span>
-        <button class="claude-plus-subpane__button" data-edge="left" title="Dock left">←</button>
-        <button class="claude-plus-subpane__button" data-edge="top" title="Dock top">↑</button>
-        <button class="claude-plus-subpane__button" data-edge="right" title="Dock right">→</button>
-        <button class="claude-plus-subpane__button" data-action="close" title="Close">×</button>
-      </header>
-      <div class="claude-plus-table-host" data-name="tableHost"></div>`;
-    }
-
-    /**
-     * Runs the clicked header button: a dock arrow or close.
-     * @param {MouseEvent} event Click in the header.
-     * @param {string} kind The sub-pane's kind.
-     * @param {function(string): void} onClose Close callback.
-     * @param {function(string, string): void} onMove Redock callback.
-     * @returns {void}
-     */
-    static #onHeaderClick(event, kind, onClose, onMove) {
-      const button = event.target.closest('button');
-      if (!button) return;
-      if (button.dataset.edge) onMove(kind, button.dataset.edge);
-      else onClose(kind);
+      return `${SubPaneHeader.html(title)}<div class="claude-plus-table-host" data-name="tableHost"></div>`;
     }
 
     /**
@@ -1820,9 +1832,9 @@
     }
   }
 
-  var stylesheet$h = ".claude-plus-image-viewer-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.8);\r\n  display: flex;\r\n  flex-direction: column;\r\n  align-items: center;\r\n  justify-content: center;\r\n  gap: 12px;\r\n}\r\n\r\n.claude-plus-image-viewer__frame {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  overflow: hidden;\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-image-viewer__image {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  width: auto;\r\n  height: auto;\r\n  cursor: grab;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-image-viewer__open-button {\r\n  flex-shrink: 0;\r\n}\r\n";
+  var stylesheet$i = ".claude-plus-image-viewer-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.8);\r\n  display: flex;\r\n  flex-direction: column;\r\n  align-items: center;\r\n  justify-content: center;\r\n  gap: 12px;\r\n}\r\n\r\n.claude-plus-image-viewer__frame {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  overflow: hidden;\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-image-viewer__image {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  width: auto;\r\n  height: auto;\r\n  cursor: grab;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-image-viewer__open-button {\r\n  flex-shrink: 0;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$h);
+  StyleRegistry.register(stylesheet$i);
 
   /**
    * Shows an image at full size over a dark backdrop, capped at 90% of the viewport. Scrolling zooms;
@@ -1878,9 +1890,67 @@
     }
   }
 
-  var stylesheet$g = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  align-self: flex-end;\n  text-align: right;\n}\n\n.claude-plus-message--human:not(.claude-plus-message--editing) {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__attachments {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message__bubble {\n  background: var(--claude-plus-color-message-human-bg);\n  border-radius: 14px;\n  padding: 8px 12px;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 6px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
+  /**
+   * Groups a message's thinking and tool-call content blocks into a chronological list of steps —
+   * each tool call paired with its result — so a message's "thinking and tool calls" sub-pane can
+   * list what happened without that ever appearing in the chat log itself.
+   */
+  class MessageToolSteps {
+    /**
+     * Steps of a message, in the order they happened.
+     * @param {?ApiMessage} apiMessage The message; null or content-less for a local-only message.
+     * @returns {Array<{kind: 'thinking', block: ContentBlock}|{kind: 'tool', useBlock: ContentBlock, resultBlock: ?ContentBlock}>}
+     * The steps; empty when the message has none.
+     */
+    static stepsOf(apiMessage) {
+      const blocks = apiMessage?.content ?? [];
+      const steps = [];
+      const stepByToolUseId = new Map();
+      blocks.forEach(block => MessageToolSteps.#addBlock(block, steps, stepByToolUseId));
+      return steps;
+    }
 
-  StyleRegistry.register(stylesheet$g);
+    /**
+     * Folds one content block into the steps being built.
+     * @param {ContentBlock} block The block.
+     * @param {Array<object>} steps Steps accumulated so far.
+     * @param {Map<string, object>} stepByToolUseId Tool steps by their call's id, to attach a matching result.
+     * @returns {void}
+     */
+    static #addBlock(block, steps, stepByToolUseId) {
+      if (block.type === 'thinking') steps.push({ kind: 'thinking', block });
+      else if (block.type === 'tool_use') MessageToolSteps.#addToolUse(block, steps, stepByToolUseId);
+      else if (block.type === 'tool_result') MessageToolSteps.#attachResult(block, stepByToolUseId);
+    }
+
+    /**
+     * Starts a tool step from its call.
+     * @param {ContentBlock} block A tool_use block.
+     * @param {Array<object>} steps Steps accumulated so far.
+     * @param {Map<string, object>} stepByToolUseId Tool steps by their call's id.
+     * @returns {void}
+     */
+    static #addToolUse(block, steps, stepByToolUseId) {
+      const step = { kind: 'tool', useBlock: block, resultBlock: null };
+      steps.push(step);
+      stepByToolUseId.set(block.id, step);
+    }
+
+    /**
+     * Attaches a result to its matching tool step.
+     * @param {ContentBlock} block A tool_result block.
+     * @param {Map<string, object>} stepByToolUseId Tool steps by their call's id.
+     * @returns {void}
+     */
+    static #attachResult(block, stepByToolUseId) {
+      const step = stepByToolUseId.get(block.tool_use_id);
+      if (step) step.resultBlock = block;
+    }
+  }
+
+  var stylesheet$h = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  align-self: flex-end;\n  text-align: right;\n}\n\n.claude-plus-message--human:not(.claude-plus-message--editing) {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__attachments {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message__bubble {\n  background: var(--claude-plus-color-message-human-bg);\n  border-radius: 14px;\n  padding: 8px 12px;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 6px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
+
+  StyleRegistry.register(stylesheet$h);
 
   /**
    * The messages of a chat session: copy, retry, branch navigation between a message's edits and
@@ -1932,17 +2002,26 @@
       ['saveEdit', button => this.#commitEdit(button.closest('.claude-plus-message'))],
       ['prevBranch', button => this.#switchBranch(button, -1)],
       ['nextBranch', button => this.#switchBranch(button, 1)],
+      ['toolSteps', button => this.#showToolSteps(button)],
     ]);
+
+    /**
+     * Called with a message to show its thinking and tool-call steps.
+     * @type {function(ChatMessage): void}
+     */
+    #onShowToolSteps;
 
     /**
      * Wires the view to its list element and session.
      * @param {Panel} ownerPanel Panel owning the subscriptions.
      * @param {HTMLElement} listElement List element the messages are rendered into.
      * @param {ChatSession} session Session whose messages are shown.
+     * @param {function(ChatMessage): void} onShowToolSteps Called with a message to show its thinking and tool-call steps.
      */
-    constructor(ownerPanel, listElement, session) {
+    constructor(ownerPanel, listElement, session, onShowToolSteps) {
       this.#listElement = listElement;
       this.#session = session;
+      this.#onShowToolSteps = onShowToolSteps;
       listElement.addEventListener('click', event => this.#onClick(event));
       listElement.addEventListener('dblclick', event => this.#onDoubleClick(event));
       listElement.addEventListener('keydown', event => this.#onEditKeydown(event));
@@ -2071,13 +2150,25 @@
       const editButton = sender === 'human' && message.isPersisted
         ? '<button class="claude-plus-message__action-button" data-action="startEdit" title="Edit and branch from here">✎</button>' : '';
       const retryButton = offersRetry ? '<button class="claude-plus-message__action-button" data-action="retry" title="Retry">🔁</button>' : '';
+      const toolStepsButton = MessageListView.#toolStepsButtonHtml(message);
       return `
       <div class="claude-plus-message__actions">
         ${branchNavHtml}
         <button class="claude-plus-message__action-button" data-action="copy" title="Copy">📋</button>
         ${editButton}
         ${retryButton}
+        ${toolStepsButton}
       </div>`;
+    }
+
+    /**
+     * A lightbulb button opening the message's thinking and tool-call steps, when it has any.
+     * @param {ChatMessage} message The message.
+     * @returns {string} The button, or an empty string when the message has no steps.
+     */
+    static #toolStepsButtonHtml(message) {
+      return MessageToolSteps.stepsOf(message.apiMessage).length > 0
+        ? '<button class="claude-plus-message__action-button" data-action="toolSteps" title="Thinking and tool calls">💡</button>' : '';
     }
 
     /**
@@ -2213,6 +2304,16 @@
     }
 
     /**
+     * Shows a message's thinking and tool-call steps.
+     * @param {HTMLElement} button The clicked lightbulb button.
+     * @returns {void}
+     */
+    #showToolSteps(button) {
+      const message = this.#session.messages[MessageListView.#indexOf(button)];
+      if (message) this.#onShowToolSteps(message);
+    }
+
+    /**
      * Position encoded in the closest message element's data-message-index.
      * @param {HTMLElement} descendant An element inside, or equal to, a message element.
      * @returns {number} The position.
@@ -2259,6 +2360,285 @@
      */
     #scrollToBottomIf(wasAtBottom) {
       if (wasAtBottom) this.#listElement.scrollTop = this.#listElement.scrollHeight;
+    }
+  }
+
+  var stylesheet$g = ".claude-plus-tool-steps {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n\n.claude-plus-tool-step {\n  background: var(--claude-plus-color-tool-details);\n  border-radius: 6px;\n  padding: 6px 8px;\n  font-size: 12px;\n}\n\n.claude-plus-tool-step--error {\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-error);\n}\n\n.claude-plus-tool-step summary {\n  cursor: pointer;\n  font-weight: 600;\n}\n\n.claude-plus-tool-step__summaries {\n  margin: 6px 0 0;\n  padding-left: 18px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__field-label {\n  margin-top: 8px;\n  font-size: 11px;\n  font-weight: 600;\n  color: var(--claude-plus-color-text-faint);\n  text-transform: uppercase;\n  letter-spacing: 0.03em;\n}\n\n.claude-plus-tool-step__pre {\n  margin: 2px 0 0;\n  white-space: pre-wrap;\n  overflow-wrap: break-word;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__result-status {\n  margin-top: 8px;\n  font-weight: 600;\n}\n";
+
+  StyleRegistry.register(stylesheet$g);
+
+  /**
+   * A sub-pane showing one message's thinking and tool-call steps, chronologically, each collapsed
+   * until expanded. It can be docked to the pane's left, top or right edge and closed. Clicking a
+   * different message's lightbulb button swaps its content via showMessage rather than opening
+   * another instance.
+   */
+  class MessageToolStepsPane {
+    /**
+     * The sub-pane's root element.
+     * @type {HTMLElement}
+     */
+    #element;
+
+    /**
+     * Message whose steps are shown.
+     * @type {ChatMessage}
+     */
+    #message;
+
+    /**
+     * Builds the sub-pane for a message.
+     * @param {object} options Sub-pane options.
+     * @param {ChatMessage} options.message Message whose steps to show.
+     * @param {function(): void} options.onClose Called when × is clicked.
+     * @param {function(string): void} options.onMove Called with 'left', 'top' or 'right' when an arrow is clicked.
+     */
+    constructor({ message, onClose, onMove }) {
+      this.#message = message;
+      this.#element = createElement('section', { className: 'claude-plus-subpane' });
+      this.#element.addEventListener('click', event => this.#onClick(event, onClose, onMove));
+      this.render();
+    }
+
+    /**
+     * The sub-pane's root element.
+     * @returns {HTMLElement} The element.
+     */
+    get element() {
+      return this.#element;
+    }
+
+    /**
+     * Id of the message currently shown.
+     * @returns {string} The message id.
+     */
+    get messageId() {
+      return this.#message.id;
+    }
+
+    /**
+     * Shows another message's steps instead, without recreating the sub-pane.
+     * @param {ChatMessage} message The message to show.
+     * @returns {void}
+     */
+    showMessage(message) {
+      this.#message = message;
+      this.render();
+    }
+
+    /**
+     * Renders the header and the message's steps.
+     * @returns {void}
+     */
+    render() {
+      const steps = MessageToolSteps.stepsOf(this.#message.apiMessage);
+      const stepsHtml = steps.map(step => MessageToolStepsPane.#stepHtml(step)).join('')
+        || '<div class="claude-plus-empty-state">This message has no recorded steps.</div>';
+      this.#element.innerHTML = `${SubPaneHeader.html('💡 Thinking & tool calls')}<div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-tool-steps">${stepsHtml}</div>`;
+    }
+
+    /**
+     * Removes the sub-pane.
+     * @returns {void}
+     */
+    dispose() {
+      this.#element.remove();
+    }
+
+    /**
+     * Runs a header click; other clicks are ignored.
+     * @param {MouseEvent} event Click inside the sub-pane.
+     * @param {function(): void} onClose Close callback.
+     * @param {function(string): void} onMove Redock callback.
+     * @returns {void}
+     */
+    #onClick(event, onClose, onMove) {
+      if (event.target.closest('header')) SubPaneHeader.onClick(event, onClose, onMove);
+    }
+
+    /**
+     * HTML of one step: a thinking pass or a tool call.
+     * @param {{kind: string}} step The step.
+     * @returns {string} The HTML.
+     */
+    static #stepHtml(step) {
+      return step.kind === 'thinking' ? MessageToolStepsPane.#thinkingStepHtml(step) : MessageToolStepsPane.#toolStepHtml(step);
+    }
+
+    /**
+     * HTML of a thinking step: its summaries as the always-visible line, its raw text (if kept) when expanded.
+     * @param {{block: ContentBlock}} step The thinking step.
+     * @returns {string} The HTML.
+     */
+    static #thinkingStepHtml({ block }) {
+      const summaries = (block.summaries ?? []).map(entry => entry.summary).filter(Boolean);
+      const headline = escapeHtml(summaries[0] ?? 'Thinking');
+      const restHtml = summaries.length > 1 ? `<ul class="claude-plus-tool-step__summaries">${summaries.slice(1).map(summary => `<li>${escapeHtml(summary)}</li>`).join('')}</ul>` : '';
+      const rawHtml = block.thinking ? `<pre class="claude-plus-tool-step__pre">${escapeHtml(block.thinking)}</pre>` : '';
+      return `
+      <details class="claude-plus-tool-step">
+        <summary>💭 ${headline}</summary>
+        ${restHtml}${rawHtml}
+      </details>`;
+    }
+
+    /**
+     * HTML of a tool step: its name or description as the always-visible line, its input and result when expanded.
+     * @param {{useBlock: ContentBlock, resultBlock: ?ContentBlock}} step The tool step.
+     * @returns {string} The HTML.
+     */
+    static #toolStepHtml({ useBlock, resultBlock }) {
+      const isError = MessageToolStepsPane.#isErrorResult(resultBlock);
+      const icon = isError ? '⚠️' : '🔧';
+      const errorClass = isError ? ' claude-plus-tool-step--error' : '';
+      const toolName = MessageToolStepsPane.#toolName(useBlock);
+      const headline = escapeHtml(MessageToolStepsPane.#toolHeadline(useBlock, toolName));
+      const inputHtml = MessageToolStepsPane.#inputFieldsHtml(useBlock.input ?? {});
+      const resultHtml = resultBlock ? MessageToolStepsPane.#resultHtml(resultBlock) : '';
+      return `
+      <details class="claude-plus-tool-step${errorClass}">
+        <summary>${icon} ${escapeHtml(toolName)}: ${headline}</summary>
+        ${inputHtml}${resultHtml}
+      </details>`;
+    }
+
+    /**
+     * Whether a tool step's result reports a failure.
+     * @param {?ContentBlock} resultBlock The tool_result block, if the call has completed.
+     * @returns {boolean} True when it has and is flagged as an error.
+     */
+    static #isErrorResult(resultBlock) {
+      return Boolean(resultBlock && resultBlock.is_error);
+    }
+
+    /**
+     * A tool call's name, falling back to a generic label.
+     * @param {ContentBlock} useBlock The tool_use block.
+     * @returns {string} The name.
+     */
+    static #toolName(useBlock) {
+      return useBlock.name || 'tool';
+    }
+
+    /**
+     * A tool call's human-readable summary: its input's description, or its name.
+     * @param {ContentBlock} useBlock The tool_use block.
+     * @param {string} toolName Its resolved name, for the fallback.
+     * @returns {string} The summary.
+     */
+    static #toolHeadline(useBlock, toolName) {
+      const description = useBlock.input && useBlock.input.description;
+      return description || toolName;
+    }
+
+    /**
+     * HTML of a tool call's input fields.
+     * @param {object} input The input object.
+     * @returns {string} The HTML.
+     */
+    static #inputFieldsHtml(input) {
+      return Object.entries(input).map(([key, value]) => MessageToolStepsPane.#fieldHtml(key, value)).join('');
+    }
+
+    /**
+     * HTML of one input field: a label, and either an inline value or a preformatted block for a
+     * long or multi-line string, so multi-line text keeps its real line breaks instead of the
+     * escaped "\n" a whole-object JSON dump would show.
+     * @param {string} key Field name.
+     * @param {*} value Field value.
+     * @returns {string} The HTML.
+     */
+    static #fieldHtml(key, value) {
+      const label = `<div class="claude-plus-tool-step__field-label">${escapeHtml(key)}</div>`;
+      if (typeof value === 'string' && MessageToolStepsPane.#isLongText(value)) {
+        return `${label}<pre class="claude-plus-tool-step__pre">${escapeHtml(value)}</pre>`;
+      }
+      const inlineText = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+      return `${label}<pre class="claude-plus-tool-step__pre">${escapeHtml(inlineText)}</pre>`;
+    }
+
+    /**
+     * Whether a string is long or multi-line enough to need its own block rather than an inline line.
+     * @param {string} text The text.
+     * @returns {boolean} True past 80 characters or containing a line break.
+     */
+    static #isLongText(text) {
+      return text.length > 80 || text.includes('\n');
+    }
+
+    /**
+     * HTML of a tool result: its status, then each result item.
+     * @param {ContentBlock} resultBlock The tool_result block.
+     * @returns {string} The HTML.
+     */
+    static #resultHtml(resultBlock) {
+      const status = resultBlock.is_error ? '❌ Error' : '✅ Result';
+      const items = Array.isArray(resultBlock.content) ? resultBlock.content : [];
+      const itemsHtml = items.map(item => MessageToolStepsPane.#resultItemHtml(item)).join('');
+      return `<div class="claude-plus-tool-step__result-status">${status}</div>${itemsHtml}`;
+    }
+
+    /**
+     * HTML renderer per result item type.
+     * @type {Map<string, function(object): string>}
+     */
+    static #RESULT_ITEM_RENDERERS = new Map([
+      ['text', item => MessageToolStepsPane.#resultTextHtml(item.text || '')],
+      ['local_resource', item => MessageToolStepsPane.#localResourceHtml(item)],
+    ]);
+
+    /**
+     * HTML of one tool result item: readable text (pretty-printed if it is itself JSON), a file
+     * chip for a local resource, or a JSON fallback for anything else.
+     * @param {object} item The result item.
+     * @returns {string} The HTML.
+     */
+    static #resultItemHtml(item) {
+      const renderItem = MessageToolStepsPane.#RESULT_ITEM_RENDERERS.get(item.type);
+      return renderItem ? renderItem(item) : MessageToolStepsPane.#fallbackResultItemHtml(item);
+    }
+
+    /**
+     * HTML of a local-resource result item, shown as a plain named chip.
+     * @param {object} item The result item.
+     * @returns {string} The HTML.
+     */
+    static #localResourceHtml(item) {
+      const name = item.name || item.file_path || 'file';
+      return `<div class="claude-plus-message-attachment">📎 ${escapeHtml(name)}</div>`;
+    }
+
+    /**
+     * HTML of a result item of an unrecognized type, as truncated JSON.
+     * @param {object} item The result item.
+     * @returns {string} The HTML.
+     */
+    static #fallbackResultItemHtml(item) {
+      return `<pre class="claude-plus-tool-step__pre">${escapeHtml(JSON.stringify(item, null, 2).slice(0, LIMITS.toolResultCharacters))}</pre>`;
+    }
+
+    /**
+     * HTML of a text result item: pretty-printed if it parses as JSON, else the raw text; both keep
+     * real line breaks and are capped at LIMITS.toolResultCharacters.
+     * @param {string} text The item's text.
+     * @returns {string} The HTML.
+     */
+    static #resultTextHtml(text) {
+      const pretty = MessageToolStepsPane.#prettyJsonOrNull(text);
+      return `<pre class="claude-plus-tool-step__pre">${escapeHtml((pretty ?? text).slice(0, LIMITS.toolResultCharacters))}</pre>`;
+    }
+
+    /**
+     * Re-indents a string if it parses as JSON.
+     * @param {string} text Candidate JSON text.
+     * @returns {?string} The pretty-printed text, or null when it isn't valid JSON.
+     */
+    static #prettyJsonOrNull(text) {
+      try {
+        return JSON.stringify(JSON.parse(text), null, 2);
+      } catch {
+        return null;
+      }
     }
   }
 
@@ -2473,8 +2853,9 @@
     #messageListView = null;
 
     /**
-     * Open sub-panes by kind.
-     * @type {Map<string, ConversationSubPane>}
+     * Open sub-panes by kind: 'files' and 'sources' are ConversationSubPane, 'toolSteps' (a
+     * message's thinking and tool-call steps) is a MessageToolStepsPane.
+     * @type {Map<string, ConversationSubPane|MessageToolStepsPane>}
      */
     #subPanes = new Map();
 
@@ -2544,7 +2925,7 @@
      * @returns {void}
      */
     bindEvents() {
-      this.#messageListView = new MessageListView(this, this.elements.messageList, this.#session);
+      this.#messageListView = new MessageListView(this, this.elements.messageList, this.#session, message => this.#showToolSteps(message));
       this.element.addEventListener('mousedown', () => this.#paneManager.focusPane(this.#paneId));
       this.element.addEventListener('focusin', () => this.#paneManager.focusPane(this.#paneId));
       this.listenTo(this.#paneManager, 'focus', () => this.#renderFocus());
@@ -2641,6 +3022,32 @@
     }
 
     /**
+     * Shows a message's thinking and tool-call steps: opens the tool-steps sub-pane if it's closed,
+     * swaps its content in place if it's already open for a different message, or closes it if it's
+     * already showing this one.
+     * @param {ChatMessage} message The message whose steps to show.
+     * @returns {void}
+     */
+    #showToolSteps(message) {
+      const existing = this.#subPanes.get('toolSteps');
+      if (existing?.messageId === message.id) {
+        this.#closeSubPane('toolSteps');
+        return;
+      }
+      if (existing) {
+        existing.showMessage(message);
+        return;
+      }
+      const pane = new MessageToolStepsPane({
+        message,
+        onClose: () => this.#closeSubPane('toolSteps'),
+        onMove: edge => this.#dockSubPane('toolSteps', edge),
+      });
+      this.#subPanes.set('toolSteps', pane);
+      this.#dockSubPane('toolSteps', this.#storedSubPaneEdge('toolSteps'));
+    }
+
+    /**
      * Marks the pane while it is the active chat, and shows the green border only while more than
      * one chat pane is visible.
      * @returns {void}
@@ -2723,12 +3130,14 @@
     }
   }
 
-  var stylesheet$c = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-images {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  margin-bottom: 6px;\r\n}\r\n\r\n.claude-plus-message--human .claude-plus-message-images {\r\n  justify-content: flex-end;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n.claude-plus-tool-details {\r\n  margin: 6px 0;\r\n  background: var(--claude-plus-color-tool-details);\r\n  border-radius: 6px;\r\n  padding: 4px 8px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-tool-details pre {\r\n  white-space: pre-wrap;\r\n  overflow-wrap: break-word;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
+  var stylesheet$c = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-images {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  margin-bottom: 6px;\r\n}\r\n\r\n.claude-plus-message--human .claude-plus-message-images {\r\n  justify-content: flex-end;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n";
 
   StyleRegistry.register(stylesheet$c);
 
   /**
-   * Reads text, uploads and renderable HTML from API messages.
+   * Reads text, uploads and renderable HTML from API messages. Thinking and tool-call blocks are
+   * deliberately not rendered here: they show in the message's "thinking and tool calls" sub-pane
+   * instead (see MessageToolSteps), not inline in the chat log.
    */
   class MessageContent {
     /**
@@ -2736,16 +3145,6 @@
      * @type {string}
      */
     static #NO_CONTENT_HTML = '<div class="claude-plus-message-text claude-plus-empty-state">(no content)</div>';
-
-    /**
-     * HTML renderer per content block type.
-     * @type {Map<string, function(ContentBlock): string>}
-     */
-    static #BLOCK_RENDERERS = new Map([
-      ['text', block => MessageContent.textHtml(block.text)],
-      ['tool_use', block => MessageContent.#toolCallHtml(block)],
-      ['tool_result', block => MessageContent.#toolResultHtml(block)],
-    ]);
 
     /**
      * Uploaded attachments and files of a message.
@@ -2798,7 +3197,7 @@
       ].join('');
       const bodyHtml = [
         MessageContent.#textFieldHtml(apiMessage),
-        ...(apiMessage.content ?? []).map(block => MessageContent.#contentBlockHtml(block)),
+        ...MessageContent.#textBlocks(apiMessage).map(block => MessageContent.textHtml(block.text)),
       ].join('');
       return { attachmentsHtml, bodyHtml: bodyHtml || (attachmentsHtml ? '' : MessageContent.#NO_CONTENT_HTML) };
     }
@@ -2860,55 +3259,6 @@
       return (apiMessage.content ?? []).filter(block => block.type === 'text' && block.text);
     }
 
-    /**
-     * HTML of one content block.
-     * @param {ContentBlock} block The block.
-     * @returns {string} The HTML; empty for unsupported block types.
-     */
-    static #contentBlockHtml(block) {
-      const renderBlock = MessageContent.#BLOCK_RENDERERS.get(block.type);
-      return renderBlock ? renderBlock(block) : '';
-    }
-
-    /**
-     * HTML of a tool call: its name, with the input in a collapsible section.
-     * @param {ContentBlock} block A tool_use block.
-     * @returns {string} The HTML.
-     */
-    static #toolCallHtml(block) {
-      return MessageContent.#collapsibleHtml(`🔧 ${escapeHtml(block.name || 'tool')}`, JSON.stringify(block.input ?? {}, null, 2));
-    }
-
-    /**
-     * HTML of a tool result: the titles of its items, with the truncated JSON in a collapsible section.
-     * @param {ContentBlock} block A tool_result block.
-     * @returns {string} The HTML.
-     */
-    static #toolResultHtml(block) {
-      const items = Array.isArray(block.content) ? block.content : [];
-      const itemLabels = items.map(item => MessageContent.#resultItemLabel(item)).filter(Boolean).join(', ');
-      const summaryHtml = itemLabels ? `📄 result: ${escapeHtml(itemLabels)}` : '📄 result';
-      return MessageContent.#collapsibleHtml(summaryHtml, JSON.stringify(items, null, 2).slice(0, LIMITS.toolResultCharacters));
-    }
-
-    /**
-     * Short label of a tool result item.
-     * @param {?object} item The item.
-     * @returns {string} Its title, else its type, else an empty string.
-     */
-    static #resultItemLabel(item) {
-      return item ? item.title || item.type || '' : '';
-    }
-
-    /**
-     * HTML of a collapsible section with preformatted content.
-     * @param {string} summaryHtml HTML of the always-visible summary.
-     * @param {string} detailText Plain text shown when expanded.
-     * @returns {string} The HTML.
-     */
-    static #collapsibleHtml(summaryHtml, detailText) {
-      return `<details class="claude-plus-tool-details"><summary>${summaryHtml}</summary><pre>${escapeHtml(detailText)}</pre></details>`;
-    }
   }
 
   /**

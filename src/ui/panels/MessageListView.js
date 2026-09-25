@@ -1,6 +1,7 @@
 import { FrameScheduler } from '../../dom/FrameScheduler.js';
 import { ImageViewerDialog } from '../dialogs/ImageViewerDialog.js';
 import { LIMITS } from '../../config/LIMITS.js';
+import { MessageToolSteps } from '../../chat/MessageToolSteps.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { TIMING } from '../../config/TIMING.js';
 import { escapeHtml } from '../../text/escapeHtml.js';
@@ -58,17 +59,26 @@ export class MessageListView {
     ['saveEdit', button => this.#commitEdit(button.closest('.claude-plus-message'))],
     ['prevBranch', button => this.#switchBranch(button, -1)],
     ['nextBranch', button => this.#switchBranch(button, 1)],
+    ['toolSteps', button => this.#showToolSteps(button)],
   ]);
+
+  /**
+   * Called with a message to show its thinking and tool-call steps.
+   * @type {function(ChatMessage): void}
+   */
+  #onShowToolSteps;
 
   /**
    * Wires the view to its list element and session.
    * @param {Panel} ownerPanel Panel owning the subscriptions.
    * @param {HTMLElement} listElement List element the messages are rendered into.
    * @param {ChatSession} session Session whose messages are shown.
+   * @param {function(ChatMessage): void} onShowToolSteps Called with a message to show its thinking and tool-call steps.
    */
-  constructor(ownerPanel, listElement, session) {
+  constructor(ownerPanel, listElement, session, onShowToolSteps) {
     this.#listElement = listElement;
     this.#session = session;
+    this.#onShowToolSteps = onShowToolSteps;
     listElement.addEventListener('click', event => this.#onClick(event));
     listElement.addEventListener('dblclick', event => this.#onDoubleClick(event));
     listElement.addEventListener('keydown', event => this.#onEditKeydown(event));
@@ -197,13 +207,25 @@ export class MessageListView {
     const editButton = sender === 'human' && message.isPersisted
       ? '<button class="claude-plus-message__action-button" data-action="startEdit" title="Edit and branch from here">✎</button>' : '';
     const retryButton = offersRetry ? '<button class="claude-plus-message__action-button" data-action="retry" title="Retry">🔁</button>' : '';
+    const toolStepsButton = MessageListView.#toolStepsButtonHtml(message);
     return `
       <div class="claude-plus-message__actions">
         ${branchNavHtml}
         <button class="claude-plus-message__action-button" data-action="copy" title="Copy">📋</button>
         ${editButton}
         ${retryButton}
+        ${toolStepsButton}
       </div>`;
+  }
+
+  /**
+   * A lightbulb button opening the message's thinking and tool-call steps, when it has any.
+   * @param {ChatMessage} message The message.
+   * @returns {string} The button, or an empty string when the message has no steps.
+   */
+  static #toolStepsButtonHtml(message) {
+    return MessageToolSteps.stepsOf(message.apiMessage).length > 0
+      ? '<button class="claude-plus-message__action-button" data-action="toolSteps" title="Thinking and tool calls">💡</button>' : '';
   }
 
   /**
@@ -336,6 +358,16 @@ export class MessageListView {
   #switchBranch(button, step) {
     const message = this.#session.messages[MessageListView.#indexOf(button)];
     if (message) this.#session.switchBranch(message.id, step);
+  }
+
+  /**
+   * Shows a message's thinking and tool-call steps.
+   * @param {HTMLElement} button The clicked lightbulb button.
+   * @returns {void}
+   */
+  #showToolSteps(button) {
+    const message = this.#session.messages[MessageListView.#indexOf(button)];
+    if (message) this.#onShowToolSteps(message);
   }
 
   /**

@@ -1,9 +1,9 @@
 import { ColumnTable } from '../tables/ColumnTable.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
+import { SubPaneHeader } from './SubPaneHeader.js';
 import { createElement } from '../../dom/createElement.js';
 import { createFileColumns } from '../tables/createFileColumns.js';
 import { createSourceColumns } from '../tables/createSourceColumns.js';
-import { escapeHtml } from '../../text/escapeHtml.js';
 import stylesheet from './ConversationSubPane.css';
 
 StyleRegistry.register(stylesheet);
@@ -93,7 +93,7 @@ export class ConversationSubPane {
       rowAttributes: () => '',
       emptyText: 'Nothing recorded for this chat yet.',
     });
-    this.#element.querySelector('header').addEventListener('click', event => ConversationSubPane.#onHeaderClick(event, kind, onClose, onMove));
+    this.#element.querySelector('header').addEventListener('click', event => SubPaneHeader.onClick(event, () => onClose(kind), edge => onMove(kind, edge)));
     this.#unsubscribers.push(stats.subscribe('aggregate', () => this.render()), session.subscribe('openConversation', () => this.render()));
     this.render();
   }
@@ -132,30 +132,7 @@ export class ConversationSubPane {
    * @returns {string} The HTML.
    */
   static #bodyHtml(title) {
-    return `
-      <header class="claude-plus-subpane__header">
-        <span class="claude-plus-subpane__title">${escapeHtml(title)}</span>
-        <button class="claude-plus-subpane__button" data-edge="left" title="Dock left">←</button>
-        <button class="claude-plus-subpane__button" data-edge="top" title="Dock top">↑</button>
-        <button class="claude-plus-subpane__button" data-edge="right" title="Dock right">→</button>
-        <button class="claude-plus-subpane__button" data-action="close" title="Close">×</button>
-      </header>
-      <div class="claude-plus-table-host" data-name="tableHost"></div>`;
-  }
-
-  /**
-   * Runs the clicked header button: a dock arrow or close.
-   * @param {MouseEvent} event Click in the header.
-   * @param {string} kind The sub-pane's kind.
-   * @param {function(string): void} onClose Close callback.
-   * @param {function(string, string): void} onMove Redock callback.
-   * @returns {void}
-   */
-  static #onHeaderClick(event, kind, onClose, onMove) {
-    const button = event.target.closest('button');
-    if (!button) return;
-    if (button.dataset.edge) onMove(kind, button.dataset.edge);
-    else onClose(kind);
+    return `${SubPaneHeader.html(title)}<div class="claude-plus-table-host" data-name="tableHost"></div>`;
   }
 
   /**

@@ -31,17 +31,3 @@
   cursor: zoom-in;
 }
 
-.claude-plus-tool-details {
-  margin: 6px 0;
-  background: var(--claude-plus-color-tool-details);
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-size: 12px;
-}
-
-.claude-plus-tool-details pre {
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  font-size: 11px;
-  color: var(--claude-plus-color-text-muted);
-}

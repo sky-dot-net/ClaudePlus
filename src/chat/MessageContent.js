@@ -1,5 +1,4 @@
 import { ATTACHMENT_NAME_FIELDS } from '../config/ATTACHMENT_NAME_FIELDS.js';
-import { LIMITS } from '../config/LIMITS.js';
 import { Markdown } from '../text/Markdown.js';
 import { StyleRegistry } from '../styles/StyleRegistry.js';
 import { escapeHtml } from '../text/escapeHtml.js';
@@ -8,7 +7,9 @@ import stylesheet from './MessageContent.css';
 StyleRegistry.register(stylesheet);
 
 /**
- * Reads text, uploads and renderable HTML from API messages.
+ * Reads text, uploads and renderable HTML from API messages. Thinking and tool-call blocks are
+ * deliberately not rendered here: they show in the message's "thinking and tool calls" sub-pane
+ * instead (see MessageToolSteps), not inline in the chat log.
  */
 export class MessageContent {
   /**
@@ -16,16 +17,6 @@ export class MessageContent {
    * @type {string}
    */
   static #NO_CONTENT_HTML = '<div class="claude-plus-message-text claude-plus-empty-state">(no content)</div>';
-
-  /**
-   * HTML renderer per content block type.
-   * @type {Map<string, function(ContentBlock): string>}
-   */
-  static #BLOCK_RENDERERS = new Map([
-    ['text', block => MessageContent.textHtml(block.text)],
-    ['tool_use', block => MessageContent.#toolCallHtml(block)],
-    ['tool_result', block => MessageContent.#toolResultHtml(block)],
-  ]);
 
   /**
    * Uploaded attachments and files of a message.
@@ -78,7 +69,7 @@ export class MessageContent {
     ].join('');
     const bodyHtml = [
       MessageContent.#textFieldHtml(apiMessage),
-      ...(apiMessage.content ?? []).map(block => MessageContent.#contentBlockHtml(block)),
+      ...MessageContent.#textBlocks(apiMessage).map(block => MessageContent.textHtml(block.text)),
     ].join('');
     return { attachmentsHtml, bodyHtml: bodyHtml || (attachmentsHtml ? '' : MessageContent.#NO_CONTENT_HTML) };
   }
@@ -140,53 +131,4 @@ export class MessageContent {
     return (apiMessage.content ?? []).filter(block => block.type === 'text' && block.text);
   }
 
-  /**
-   * HTML of one content block.
-   * @param {ContentBlock} block The block.
-   * @returns {string} The HTML; empty for unsupported block types.
-   */
-  static #contentBlockHtml(block) {
-    const renderBlock = MessageContent.#BLOCK_RENDERERS.get(block.type);
-    return renderBlock ? renderBlock(block) : '';
-  }
-
-  /**
-   * HTML of a tool call: its name, with the input in a collapsible section.
-   * @param {ContentBlock} block A tool_use block.
-   * @returns {string} The HTML.
-   */
-  static #toolCallHtml(block) {
-    return MessageContent.#collapsibleHtml(`🔧 ${escapeHtml(block.name || 'tool')}`, JSON.stringify(block.input ?? {}, null, 2));
-  }
-
-  /**
-   * HTML of a tool result: the titles of its items, with the truncated JSON in a collapsible section.
-   * @param {ContentBlock} block A tool_result block.
-   * @returns {string} The HTML.
-   */
-  static #toolResultHtml(block) {
-    const items = Array.isArray(block.content) ? block.content : [];
-    const itemLabels = items.map(item => MessageContent.#resultItemLabel(item)).filter(Boolean).join(', ');
-    const summaryHtml = itemLabels ? `📄 result: ${escapeHtml(itemLabels)}` : '📄 result';
-    return MessageContent.#collapsibleHtml(summaryHtml, JSON.stringify(items, null, 2).slice(0, LIMITS.toolResultCharacters));
-  }
-
-  /**
-   * Short label of a tool result item.
-   * @param {?object} item The item.
-   * @returns {string} Its title, else its type, else an empty string.
-   */
-  static #resultItemLabel(item) {
-    return item ? item.title || item.type || '' : '';
-  }
-
-  /**
-   * HTML of a collapsible section with preformatted content.
-   * @param {string} summaryHtml HTML of the always-visible summary.
-   * @param {string} detailText Plain text shown when expanded.
-   * @returns {string} The HTML.
-   */
-  static #collapsibleHtml(summaryHtml, detailText) {
-    return `<details class="claude-plus-tool-details"><summary>${summaryHtml}</summary><pre>${escapeHtml(detailText)}</pre></details>`;
-  }
 }

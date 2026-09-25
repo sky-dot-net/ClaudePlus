@@ -1,5 +1,6 @@
 import { ConversationSubPane } from './ConversationSubPane.js';
 import { MessageListView } from './MessageListView.js';
+import { MessageToolStepsPane } from './MessageToolStepsPane.js';
 import { Panel } from './Panel.js';
 import { STORAGE_KEYS } from '../../config/STORAGE_KEYS.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
@@ -63,8 +64,9 @@ export class ChatPanel extends Panel {
   #messageListView = null;
 
   /**
-   * Open sub-panes by kind.
-   * @type {Map<string, ConversationSubPane>}
+   * Open sub-panes by kind: 'files' and 'sources' are ConversationSubPane, 'toolSteps' (a
+   * message's thinking and tool-call steps) is a MessageToolStepsPane.
+   * @type {Map<string, ConversationSubPane|MessageToolStepsPane>}
    */
   #subPanes = new Map();
 
@@ -134,7 +136,7 @@ export class ChatPanel extends Panel {
    * @returns {void}
    */
   bindEvents() {
-    this.#messageListView = new MessageListView(this, this.elements.messageList, this.#session);
+    this.#messageListView = new MessageListView(this, this.elements.messageList, this.#session, message => this.#showToolSteps(message));
     this.element.addEventListener('mousedown', () => this.#paneManager.focusPane(this.#paneId));
     this.element.addEventListener('focusin', () => this.#paneManager.focusPane(this.#paneId));
     this.listenTo(this.#paneManager, 'focus', () => this.#renderFocus());
@@ -228,6 +230,32 @@ export class ChatPanel extends Panel {
   #closeSubPane(kind) {
     this.#subPanes.get(kind).dispose();
     this.#subPanes.delete(kind);
+  }
+
+  /**
+   * Shows a message's thinking and tool-call steps: opens the tool-steps sub-pane if it's closed,
+   * swaps its content in place if it's already open for a different message, or closes it if it's
+   * already showing this one.
+   * @param {ChatMessage} message The message whose steps to show.
+   * @returns {void}
+   */
+  #showToolSteps(message) {
+    const existing = this.#subPanes.get('toolSteps');
+    if (existing?.messageId === message.id) {
+      this.#closeSubPane('toolSteps');
+      return;
+    }
+    if (existing) {
+      existing.showMessage(message);
+      return;
+    }
+    const pane = new MessageToolStepsPane({
+      message,
+      onClose: () => this.#closeSubPane('toolSteps'),
+      onMove: edge => this.#dockSubPane('toolSteps', edge),
+    });
+    this.#subPanes.set('toolSteps', pane);
+    this.#dockSubPane('toolSteps', this.#storedSubPaneEdge('toolSteps'));
   }
 
   /**

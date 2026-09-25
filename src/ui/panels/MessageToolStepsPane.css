@@ -1,0 +1,50 @@
+.claude-plus-tool-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px;
+}
+
+.claude-plus-tool-step {
+  background: var(--claude-plus-color-tool-details);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.claude-plus-tool-step--error {
+  box-shadow: inset 2px 0 0 var(--claude-plus-color-error);
+}
+
+.claude-plus-tool-step summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.claude-plus-tool-step__summaries {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--claude-plus-color-text-muted);
+}
+
+.claude-plus-tool-step__field-label {
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--claude-plus-color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.claude-plus-tool-step__pre {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  font-size: 11px;
+  color: var(--claude-plus-color-text-muted);
+}
+
+.claude-plus-tool-step__result-status {
+  margin-top: 8px;
+  font-weight: 600;
+}
