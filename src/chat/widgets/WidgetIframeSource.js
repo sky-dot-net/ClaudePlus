@@ -14,7 +14,7 @@ export class WidgetIframeSource {
    * How long to wait for a widget to appear before giving up.
    * @type {number}
    */
-  static #TIMEOUT_MS = 20000;
+  static #TIMEOUT_MS = 30000;
 
   /**
    * Extracts a widget's rendered card.

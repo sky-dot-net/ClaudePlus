@@ -17,5 +17,5 @@ export const TIMING = Object.freeze({
   maxResponseGapMs: 30 * 60 * 1000,
   copyFeedbackMs: 1_000,
   downloadUrlLifetimeMs: 10_000,
-  widgetExtractPollMs: 200,
+  widgetExtractPollMs: 500,
 });

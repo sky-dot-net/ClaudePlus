@@ -17,7 +17,7 @@ export class WidgetExtractor {
    * Iframe extractions allowed to run at once.
    * @type {number}
    */
-  static #MAX_CONCURRENT_EXTRACTIONS = 2;
+  static #MAX_CONCURRENT_EXTRACTIONS = 1;
 
   /**
    * A stylesheet URL's already-started fetch, kept for the page's lifetime so every widget shares it.
