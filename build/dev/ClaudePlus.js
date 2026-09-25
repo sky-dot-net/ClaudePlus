@@ -1877,7 +1877,7 @@
     }
   }
 
-  var stylesheet$g = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  padding: 6px 4px;\n  border-radius: 12px;\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  background: var(--claude-plus-color-message-human-bg);\n  align-self: flex-end;\n  padding: 8px 12px;\n  text-align: right;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 2px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
+  var stylesheet$g = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  align-self: flex-end;\n  text-align: right;\n}\n\n.claude-plus-message--human:not(.claude-plus-message--editing) {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__attachments {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message__bubble {\n  background: var(--claude-plus-color-message-human-bg);\n  border-radius: 14px;\n  padding: 8px 12px;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 6px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
 
   StyleRegistry.register(stylesheet$g);
 
@@ -2008,11 +2008,22 @@
     #messageHtml(message, index, offersRetry) {
       if (index === this.#editingIndex) return MessageListView.#editingMessageHtml(message, index);
       const sender = message.sender === 'human' ? 'human' : 'assistant';
+      const bodyHtml = MessageListView.#messageBodyHtml(message);
       return `
       <div class="claude-plus-message claude-plus-message--${sender}" data-message-index="${index}">
-        <div class="claude-plus-message__body">${MessageListView.#messageBodyHtml(message)}</div>
+        ${MessageListView.#attachmentsHtmlOrEmpty(message)}
+        ${bodyHtml ? `<div class="claude-plus-message__bubble"><div class="claude-plus-message__body">${bodyHtml}</div></div>` : ''}
         ${this.#actionsHtmlOrEmpty(sender, message, offersRetry)}
       </div>`;
+    }
+
+    /**
+     * HTML of a message's uploads, shown above it rather than inside it.
+     * @param {ChatMessage} message The message.
+     * @returns {string} The uploads, wrapped in their own container; an empty string when there are none.
+     */
+    static #attachmentsHtmlOrEmpty(message) {
+      return message.attachmentsHtml ? `<div class="claude-plus-message__attachments">${message.attachmentsHtml}</div>` : '';
     }
 
     /**
@@ -2037,6 +2048,7 @@
     static #editingMessageHtml(message, index) {
       return `
       <div class="claude-plus-message claude-plus-message--human claude-plus-message--editing" data-message-index="${index}">
+        ${MessageListView.#attachmentsHtmlOrEmpty(message)}
         <textarea class="claude-plus-message__edit-input" data-name="editInput">${escapeHtml(message.text)}</textarea>
         <div class="claude-plus-message__actions">
           <button class="claude-plus-message__action-button" data-action="cancelEdit">Cancel</button>
@@ -2738,19 +2750,23 @@
     }
 
     /**
-     * HTML of a whole API message: uploads, text and tool blocks.
+     * HTML of a whole API message, kept apart so uploads can be shown above the message rather than
+     * inside it: its uploads (image gallery, then file chips), and separately its text and tool blocks.
      * @param {ApiMessage} apiMessage The message.
-     * @returns {string} The HTML, or a "(no content)" placeholder.
+     * @returns {{attachmentsHtml: string, bodyHtml: string}} The uploads' HTML (empty if none), and
+     * the text/blocks' HTML (a "(no content)" placeholder if the message has neither).
      */
-    static toHtml(apiMessage) {
+    static contentParts(apiMessage) {
       const uploads = MessageContent.uploads(apiMessage);
-      const parts = [
+      const attachmentsHtml = [
         MessageContent.#imageGalleryHtml(uploads.filter(upload => MessageContent.#isImageUpload(upload))),
         ...uploads.filter(upload => !MessageContent.#isImageUpload(upload)).map(upload => MessageContent.#fileAttachmentHtml(upload)),
+      ].join('');
+      const bodyHtml = [
         MessageContent.#textFieldHtml(apiMessage),
         ...(apiMessage.content ?? []).map(block => MessageContent.#contentBlockHtml(block)),
-      ];
-      return parts.join('') || MessageContent.#NO_CONTENT_HTML;
+      ].join('');
+      return { attachmentsHtml, bodyHtml: bodyHtml || (attachmentsHtml ? '' : MessageContent.#NO_CONTENT_HTML) };
     }
 
     /**
@@ -2873,10 +2889,16 @@
     static #DEFAULTS = Object.freeze({ parentId: null, text: '', apiMessage: null, isPersisted: true, isStreaming: false, errorText: null });
 
     /**
-     * Cached HTML; null when it must be re-rendered.
+     * Cached body HTML (text and tool blocks); null when it must be re-rendered.
      * @type {?string}
      */
-    #cachedHtml = null;
+    #cachedBodyHtml = null;
+
+    /**
+     * Cached uploads HTML, shown above the message rather than inside it.
+     * @type {string}
+     */
+    #cachedAttachmentsHtml = '';
 
     /**
      * Creates a message.
@@ -2918,12 +2940,22 @@
     }
 
     /**
-     * Rendered content, cached until the text changes.
-     * @returns {string} HTML of the API message, or of the plain text for local messages.
+     * Rendered body, cached until the text changes.
+     * @returns {string} HTML of the API message's text and tool blocks, or of the plain text for
+     * local messages.
      */
     get html() {
-      this.#cachedHtml ??= this.apiMessage ? MessageContent.toHtml(this.apiMessage) : MessageContent.textHtml(this.text);
-      return this.#cachedHtml;
+      this.#renderIfNeeded();
+      return this.#cachedBodyHtml;
+    }
+
+    /**
+     * Rendered uploads, cached until the text changes; shown above the message rather than inside it.
+     * @returns {string} HTML of the API message's uploads, or an empty string for local messages.
+     */
+    get attachmentsHtml() {
+      this.#renderIfNeeded();
+      return this.#cachedAttachmentsHtml;
     }
 
     /**
@@ -2933,7 +2965,22 @@
      */
     appendText(addedText) {
       this.text += addedText;
-      this.#cachedHtml = null;
+      this.#cachedBodyHtml = null;
+    }
+
+    /**
+     * Renders the body and uploads if the cache was invalidated.
+     * @returns {void}
+     */
+    #renderIfNeeded() {
+      if (this.#cachedBodyHtml !== null) return;
+      if (this.apiMessage) {
+        const parts = MessageContent.contentParts(this.apiMessage);
+        this.#cachedBodyHtml = parts.bodyHtml;
+        this.#cachedAttachmentsHtml = parts.attachmentsHtml;
+      } else {
+        this.#cachedBodyHtml = MessageContent.textHtml(this.text);
+      }
     }
   }
 

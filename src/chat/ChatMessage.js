@@ -12,10 +12,16 @@ export class ChatMessage {
   static #DEFAULTS = Object.freeze({ parentId: null, text: '', apiMessage: null, isPersisted: true, isStreaming: false, errorText: null });
 
   /**
-   * Cached HTML; null when it must be re-rendered.
+   * Cached body HTML (text and tool blocks); null when it must be re-rendered.
    * @type {?string}
    */
-  #cachedHtml = null;
+  #cachedBodyHtml = null;
+
+  /**
+   * Cached uploads HTML, shown above the message rather than inside it.
+   * @type {string}
+   */
+  #cachedAttachmentsHtml = '';
 
   /**
    * Creates a message.
@@ -57,12 +63,22 @@ export class ChatMessage {
   }
 
   /**
-   * Rendered content, cached until the text changes.
-   * @returns {string} HTML of the API message, or of the plain text for local messages.
+   * Rendered body, cached until the text changes.
+   * @returns {string} HTML of the API message's text and tool blocks, or of the plain text for
+   * local messages.
    */
   get html() {
-    this.#cachedHtml ??= this.apiMessage ? MessageContent.toHtml(this.apiMessage) : MessageContent.textHtml(this.text);
-    return this.#cachedHtml;
+    this.#renderIfNeeded();
+    return this.#cachedBodyHtml;
+  }
+
+  /**
+   * Rendered uploads, cached until the text changes; shown above the message rather than inside it.
+   * @returns {string} HTML of the API message's uploads, or an empty string for local messages.
+   */
+  get attachmentsHtml() {
+    this.#renderIfNeeded();
+    return this.#cachedAttachmentsHtml;
   }
 
   /**
@@ -72,6 +88,21 @@ export class ChatMessage {
    */
   appendText(addedText) {
     this.text += addedText;
-    this.#cachedHtml = null;
+    this.#cachedBodyHtml = null;
+  }
+
+  /**
+   * Renders the body and uploads if the cache was invalidated.
+   * @returns {void}
+   */
+  #renderIfNeeded() {
+    if (this.#cachedBodyHtml !== null) return;
+    if (this.apiMessage) {
+      const parts = MessageContent.contentParts(this.apiMessage);
+      this.#cachedBodyHtml = parts.bodyHtml;
+      this.#cachedAttachmentsHtml = parts.attachmentsHtml;
+    } else {
+      this.#cachedBodyHtml = MessageContent.textHtml(this.text);
+    }
   }
 }

@@ -135,11 +135,22 @@ export class MessageListView {
   #messageHtml(message, index, offersRetry) {
     if (index === this.#editingIndex) return MessageListView.#editingMessageHtml(message, index);
     const sender = message.sender === 'human' ? 'human' : 'assistant';
+    const bodyHtml = MessageListView.#messageBodyHtml(message);
     return `
       <div class="claude-plus-message claude-plus-message--${sender}" data-message-index="${index}">
-        <div class="claude-plus-message__body">${MessageListView.#messageBodyHtml(message)}</div>
+        ${MessageListView.#attachmentsHtmlOrEmpty(message)}
+        ${bodyHtml ? `<div class="claude-plus-message__bubble"><div class="claude-plus-message__body">${bodyHtml}</div></div>` : ''}
         ${this.#actionsHtmlOrEmpty(sender, message, offersRetry)}
       </div>`;
+  }
+
+  /**
+   * HTML of a message's uploads, shown above it rather than inside it.
+   * @param {ChatMessage} message The message.
+   * @returns {string} The uploads, wrapped in their own container; an empty string when there are none.
+   */
+  static #attachmentsHtmlOrEmpty(message) {
+    return message.attachmentsHtml ? `<div class="claude-plus-message__attachments">${message.attachmentsHtml}</div>` : '';
   }
 
   /**
@@ -164,6 +175,7 @@ export class MessageListView {
   static #editingMessageHtml(message, index) {
     return `
       <div class="claude-plus-message claude-plus-message--human claude-plus-message--editing" data-message-index="${index}">
+        ${MessageListView.#attachmentsHtmlOrEmpty(message)}
         <textarea class="claude-plus-message__edit-input" data-name="editInput">${escapeHtml(message.text)}</textarea>
         <div class="claude-plus-message__actions">
           <button class="claude-plus-message__action-button" data-action="cancelEdit">Cancel</button>

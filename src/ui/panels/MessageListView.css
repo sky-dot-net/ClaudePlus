@@ -6,16 +6,18 @@
 }
 
 .claude-plus-message {
-  padding: 6px 4px;
-  border-radius: 12px;
   max-width: 78%;
 }
 
 .claude-plus-message--human {
-  background: var(--claude-plus-color-message-human-bg);
   align-self: flex-end;
-  padding: 8px 12px;
   text-align: right;
+}
+
+.claude-plus-message--human:not(.claude-plus-message--editing) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .claude-plus-message--human .claude-plus-message__actions {
@@ -29,6 +31,19 @@
 
 .claude-plus-message--editing {
   max-width: 92%;
+}
+
+.claude-plus-message__attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.claude-plus-message--human .claude-plus-message__bubble {
+  background: var(--claude-plus-color-message-human-bg);
+  border-radius: 14px;
+  padding: 8px 12px;
 }
 
 .claude-plus-message__body {
@@ -45,7 +60,7 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  margin-top: 2px;
+  margin-top: 6px;
   flex-wrap: wrap;
 }
 

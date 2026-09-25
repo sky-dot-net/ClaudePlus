@@ -64,19 +64,23 @@ export class MessageContent {
   }
 
   /**
-   * HTML of a whole API message: uploads, text and tool blocks.
+   * HTML of a whole API message, kept apart so uploads can be shown above the message rather than
+   * inside it: its uploads (image gallery, then file chips), and separately its text and tool blocks.
    * @param {ApiMessage} apiMessage The message.
-   * @returns {string} The HTML, or a "(no content)" placeholder.
+   * @returns {{attachmentsHtml: string, bodyHtml: string}} The uploads' HTML (empty if none), and
+   * the text/blocks' HTML (a "(no content)" placeholder if the message has neither).
    */
-  static toHtml(apiMessage) {
+  static contentParts(apiMessage) {
     const uploads = MessageContent.uploads(apiMessage);
-    const parts = [
+    const attachmentsHtml = [
       MessageContent.#imageGalleryHtml(uploads.filter(upload => MessageContent.#isImageUpload(upload))),
       ...uploads.filter(upload => !MessageContent.#isImageUpload(upload)).map(upload => MessageContent.#fileAttachmentHtml(upload)),
+    ].join('');
+    const bodyHtml = [
       MessageContent.#textFieldHtml(apiMessage),
       ...(apiMessage.content ?? []).map(block => MessageContent.#contentBlockHtml(block)),
-    ];
-    return parts.join('') || MessageContent.#NO_CONTENT_HTML;
+    ].join('');
+    return { attachmentsHtml, bodyHtml: bodyHtml || (attachmentsHtml ? '' : MessageContent.#NO_CONTENT_HTML) };
   }
 
   /**
