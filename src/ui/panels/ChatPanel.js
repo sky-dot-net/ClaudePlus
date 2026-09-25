@@ -58,6 +58,12 @@ export class ChatPanel extends Panel {
   #preferences;
 
   /**
+   * Fills a widget's placeholder slot with its real, extracted card.
+   * @type {WidgetExtractor}
+   */
+  #widgetExtractor;
+
+  /**
    * The message list.
    * @type {?MessageListView}
    */
@@ -79,8 +85,9 @@ export class ChatPanel extends Panel {
    * @param {ChatPaneManager} services.paneManager Chat panes, for focus and closing.
    * @param {StatsIndex} services.stats Conversation statistics, for the sub-panes.
    * @param {Preferences} services.preferences Table settings storage, for the sub-panes.
+   * @param {WidgetExtractor} services.widgetExtractor Fills a widget's placeholder slot with its real, extracted card.
    */
-  constructor({ paneId, session, directory, paneManager, stats, preferences }) {
+  constructor({ paneId, session, directory, paneManager, stats, preferences, widgetExtractor }) {
     super('Chat');
     this.#paneId = paneId;
     this.#session = session;
@@ -88,6 +95,7 @@ export class ChatPanel extends Panel {
     this.#paneManager = paneManager;
     this.#stats = stats;
     this.#preferences = preferences;
+    this.#widgetExtractor = widgetExtractor;
   }
 
   /**
@@ -136,7 +144,7 @@ export class ChatPanel extends Panel {
    * @returns {void}
    */
   bindEvents() {
-    this.#messageListView = new MessageListView(this, this.elements.messageList, this.#session, message => this.#showToolSteps(message));
+    this.#messageListView = new MessageListView(this, this.elements.messageList, this.#session, message => this.#showToolSteps(message), this.#widgetExtractor);
     this.element.addEventListener('mousedown', () => this.#paneManager.focusPane(this.#paneId));
     this.element.addEventListener('focusin', () => this.#paneManager.focusPane(this.#paneId));
     this.listenTo(this.#paneManager, 'focus', () => this.#renderFocus());

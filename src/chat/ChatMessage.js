@@ -24,6 +24,12 @@ export class ChatMessage {
   #cachedAttachmentsHtml = '';
 
   /**
+   * Cached widget jobs awaiting extraction, in the order their placeholder slots appear in html.
+   * @type {Array<{toolName: string, data: object, toolUseId: string}>}
+   */
+  #cachedWidgets = [];
+
+  /**
    * Creates a message.
    * @param {object} fields Message fields; omitted ones take the defaults in parentheses.
    * @param {string} fields.id Message id.
@@ -82,6 +88,16 @@ export class ChatMessage {
   }
 
   /**
+   * Widgets awaiting extraction, cached until the text changes; empty for local messages.
+   * @returns {Array<{toolName: string, data: object, toolUseId: string}>} The widget jobs, in the
+   * order their placeholder slots appear in html.
+   */
+  get widgets() {
+    this.#renderIfNeeded();
+    return this.#cachedWidgets;
+  }
+
+  /**
    * Appends streamed text.
    * @param {string} addedText Text to append.
    * @returns {void}
@@ -92,7 +108,7 @@ export class ChatMessage {
   }
 
   /**
-   * Renders the body and uploads if the cache was invalidated.
+   * Renders the body, uploads and widget jobs if the cache was invalidated.
    * @returns {void}
    */
   #renderIfNeeded() {
@@ -101,6 +117,7 @@ export class ChatMessage {
       const parts = MessageContent.contentParts(this.apiMessage);
       this.#cachedBodyHtml = parts.bodyHtml;
       this.#cachedAttachmentsHtml = parts.attachmentsHtml;
+      this.#cachedWidgets = parts.widgets;
     } else {
       this.#cachedBodyHtml = MessageContent.textHtml(this.text);
     }

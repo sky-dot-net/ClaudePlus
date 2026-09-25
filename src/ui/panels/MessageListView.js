@@ -69,16 +69,24 @@ export class MessageListView {
   #onShowToolSteps;
 
   /**
+   * Fills a widget's placeholder slot with its real, extracted card.
+   * @type {WidgetExtractor}
+   */
+  #widgetExtractor;
+
+  /**
    * Wires the view to its list element and session.
    * @param {Panel} ownerPanel Panel owning the subscriptions.
    * @param {HTMLElement} listElement List element the messages are rendered into.
    * @param {ChatSession} session Session whose messages are shown.
    * @param {function(ChatMessage): void} onShowToolSteps Called with a message to show its thinking and tool-call steps.
+   * @param {WidgetExtractor} widgetExtractor Fills a widget's placeholder slot with its real, extracted card.
    */
-  constructor(ownerPanel, listElement, session, onShowToolSteps) {
+  constructor(ownerPanel, listElement, session, onShowToolSteps, widgetExtractor) {
     this.#listElement = listElement;
     this.#session = session;
     this.#onShowToolSteps = onShowToolSteps;
+    this.#widgetExtractor = widgetExtractor;
     listElement.addEventListener('click', event => this.#onClick(event));
     listElement.addEventListener('dblclick', event => this.#onDoubleClick(event));
     listElement.addEventListener('keydown', event => this.#onEditKeydown(event));
@@ -101,6 +109,7 @@ export class MessageListView {
       || '<div class="claude-plus-empty-state claude-plus-empty-state--padded">Start a conversation using the message box below.</div>';
     this.#scrollToBottomIf(wasAtBottom);
     this.#focusEditInputIfEditing();
+    this.#fillWidgetSlots();
   }
 
   /**
@@ -131,8 +140,44 @@ export class MessageListView {
    */
   #renderMessageBody(message) {
     const index = this.#session.messages.indexOf(message);
-    const body = this.#listElement.querySelector(`[data-message-index="${index}"] .claude-plus-message__body`);
+    const container = this.#listElement.querySelector(`[data-message-index="${index}"]`);
+    const body = container ? container.querySelector('.claude-plus-message__body') : null;
     if (body) body.innerHTML = MessageListView.#messageBodyHtml(message);
+    if (container) this.#fillWidgetSlotsIn(container, message);
+  }
+
+  /**
+   * Starts filling every currently rendered message's widget slots with their real cards.
+   * @returns {void}
+   */
+  #fillWidgetSlots() {
+    this.#session.messages.forEach((message, index) => {
+      const container = this.#listElement.querySelector(`[data-message-index="${index}"]`);
+      if (container) this.#fillWidgetSlotsIn(container, message);
+    });
+  }
+
+  /**
+   * Starts filling one message's widget slots with their real cards.
+   * @param {HTMLElement} container The message's element.
+   * @param {ChatMessage} message The message.
+   * @returns {void}
+   */
+  #fillWidgetSlotsIn(container, message) {
+    const conversationId = this.#session.openConversationId;
+    message.widgets.forEach(job => this.#fillWidgetSlot(container, conversationId, job));
+  }
+
+  /**
+   * Fills one widget's placeholder slot with its real, extracted card.
+   * @param {HTMLElement} container The message's element.
+   * @param {?string} conversationId Conversation the widget's message belongs to.
+   * @param {{toolName: string, data: object, toolUseId: string}} job The widget to render.
+   * @returns {void}
+   */
+  #fillWidgetSlot(container, conversationId, job) {
+    const slot = container.querySelector(`[data-widget-key="${CSS.escape(job.toolUseId)}"]`);
+    if (slot) this.#widgetExtractor.render(slot, conversationId, job);
   }
 
   /**

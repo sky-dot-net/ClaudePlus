@@ -44,6 +44,12 @@ export class ChatPaneManager extends EventEmitter {
   #stats;
 
   /**
+   * Fills a widget's placeholder slot with its real, extracted card.
+   * @type {WidgetExtractor}
+   */
+  #widgetExtractor;
+
+  /**
    * Whether more than one chat pane is visible at the moment.
    * @type {boolean}
    */
@@ -81,14 +87,16 @@ export class ChatPaneManager extends EventEmitter {
    * @param {ConversationDirectory} services.directory Shared conversation list.
    * @param {Preferences} services.preferences Storage for the open panes and table settings.
    * @param {StatsIndex} services.stats Conversation statistics, for the panes' sub-panes.
+   * @param {WidgetExtractor} services.widgetExtractor Fills a widget's placeholder slot with its real, extracted card.
    */
-  constructor({ api, settings, directory, preferences, stats }) {
+  constructor({ api, settings, directory, preferences, stats, widgetExtractor }) {
     super();
     this.#api = api;
     this.#settings = settings;
     this.#directory = directory;
     this.#preferences = preferences;
     this.#stats = stats;
+    this.#widgetExtractor = widgetExtractor;
     directory.subscribe('conversationDeleted', conversationId => this.#closeDeletedConversation(conversationId));
   }
 
@@ -349,7 +357,9 @@ export class ChatPaneManager extends EventEmitter {
    */
   #createPane(paneId) {
     const session = new ChatSession(this.#api, this.#settings, this.#directory);
-    const panel = new ChatPanel({ paneId, session, directory: this.#directory, paneManager: this, stats: this.#stats, preferences: this.#preferences });
+    const panel = new ChatPanel({
+      paneId, session, directory: this.#directory, paneManager: this, stats: this.#stats, preferences: this.#preferences, widgetExtractor: this.#widgetExtractor,
+    });
     session.subscribe('openConversation', () => this.#onPaneConversationChanged(paneId));
     session.subscribe('conversationLoaded', conversation => this.publish('conversationLoaded', conversation));
     session.subscribe('rateLimits', limits => this.publish('rateLimits', limits));

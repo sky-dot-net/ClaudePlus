@@ -1,0 +1,18 @@
+.claude-plus-widget-slot {
+  min-height: 48px;
+  margin: 6px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--claude-plus-color-tool-details);
+  color: var(--claude-plus-color-text-faint);
+  font-size: 12px;
+}
+
+.claude-plus-widget-slot__message {
+  color: var(--claude-plus-color-text-faint);
+  font-size: 12px;
+}
+
+.claude-plus-widget-card {
+  display: block;
+}

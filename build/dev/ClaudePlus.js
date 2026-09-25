@@ -11,15 +11,16 @@
   'use strict';
 
   /**
-   * IndexedDB database: conversation summaries keyed by conversation id, and active time keyed by day.
-   * Each store maps to its key path.
+   * IndexedDB database: conversation summaries keyed by conversation id, active time keyed by day,
+   * and extracted widget cards keyed by a hash of their tool name and data. Each store maps to its
+   * key path.
    * @type {Readonly<{name: string, version: number, stores: Readonly<Record<string, string>>, keyPaths: Readonly<Record<string, string>>}>}
    */
   const DATABASE = Object.freeze({
     name: 'claudePlus',
-    version: 1,
-    stores: Object.freeze({ conversationSummaries: 'conversationSummaries', activity: 'activity' }),
-    keyPaths: Object.freeze({ conversationSummaries: 'conversationId', activity: 'day' }),
+    version: 2,
+    stores: Object.freeze({ conversationSummaries: 'conversationSummaries', activity: 'activity', widgetCards: 'widgetCards' }),
+    keyPaths: Object.freeze({ conversationSummaries: 'conversationId', activity: 'day', widgetCards: 'hash' }),
   });
 
   /**
@@ -68,6 +69,7 @@
    * conversation fetches during a backfill. maxResponseGapMs: longest prompt-to-answer gap still
    * counted as a response time. copyFeedbackMs: how long the copy button shows a check mark.
    * downloadUrlLifetimeMs: how long a download's object URL stays valid after the download starts.
+   * widgetExtractPollMs: how often the widget extractor checks its hidden iframe for the rendered card.
    * @type {Readonly<Record<string, number>>}
    */
   const TIMING = Object.freeze({
@@ -79,6 +81,7 @@
     maxResponseGapMs: 30 * 60 * 1000,
     copyFeedbackMs: 1_000,
     downloadUrlLifetimeMs: 10_000,
+    widgetExtractPollMs: 200,
   });
 
   /**
@@ -748,9 +751,9 @@
     return String(value ?? '').replace(/[&<>"']/g, character => HTML_ENTITIES[character]);
   }
 
-  var stylesheet$m = ".claude-plus-empty-state {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-style: italic;\r\n  padding: 6px 0;\r\n}\r\n\r\n.claude-plus-empty-state--padded {\r\n  padding: 24px;\r\n}\r\n";
+  var stylesheet$n = ".claude-plus-empty-state {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-style: italic;\r\n  padding: 6px 0;\r\n}\r\n\r\n.claude-plus-empty-state--padded {\r\n  padding: 24px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$m);
+  StyleRegistry.register(stylesheet$n);
 
   /**
    * HTML for an empty-state message.
@@ -761,9 +764,9 @@
     return `<div class="claude-plus-empty-state">${escapeHtml(message)}</div>`;
   }
 
-  var stylesheet$l = ".claude-plus-value-combobox {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  max-height: 240px;\r\n  overflow-y: auto;\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-value-combobox__entry {\r\n  padding: 4px 8px;\r\n  border-radius: 4px;\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-value-combobox__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
+  var stylesheet$m = ".claude-plus-value-combobox {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  max-height: 240px;\r\n  overflow-y: auto;\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-value-combobox__entry {\r\n  padding: 4px 8px;\r\n  border-radius: 4px;\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-value-combobox__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$l);
+  StyleRegistry.register(stylesheet$m);
 
   /**
    * A text input that shows the distinct values it can filter by in a list below it while focused.
@@ -907,9 +910,9 @@
     return FILTER_CONTROLS[column.filter ?? 'none'](column);
   }
 
-  var stylesheet$k = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
+  var stylesheet$l = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$k);
+  StyleRegistry.register(stylesheet$l);
 
   /**
    * A reusable table with toggleable columns, sorting by clicking a header (clicking again reverses
@@ -1336,9 +1339,9 @@
     return includesConversation ? [...columns, createConversationColumn()] : columns;
   }
 
-  var stylesheet$j = ".claude-plus-subpane {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  min-height: 0;\r\n  flex: 1;\r\n  padding: 6px;\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  background: var(--claude-plus-color-bar);\r\n}\r\n\r\n.claude-plus-subpane__header {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 2px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-subpane__title {\r\n  flex: 1;\r\n  min-width: 0;\r\n  font-size: 12px;\r\n  font-weight: 600;\r\n  white-space: nowrap;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-subpane__button {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 2px 5px;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-subpane__button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
+  var stylesheet$k = ".claude-plus-subpane {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  min-height: 0;\r\n  flex: 1;\r\n  padding: 6px;\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  background: var(--claude-plus-color-bar);\r\n}\r\n\r\n.claude-plus-subpane__header {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 2px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-subpane__title {\r\n  flex: 1;\r\n  min-width: 0;\r\n  font-size: 12px;\r\n  font-weight: 600;\r\n  white-space: nowrap;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-subpane__button {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 2px 5px;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-subpane__button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$j);
+  StyleRegistry.register(stylesheet$k);
 
   /**
    * A sub-pane inside a chat pane listing the web sources or files of that pane's conversation.
@@ -1832,9 +1835,9 @@
     }
   }
 
-  var stylesheet$i = ".claude-plus-image-viewer-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.8);\r\n  display: flex;\r\n  flex-direction: column;\r\n  align-items: center;\r\n  justify-content: center;\r\n  gap: 12px;\r\n}\r\n\r\n.claude-plus-image-viewer__frame {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  overflow: hidden;\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-image-viewer__image {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  width: auto;\r\n  height: auto;\r\n  cursor: grab;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-image-viewer__open-button {\r\n  flex-shrink: 0;\r\n}\r\n";
+  var stylesheet$j = ".claude-plus-image-viewer-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.8);\r\n  display: flex;\r\n  flex-direction: column;\r\n  align-items: center;\r\n  justify-content: center;\r\n  gap: 12px;\r\n}\r\n\r\n.claude-plus-image-viewer__frame {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  overflow: hidden;\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-image-viewer__image {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  width: auto;\r\n  height: auto;\r\n  cursor: grab;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-image-viewer__open-button {\r\n  flex-shrink: 0;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$i);
+  StyleRegistry.register(stylesheet$j);
 
   /**
    * Shows an image at full size over a dark backdrop, capped at 90% of the viewport. Scrolling zooms;
@@ -1891,9 +1894,40 @@
   }
 
   /**
-   * Groups a message's thinking and tool-call content blocks into a chronological list of steps —
-   * each tool call paired with its result — so a message's "thinking and tool calls" sub-pane can
-   * list what happened without that ever appearing in the chat log itself.
+   * Tool names claude.ai treats as interactive display widgets rather than ordinary tool calls; a
+   * call to one of these renders as a card inline in the message, not hidden in its "thinking and
+   * tool calls" sub-pane like an ordinary tool call.
+   * @type {ReadonlyArray<string>}
+   */
+  const WIDGET_TOOL_NAMES = Object.freeze([
+    'weather_fetch',
+    'recipe_display_v0',
+    'places_map_display_v0',
+    'message_compose_v1',
+    'ask_user_input_v0',
+    'recommend_claude_apps',
+    'show_recommendation_cards',
+    'chart_display_v0',
+    'places_search',
+    'fetch_sports_data',
+    'options_card_display_v0',
+    'step_card_display_v0',
+    'itinerary_display_v0',
+    'translation_display_v0',
+    'comparison_card_display_v0',
+    'featured_card_display_v0',
+    'product_carousel_display_v0',
+    'link_preview_display_v0',
+    'places_list_display_v0',
+    'quiz_display_v0',
+  ]);
+
+  /**
+   * Groups a message's thinking and ordinary tool-call content blocks into a chronological list of
+   * steps — each tool call paired with its result — so a message's "thinking and tool calls"
+   * sub-pane can list what happened without that ever appearing in the chat log itself. A widget
+   * tool call (see WIDGET_TOOL_NAMES) is excluded here since it renders inline in the message
+   * instead (see MessageContent), not hidden in this sub-pane.
    */
   class MessageToolSteps {
     /**
@@ -1919,7 +1953,7 @@
      */
     static #addBlock(block, steps, stepByToolUseId) {
       if (block.type === 'thinking') steps.push({ kind: 'thinking', block });
-      else if (block.type === 'tool_use') MessageToolSteps.#addToolUse(block, steps, stepByToolUseId);
+      else if (block.type === 'tool_use' && !WIDGET_TOOL_NAMES.includes(block.name)) MessageToolSteps.#addToolUse(block, steps, stepByToolUseId);
       else if (block.type === 'tool_result') MessageToolSteps.#attachResult(block, stepByToolUseId);
     }
 
@@ -1948,9 +1982,9 @@
     }
   }
 
-  var stylesheet$h = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  align-self: flex-end;\n  text-align: right;\n}\n\n.claude-plus-message--human:not(.claude-plus-message--editing) {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__attachments {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message__bubble {\n  background: var(--claude-plus-color-message-human-bg);\n  border-radius: 14px;\n  padding: 8px 12px;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 6px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
+  var stylesheet$i = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  align-self: flex-end;\n  text-align: right;\n}\n\n.claude-plus-message--human:not(.claude-plus-message--editing) {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__attachments {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message__bubble {\n  background: var(--claude-plus-color-message-human-bg);\n  border-radius: 14px;\n  padding: 8px 12px;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 6px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
 
-  StyleRegistry.register(stylesheet$h);
+  StyleRegistry.register(stylesheet$i);
 
   /**
    * The messages of a chat session: copy, retry, branch navigation between a message's edits and
@@ -2012,16 +2046,24 @@
     #onShowToolSteps;
 
     /**
+     * Fills a widget's placeholder slot with its real, extracted card.
+     * @type {WidgetExtractor}
+     */
+    #widgetExtractor;
+
+    /**
      * Wires the view to its list element and session.
      * @param {Panel} ownerPanel Panel owning the subscriptions.
      * @param {HTMLElement} listElement List element the messages are rendered into.
      * @param {ChatSession} session Session whose messages are shown.
      * @param {function(ChatMessage): void} onShowToolSteps Called with a message to show its thinking and tool-call steps.
+     * @param {WidgetExtractor} widgetExtractor Fills a widget's placeholder slot with its real, extracted card.
      */
-    constructor(ownerPanel, listElement, session, onShowToolSteps) {
+    constructor(ownerPanel, listElement, session, onShowToolSteps, widgetExtractor) {
       this.#listElement = listElement;
       this.#session = session;
       this.#onShowToolSteps = onShowToolSteps;
+      this.#widgetExtractor = widgetExtractor;
       listElement.addEventListener('click', event => this.#onClick(event));
       listElement.addEventListener('dblclick', event => this.#onDoubleClick(event));
       listElement.addEventListener('keydown', event => this.#onEditKeydown(event));
@@ -2044,6 +2086,7 @@
         || '<div class="claude-plus-empty-state claude-plus-empty-state--padded">Start a conversation using the message box below.</div>';
       this.#scrollToBottomIf(wasAtBottom);
       this.#focusEditInputIfEditing();
+      this.#fillWidgetSlots();
     }
 
     /**
@@ -2074,8 +2117,44 @@
      */
     #renderMessageBody(message) {
       const index = this.#session.messages.indexOf(message);
-      const body = this.#listElement.querySelector(`[data-message-index="${index}"] .claude-plus-message__body`);
+      const container = this.#listElement.querySelector(`[data-message-index="${index}"]`);
+      const body = container ? container.querySelector('.claude-plus-message__body') : null;
       if (body) body.innerHTML = MessageListView.#messageBodyHtml(message);
+      if (container) this.#fillWidgetSlotsIn(container, message);
+    }
+
+    /**
+     * Starts filling every currently rendered message's widget slots with their real cards.
+     * @returns {void}
+     */
+    #fillWidgetSlots() {
+      this.#session.messages.forEach((message, index) => {
+        const container = this.#listElement.querySelector(`[data-message-index="${index}"]`);
+        if (container) this.#fillWidgetSlotsIn(container, message);
+      });
+    }
+
+    /**
+     * Starts filling one message's widget slots with their real cards.
+     * @param {HTMLElement} container The message's element.
+     * @param {ChatMessage} message The message.
+     * @returns {void}
+     */
+    #fillWidgetSlotsIn(container, message) {
+      const conversationId = this.#session.openConversationId;
+      message.widgets.forEach(job => this.#fillWidgetSlot(container, conversationId, job));
+    }
+
+    /**
+     * Fills one widget's placeholder slot with its real, extracted card.
+     * @param {HTMLElement} container The message's element.
+     * @param {?string} conversationId Conversation the widget's message belongs to.
+     * @param {{toolName: string, data: object, toolUseId: string}} job The widget to render.
+     * @returns {void}
+     */
+    #fillWidgetSlot(container, conversationId, job) {
+      const slot = container.querySelector(`[data-widget-key="${CSS.escape(job.toolUseId)}"]`);
+      if (slot) this.#widgetExtractor.render(slot, conversationId, job);
     }
 
     /**
@@ -2363,9 +2442,9 @@
     }
   }
 
-  var stylesheet$g = ".claude-plus-tool-steps {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n\n.claude-plus-tool-step {\n  background: var(--claude-plus-color-tool-details);\n  border-radius: 6px;\n  padding: 6px 8px;\n  font-size: 12px;\n}\n\n.claude-plus-tool-step--error {\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-error);\n}\n\n.claude-plus-tool-step summary {\n  cursor: pointer;\n  font-weight: 600;\n}\n\n.claude-plus-tool-step__summaries {\n  margin: 6px 0 0;\n  padding-left: 18px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__field-label {\n  margin-top: 8px;\n  font-size: 11px;\n  font-weight: 600;\n  color: var(--claude-plus-color-text-faint);\n  text-transform: uppercase;\n  letter-spacing: 0.03em;\n}\n\n.claude-plus-tool-step__pre {\n  margin: 2px 0 0;\n  white-space: pre-wrap;\n  overflow-wrap: break-word;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__result-status {\n  margin-top: 8px;\n  font-weight: 600;\n}\n";
+  var stylesheet$h = ".claude-plus-tool-steps {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n\n.claude-plus-tool-step {\n  background: var(--claude-plus-color-tool-details);\n  border-radius: 6px;\n  padding: 6px 8px;\n  font-size: 12px;\n}\n\n.claude-plus-tool-step--error {\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-error);\n}\n\n.claude-plus-tool-step summary {\n  cursor: pointer;\n  font-weight: 600;\n}\n\n.claude-plus-tool-step__summaries {\n  margin: 6px 0 0;\n  padding-left: 18px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__field-label {\n  margin-top: 8px;\n  font-size: 11px;\n  font-weight: 600;\n  color: var(--claude-plus-color-text-faint);\n  text-transform: uppercase;\n  letter-spacing: 0.03em;\n}\n\n.claude-plus-tool-step__pre {\n  margin: 2px 0 0;\n  white-space: pre-wrap;\n  overflow-wrap: break-word;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__result-status {\n  margin-top: 8px;\n  font-weight: 600;\n}\n";
 
-  StyleRegistry.register(stylesheet$g);
+  StyleRegistry.register(stylesheet$h);
 
   /**
    * A sub-pane showing one message's thinking and tool-call steps, chronologically, each collapsed
@@ -2642,9 +2721,9 @@
     }
   }
 
-  var stylesheet$f = ".claude-plus-panel {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-panel);\r\n  box-sizing: border-box;\r\n  padding: 10px 12px;\r\n  overflow-y: auto;\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  font-size: 13px;\r\n  background: var(--claude-plus-color-background);\r\n}\r\n\r\n.claude-plus-panel summary {\r\n  cursor: pointer;\r\n  padding: 4px 0;\r\n}\r\n\r\n.claude-plus-panel select,\r\n.claude-plus-panel input[type=text],\r\n.claude-plus-panel input[type=date],\r\n.claude-plus-panel textarea {\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font-size: 12px;\r\n  font-family: inherit;\r\n}\r\n\r\n.claude-plus-panel__section {\r\n  padding: 8px 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-hover);\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-panel__section:last-child {\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-spaced-above {\r\n  margin-top: 6px;\r\n}\r\n\r\n.claude-plus-hint {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-size: 11px;\r\n  margin-top: 4px;\r\n}\r\n\r\n.claude-plus-scrollable {\r\n  overflow-y: auto;\r\n}\r\n\r\n.claude-plus-fill-remaining {\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-pending {\r\n  opacity: 0.4;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-primary-button {\r\n  padding: 8px;\r\n  background: var(--claude-plus-color-accent);\r\n  border: none;\r\n  border-radius: 6px;\r\n  color: #fff;\r\n  font-size: 13px;\r\n  cursor: pointer;\r\n  font-weight: 600;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-primary-button:disabled {\r\n  opacity: 0.6;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-full-width {\r\n  width: 100%;\r\n}\r\n\r\n.claude-plus-search-input {\r\n  flex-shrink: 0;\r\n  padding: 6px 8px;\r\n}\r\n";
+  var stylesheet$g = ".claude-plus-panel {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-panel);\r\n  box-sizing: border-box;\r\n  padding: 10px 12px;\r\n  overflow-y: auto;\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  font-size: 13px;\r\n  background: var(--claude-plus-color-background);\r\n}\r\n\r\n.claude-plus-panel summary {\r\n  cursor: pointer;\r\n  padding: 4px 0;\r\n}\r\n\r\n.claude-plus-panel select,\r\n.claude-plus-panel input[type=text],\r\n.claude-plus-panel input[type=date],\r\n.claude-plus-panel textarea {\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font-size: 12px;\r\n  font-family: inherit;\r\n}\r\n\r\n.claude-plus-panel__section {\r\n  padding: 8px 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-hover);\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-panel__section:last-child {\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-spaced-above {\r\n  margin-top: 6px;\r\n}\r\n\r\n.claude-plus-hint {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-size: 11px;\r\n  margin-top: 4px;\r\n}\r\n\r\n.claude-plus-scrollable {\r\n  overflow-y: auto;\r\n}\r\n\r\n.claude-plus-fill-remaining {\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-pending {\r\n  opacity: 0.4;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-primary-button {\r\n  padding: 8px;\r\n  background: var(--claude-plus-color-accent);\r\n  border: none;\r\n  border-radius: 6px;\r\n  color: #fff;\r\n  font-size: 13px;\r\n  cursor: pointer;\r\n  font-weight: 600;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-primary-button:disabled {\r\n  opacity: 0.6;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-full-width {\r\n  width: 100%;\r\n}\r\n\r\n.claude-plus-search-input {\r\n  flex-shrink: 0;\r\n  padding: 6px 8px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$f);
+  StyleRegistry.register(stylesheet$g);
 
   /**
    * A dockable panel. Its DOM is built on first access and immediately rendered from current state,
@@ -2793,9 +2872,9 @@
     }
   }
 
-  var stylesheet$e = ".claude-plus-panel--active-among-several {\r\n  box-shadow: inset 0 0 0 1px var(--claude-plus-color-active-chat);\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
+  var stylesheet$f = ".claude-plus-panel--active-among-several {\r\n  box-shadow: inset 0 0 0 1px var(--claude-plus-color-active-chat);\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$e);
+  StyleRegistry.register(stylesheet$f);
 
   /**
    * A chat pane: one session's messages, plus optional sub-panes listing the conversation's files
@@ -2847,6 +2926,12 @@
     #preferences;
 
     /**
+     * Fills a widget's placeholder slot with its real, extracted card.
+     * @type {WidgetExtractor}
+     */
+    #widgetExtractor;
+
+    /**
      * The message list.
      * @type {?MessageListView}
      */
@@ -2868,8 +2953,9 @@
      * @param {ChatPaneManager} services.paneManager Chat panes, for focus and closing.
      * @param {StatsIndex} services.stats Conversation statistics, for the sub-panes.
      * @param {Preferences} services.preferences Table settings storage, for the sub-panes.
+     * @param {WidgetExtractor} services.widgetExtractor Fills a widget's placeholder slot with its real, extracted card.
      */
-    constructor({ paneId, session, directory, paneManager, stats, preferences }) {
+    constructor({ paneId, session, directory, paneManager, stats, preferences, widgetExtractor }) {
       super('Chat');
       this.#paneId = paneId;
       this.#session = session;
@@ -2877,6 +2963,7 @@
       this.#paneManager = paneManager;
       this.#stats = stats;
       this.#preferences = preferences;
+      this.#widgetExtractor = widgetExtractor;
     }
 
     /**
@@ -2925,7 +3012,7 @@
      * @returns {void}
      */
     bindEvents() {
-      this.#messageListView = new MessageListView(this, this.elements.messageList, this.#session, message => this.#showToolSteps(message));
+      this.#messageListView = new MessageListView(this, this.elements.messageList, this.#session, message => this.#showToolSteps(message), this.#widgetExtractor);
       this.element.addEventListener('mousedown', () => this.#paneManager.focusPane(this.#paneId));
       this.element.addEventListener('focusin', () => this.#paneManager.focusPane(this.#paneId));
       this.listenTo(this.#paneManager, 'focus', () => this.#renderFocus());
@@ -3065,9 +3152,9 @@
    */
   const ATTACHMENT_NAME_FIELDS = Object.freeze(['file_name', 'name', 'filename', 'title']);
 
-  var stylesheet$d = ".claude-plus-code-block {\r\n  background: var(--claude-plus-color-code-block);\r\n  padding: 8px;\r\n  border-radius: 6px;\r\n  overflow-x: auto;\r\n  font-size: 12px;\r\n}\r\n";
+  var stylesheet$e = ".claude-plus-code-block {\r\n  background: var(--claude-plus-color-code-block);\r\n  padding: 8px;\r\n  border-radius: 6px;\r\n  overflow-x: auto;\r\n  font-size: 12px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$d);
+  StyleRegistry.register(stylesheet$e);
 
   /**
    * Minimal markdown renderer: fenced code blocks, inline code, bold, italic and http(s) links.
@@ -3130,14 +3217,16 @@
     }
   }
 
-  var stylesheet$c = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-images {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  margin-bottom: 6px;\r\n}\r\n\r\n.claude-plus-message--human .claude-plus-message-images {\r\n  justify-content: flex-end;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n";
+  var stylesheet$d = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-images {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  margin-bottom: 6px;\r\n}\r\n\r\n.claude-plus-message--human .claude-plus-message-images {\r\n  justify-content: flex-end;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n";
 
-  StyleRegistry.register(stylesheet$c);
+  StyleRegistry.register(stylesheet$d);
 
   /**
-   * Reads text, uploads and renderable HTML from API messages. Thinking and tool-call blocks are
-   * deliberately not rendered here: they show in the message's "thinking and tool calls" sub-pane
-   * instead (see MessageToolSteps), not inline in the chat log.
+   * Reads text, uploads and renderable HTML from API messages. Thinking and ordinary tool-call
+   * blocks are deliberately not rendered here: they show in the message's "thinking and tool calls"
+   * sub-pane instead (see MessageToolSteps), not inline in the chat log. A widget tool call (see
+   * WIDGET_TOOL_NAMES) is different: it IS the reply, so it gets a placeholder slot here, filled in
+   * later by WidgetExtractor once its real card has been extracted.
    */
   class MessageContent {
     /**
@@ -3184,10 +3273,12 @@
 
     /**
      * HTML of a whole API message, kept apart so uploads can be shown above the message rather than
-     * inside it: its uploads (image gallery, then file chips), and separately its text and tool blocks.
+     * inside it: its uploads (image gallery, then file chips), and separately its text, in original
+     * order with a placeholder slot wherever a widget tool call belongs.
      * @param {ApiMessage} apiMessage The message.
-     * @returns {{attachmentsHtml: string, bodyHtml: string}} The uploads' HTML (empty if none), and
-     * the text/blocks' HTML (a "(no content)" placeholder if the message has neither).
+     * @returns {{attachmentsHtml: string, bodyHtml: string, widgets: Array<{toolName: string, data: object, toolUseId: string}>}}
+     * The uploads' HTML (empty if none), the text/slots' HTML (a "(no content)" placeholder if the
+     * message has neither), and the widgets awaiting extraction, in the order their slots appear.
      */
     static contentParts(apiMessage) {
       const uploads = MessageContent.uploads(apiMessage);
@@ -3195,11 +3286,59 @@
         MessageContent.#imageGalleryHtml(uploads.filter(upload => MessageContent.#isImageUpload(upload))),
         ...uploads.filter(upload => !MessageContent.#isImageUpload(upload)).map(upload => MessageContent.#fileAttachmentHtml(upload)),
       ].join('');
-      const bodyHtml = [
-        MessageContent.#textFieldHtml(apiMessage),
-        ...MessageContent.#textBlocks(apiMessage).map(block => MessageContent.textHtml(block.text)),
-      ].join('');
-      return { attachmentsHtml, bodyHtml: bodyHtml || (attachmentsHtml ? '' : MessageContent.#NO_CONTENT_HTML) };
+      const blocks = apiMessage.content ?? [];
+      const toolResultByUseId = MessageContent.#toolResultsByUseId(blocks);
+      const rendered = blocks.map(block => MessageContent.#bodyBlock(block, toolResultByUseId));
+      const blocksHtml = rendered.map(item => item.html).join('');
+      const bodyHtml = blocksHtml || MessageContent.textHtml(apiMessage.text);
+      const widgets = rendered.map(item => item.widget).filter(Boolean);
+      return { attachmentsHtml, bodyHtml: bodyHtml || (attachmentsHtml ? '' : MessageContent.#NO_CONTENT_HTML), widgets };
+    }
+
+    /**
+     * Tool results by the id of the tool call they answer.
+     * @param {ContentBlock[]} blocks The message's content blocks.
+     * @returns {Map<string, ContentBlock>} The results, by tool_use_id.
+     */
+    static #toolResultsByUseId(blocks) {
+      return new Map(blocks.filter(block => block.type === 'tool_result').map(block => [block.tool_use_id, block]));
+    }
+
+    /**
+     * HTML (and, for a widget, the extraction job) of one content block.
+     * @param {ContentBlock} block The block.
+     * @param {Map<string, ContentBlock>} toolResultByUseId Tool results by the id of the call they answer.
+     * @returns {{html: string, widget: ?{toolName: string, data: object, toolUseId: string}}} The
+     * block's HTML, and its widget job if it is one.
+     */
+    static #bodyBlock(block, toolResultByUseId) {
+      if (block.type === 'text' && block.text) return { html: MessageContent.textHtml(block.text), widget: null };
+      if (block.type === 'tool_use' && WIDGET_TOOL_NAMES.includes(block.name)) return MessageContent.#widgetBlock(block, toolResultByUseId.get(block.id));
+      return { html: '', widget: null };
+    }
+
+    /**
+     * HTML and extraction job of a widget tool call's placeholder slot.
+     * @param {ContentBlock} useBlock The tool_use block.
+     * @param {?ContentBlock} resultBlock Its tool_result block, if the call has completed.
+     * @returns {{html: string, widget: {toolName: string, data: object, toolUseId: string}}} The slot's HTML and its job.
+     */
+    static #widgetBlock(useBlock, resultBlock) {
+      const widget = { toolName: useBlock.name, data: MessageContent.#widgetDataOf(useBlock, resultBlock), toolUseId: useBlock.id };
+      const key = escapeHtml(widget.toolUseId);
+      return { html: `<div class="claude-plus-widget-slot" data-widget-key="${key}">Loading widget…</div>`, widget };
+    }
+
+    /**
+     * A widget's data to extract from: the result's normalized content when the call succeeded and
+     * provided one, else the call's own input.
+     * @param {ContentBlock} useBlock The tool_use block.
+     * @param {?ContentBlock} resultBlock Its tool_result block, if the call has completed.
+     * @returns {object} The data.
+     */
+    static #widgetDataOf(useBlock, resultBlock) {
+      const structuredContent = resultBlock && !resultBlock.is_error ? resultBlock.structured_content : null;
+      return structuredContent || useBlock.input || {};
     }
 
     /**
@@ -3242,15 +3381,6 @@
     }
 
     /**
-     * HTML of the text field, used only when the message has no text blocks, so text isn't shown twice.
-     * @param {ApiMessage} apiMessage The message.
-     * @returns {string} The HTML, or an empty string.
-     */
-    static #textFieldHtml(apiMessage) {
-      return MessageContent.#textBlocks(apiMessage).length === 0 ? MessageContent.textHtml(apiMessage.text) : '';
-    }
-
-    /**
      * Text blocks of a message that contain text.
      * @param {ApiMessage} apiMessage The message.
      * @returns {ContentBlock[]} The blocks.
@@ -3283,6 +3413,12 @@
      * @type {string}
      */
     #cachedAttachmentsHtml = '';
+
+    /**
+     * Cached widget jobs awaiting extraction, in the order their placeholder slots appear in html.
+     * @type {Array<{toolName: string, data: object, toolUseId: string}>}
+     */
+    #cachedWidgets = [];
 
     /**
      * Creates a message.
@@ -3343,6 +3479,16 @@
     }
 
     /**
+     * Widgets awaiting extraction, cached until the text changes; empty for local messages.
+     * @returns {Array<{toolName: string, data: object, toolUseId: string}>} The widget jobs, in the
+     * order their placeholder slots appear in html.
+     */
+    get widgets() {
+      this.#renderIfNeeded();
+      return this.#cachedWidgets;
+    }
+
+    /**
      * Appends streamed text.
      * @param {string} addedText Text to append.
      * @returns {void}
@@ -3353,7 +3499,7 @@
     }
 
     /**
-     * Renders the body and uploads if the cache was invalidated.
+     * Renders the body, uploads and widget jobs if the cache was invalidated.
      * @returns {void}
      */
     #renderIfNeeded() {
@@ -3362,6 +3508,7 @@
         const parts = MessageContent.contentParts(this.apiMessage);
         this.#cachedBodyHtml = parts.bodyHtml;
         this.#cachedAttachmentsHtml = parts.attachmentsHtml;
+        this.#cachedWidgets = parts.widgets;
       } else {
         this.#cachedBodyHtml = MessageContent.textHtml(this.text);
       }
@@ -4181,6 +4328,12 @@
     #stats;
 
     /**
+     * Fills a widget's placeholder slot with its real, extracted card.
+     * @type {WidgetExtractor}
+     */
+    #widgetExtractor;
+
+    /**
      * Whether more than one chat pane is visible at the moment.
      * @type {boolean}
      */
@@ -4218,14 +4371,16 @@
      * @param {ConversationDirectory} services.directory Shared conversation list.
      * @param {Preferences} services.preferences Storage for the open panes and table settings.
      * @param {StatsIndex} services.stats Conversation statistics, for the panes' sub-panes.
+     * @param {WidgetExtractor} services.widgetExtractor Fills a widget's placeholder slot with its real, extracted card.
      */
-    constructor({ api, settings, directory, preferences, stats }) {
+    constructor({ api, settings, directory, preferences, stats, widgetExtractor }) {
       super();
       this.#api = api;
       this.#settings = settings;
       this.#directory = directory;
       this.#preferences = preferences;
       this.#stats = stats;
+      this.#widgetExtractor = widgetExtractor;
       directory.subscribe('conversationDeleted', conversationId => this.#closeDeletedConversation(conversationId));
     }
 
@@ -4486,7 +4641,9 @@
      */
     #createPane(paneId) {
       const session = new ChatSession(this.#api, this.#settings, this.#directory);
-      const panel = new ChatPanel({ paneId, session, directory: this.#directory, paneManager: this, stats: this.#stats, preferences: this.#preferences });
+      const panel = new ChatPanel({
+        paneId, session, directory: this.#directory, paneManager: this, stats: this.#stats, preferences: this.#preferences, widgetExtractor: this.#widgetExtractor,
+      });
       session.subscribe('openConversation', () => this.#onPaneConversationChanged(paneId));
       session.subscribe('conversationLoaded', conversation => this.publish('conversationLoaded', conversation));
       session.subscribe('rateLimits', limits => this.publish('rateLimits', limits));
@@ -5017,9 +5174,9 @@
     { id: 'max', label: 'Max effort' },
   ]);
 
-  var stylesheet$b = ".claude-plus-dialog-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.5);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-dialog {\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 8px;\r\n  padding: 16px;\r\n  max-width: 360px;\r\n  font-size: 13px;\r\n}\r\n\r\n.claude-plus-dialog__message {\r\n  margin: 0 0 14px;\r\n  line-height: 1.4;\r\n}\r\n\r\n.claude-plus-dialog__input {\r\n  width: 100%;\r\n  box-sizing: border-box;\r\n  margin: 0 0 14px;\r\n  padding: 6px 8px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font: inherit;\r\n}\r\n\r\n.claude-plus-dialog__actions {\r\n  display: flex;\r\n  justify-content: flex-end;\r\n  gap: 8px;\r\n}\r\n";
+  var stylesheet$c = ".claude-plus-dialog-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.5);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-dialog {\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 8px;\r\n  padding: 16px;\r\n  max-width: 360px;\r\n  font-size: 13px;\r\n}\r\n\r\n.claude-plus-dialog__message {\r\n  margin: 0 0 14px;\r\n  line-height: 1.4;\r\n}\r\n\r\n.claude-plus-dialog__input {\r\n  width: 100%;\r\n  box-sizing: border-box;\r\n  margin: 0 0 14px;\r\n  padding: 6px 8px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font: inherit;\r\n}\r\n\r\n.claude-plus-dialog__actions {\r\n  display: flex;\r\n  justify-content: flex-end;\r\n  gap: 8px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$b);
+  StyleRegistry.register(stylesheet$c);
 
   /**
    * A small themed dialog box with a message, an optional body and a row of action buttons. It
@@ -5530,9 +5687,9 @@
     }
   }
 
-  var stylesheet$a = ".claude-plus-popup-menu {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  min-width: 140px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry {\r\n  padding: 6px 10px;\r\n  cursor: pointer;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
+  var stylesheet$b = ".claude-plus-popup-menu {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  min-width: 140px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry {\r\n  padding: 6px 10px;\r\n  cursor: pointer;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$a);
+  StyleRegistry.register(stylesheet$b);
 
   /**
    * A small menu at the pointer that closes on selection or on a press outside it.
@@ -5688,9 +5845,9 @@
     { id: 'claude-fable-5-1', label: 'Fable 5.1' },
   ]);
 
-  var stylesheet$9 = ".claude-plus-staged-files {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 3px 4px 3px 3px;\r\n  font-size: 12px;\r\n  max-width: 200px;\r\n}\r\n\r\n.claude-plus-staged-file--uploading {\r\n  opacity: 0.6;\r\n}\r\n\r\n.claude-plus-staged-file__thumb {\r\n  width: 20px;\r\n  height: 20px;\r\n  border-radius: 4px;\r\n  object-fit: cover;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__icon {\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__name {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-staged-file__remove {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 0 2px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__remove:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
+  var stylesheet$a = ".claude-plus-staged-files {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 3px 4px 3px 3px;\r\n  font-size: 12px;\r\n  max-width: 200px;\r\n}\r\n\r\n.claude-plus-staged-file--uploading {\r\n  opacity: 0.6;\r\n}\r\n\r\n.claude-plus-staged-file__thumb {\r\n  width: 20px;\r\n  height: 20px;\r\n  border-radius: 4px;\r\n  object-fit: cover;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__icon {\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__name {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-staged-file__remove {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 0 2px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__remove:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$9);
+  StyleRegistry.register(stylesheet$a);
 
   /**
    * The files attached to the next prompt, shown as removable chips. Each file is uploaded as soon
@@ -5840,9 +5997,9 @@
     return options.map(option => `<option value="${escapeHtml(option.id)}"${option.id === selectedId ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
   }
 
-  var stylesheet$8 = ".claude-plus-composer__options {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 8px;\r\n  align-items: center;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-composer__options select {\r\n  padding: 4px 6px;\r\n}\r\n\r\n.claude-plus-composer__thinking-toggle {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-panel .claude-plus-composer__input {\r\n  flex: 1;\r\n  resize: none;\r\n  min-height: 40px;\r\n  border-radius: 8px;\r\n  padding: 8px;\r\n  font-size: 14px;\r\n}\r\n\r\n.claude-plus-primary-button.claude-plus-composer__stop-button {\r\n  flex-shrink: 0;\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n";
+  var stylesheet$9 = ".claude-plus-composer__options {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 8px;\r\n  align-items: center;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-composer__options select {\r\n  padding: 4px 6px;\r\n}\r\n\r\n.claude-plus-composer__thinking-toggle {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-panel .claude-plus-composer__input {\r\n  flex: 1;\r\n  resize: none;\r\n  min-height: 40px;\r\n  border-radius: 8px;\r\n  padding: 8px;\r\n  font-size: 14px;\r\n}\r\n\r\n.claude-plus-primary-button.claude-plus-composer__stop-button {\r\n  flex-shrink: 0;\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$8);
+  StyleRegistry.register(stylesheet$9);
 
   /**
    * The single message composer. It always targets the active chat (the focused chat pane) and can
@@ -6848,9 +7005,9 @@
     Object.assign(element.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
   }
 
-  var stylesheet$7 = "html.claude-plus-resizing-horizontally,\r\nhtml.claude-plus-resizing-horizontally * {\r\n  cursor: col-resize !important;\r\n  user-select: none;\r\n}\r\n\r\nhtml.claude-plus-resizing-vertically,\r\nhtml.claude-plus-resizing-vertically * {\r\n  cursor: row-resize !important;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-divider-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-divider);\r\n}\r\n\r\n.claude-plus-divider {\r\n  position: fixed;\r\n  pointer-events: auto;\r\n  background: transparent;\r\n}\r\n\r\n.claude-plus-divider--vertical {\r\n  cursor: col-resize;\r\n}\r\n\r\n.claude-plus-divider--horizontal {\r\n  cursor: row-resize;\r\n}\r\n\r\n.claude-plus-divider:hover {\r\n  background: var(--claude-plus-color-accent);\r\n}\r\n";
+  var stylesheet$8 = "html.claude-plus-resizing-horizontally,\r\nhtml.claude-plus-resizing-horizontally * {\r\n  cursor: col-resize !important;\r\n  user-select: none;\r\n}\r\n\r\nhtml.claude-plus-resizing-vertically,\r\nhtml.claude-plus-resizing-vertically * {\r\n  cursor: row-resize !important;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-divider-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-divider);\r\n}\r\n\r\n.claude-plus-divider {\r\n  position: fixed;\r\n  pointer-events: auto;\r\n  background: transparent;\r\n}\r\n\r\n.claude-plus-divider--vertical {\r\n  cursor: col-resize;\r\n}\r\n\r\n.claude-plus-divider--horizontal {\r\n  cursor: row-resize;\r\n}\r\n\r\n.claude-plus-divider:hover {\r\n  background: var(--claude-plus-color-accent);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$7);
+  StyleRegistry.register(stylesheet$8);
 
   /**
    * Draws the dividers between split children on a layer above the panels, so they can be grabbed
@@ -7080,9 +7237,9 @@
     }
   }
 
-  var stylesheet$6 = ".claude-plus-drop-highlight[hidden] {\r\n  display: none !important;\r\n}\r\n\r\n.claude-plus-drag-label {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: var(--claude-plus-color-accent);\r\n  color: #fff;\r\n  padding: 4px 10px;\r\n  border-radius: 6px;\r\n  font-size: 12px;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-drop-highlight {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drop-highlight);\r\n  background: var(--claude-plus-color-accent-overlay);\r\n  border: 2px solid var(--claude-plus-color-accent);\r\n  pointer-events: none;\r\n  box-sizing: border-box;\r\n}\r\n";
+  var stylesheet$7 = ".claude-plus-drop-highlight[hidden] {\r\n  display: none !important;\r\n}\r\n\r\n.claude-plus-drag-label {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: var(--claude-plus-color-accent);\r\n  color: #fff;\r\n  padding: 4px 10px;\r\n  border-radius: 6px;\r\n  font-size: 12px;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-drop-highlight {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drop-highlight);\r\n  background: var(--claude-plus-color-accent-overlay);\r\n  border: 2px solid var(--claude-plus-color-accent);\r\n  pointer-events: none;\r\n  box-sizing: border-box;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$6);
+  StyleRegistry.register(stylesheet$7);
 
   /**
    * One drag of something to dock, a tab or a not yet existing panel: a floating label follows the
@@ -7289,9 +7446,9 @@
     }
   }
 
-  var stylesheet$5 = ".claude-plus-zone-chrome-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-zone-chrome);\r\n}\r\n\r\n.claude-plus-zone-frame {\r\n  position: fixed;\r\n  background: var(--claude-plus-color-background);\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-tab-strip {\r\n  position: fixed;\r\n  display: flex;\r\n  align-items: center;\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border);\r\n  overflow-x: auto;\r\n  box-sizing: border-box;\r\n  pointer-events: auto;\r\n}\r\n\r\n.claude-plus-tab {\r\n  padding: 5px 12px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n  border-right: 1px solid var(--claude-plus-color-border-faint);\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab--active {\r\n  color: var(--claude-plus-color-text);\r\n  border-bottom: 2px solid var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-tab {\r\n  display: flex;\r\n  align-items: center;\r\n  min-width: 0;\r\n  max-width: 220px;\r\n}\r\n\r\n.claude-plus-tab__label {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-tab__close-button {\r\n  flex-shrink: 0;\r\n  margin-left: 8px;\r\n  padding: 0 3px;\r\n  border-radius: 3px;\r\n  color: var(--claude-plus-color-text-faint);\r\n}\r\n\r\n.claude-plus-tab__close-button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__add-button {\r\n  padding: 5px 10px;\r\n  cursor: pointer;\r\n  color: var(--claude-plus-color-text-faint);\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__add-button:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-table-host {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n";
+  var stylesheet$6 = ".claude-plus-zone-chrome-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-zone-chrome);\r\n}\r\n\r\n.claude-plus-zone-frame {\r\n  position: fixed;\r\n  background: var(--claude-plus-color-background);\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-tab-strip {\r\n  position: fixed;\r\n  display: flex;\r\n  align-items: center;\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border);\r\n  overflow-x: auto;\r\n  box-sizing: border-box;\r\n  pointer-events: auto;\r\n}\r\n\r\n.claude-plus-tab {\r\n  padding: 5px 12px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n  border-right: 1px solid var(--claude-plus-color-border-faint);\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab--active {\r\n  color: var(--claude-plus-color-text);\r\n  border-bottom: 2px solid var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-tab {\r\n  display: flex;\r\n  align-items: center;\r\n  min-width: 0;\r\n  max-width: 220px;\r\n}\r\n\r\n.claude-plus-tab__label {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-tab__close-button {\r\n  flex-shrink: 0;\r\n  margin-left: 8px;\r\n  padding: 0 3px;\r\n  border-radius: 3px;\r\n  color: var(--claude-plus-color-text-faint);\r\n}\r\n\r\n.claude-plus-tab__close-button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__add-button {\r\n  padding: 5px 10px;\r\n  cursor: pointer;\r\n  color: var(--claude-plus-color-text-faint);\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__add-button:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-table-host {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$5);
+  StyleRegistry.register(stylesheet$6);
 
   /**
    * Draws each zone's frame and tab strip on a layer below the panels. A tab shows its panel's
@@ -7985,9 +8142,9 @@
     return epochMs ? new Date(epochMs).toLocaleDateString() : '';
   }
 
-  var stylesheet$4 = ".claude-plus-conversation:hover .claude-plus-conversation__action-button {\r\n  visibility: visible;\r\n}\r\n\r\n.claude-plus-conversation {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-conversation:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-conversation--active > td {\r\n  background: var(--claude-plus-color-accent-soft);\r\n}\r\n\r\n.claude-plus-conversation--open-elsewhere > td:first-child {\r\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-conversation__actions {\r\n  display: inline-flex;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-conversation__action-button {\r\n  visibility: hidden;\r\n  background: none;\r\n  border: none;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n  padding: 4px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-conversation__action-button:hover {\r\n  background: rgba(255, 255, 255, 0.1);\r\n}\r\n";
+  var stylesheet$5 = ".claude-plus-conversation:hover .claude-plus-conversation__action-button {\r\n  visibility: visible;\r\n}\r\n\r\n.claude-plus-conversation {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-conversation:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-conversation--active > td {\r\n  background: var(--claude-plus-color-accent-soft);\r\n}\r\n\r\n.claude-plus-conversation--open-elsewhere > td:first-child {\r\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-conversation__actions {\r\n  display: inline-flex;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-conversation__action-button {\r\n  visibility: hidden;\r\n  background: none;\r\n  border: none;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n  padding: 4px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-conversation__action-button:hover {\r\n  background: rgba(255, 255, 255, 0.1);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$4);
+  StyleRegistry.register(stylesheet$5);
 
   /**
    * Conversation list as a column table, with a quick title search, open in a new pane, delete, and
@@ -8424,9 +8581,9 @@
     }
   }
 
-  var stylesheet$3 = ".claude-plus-folder {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-folder:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-breadcrumb {\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  margin-bottom: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-breadcrumb__back-link {\r\n  color: var(--claude-plus-color-accent);\r\n  cursor: pointer;\r\n}\r\n";
+  var stylesheet$4 = ".claude-plus-folder {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-folder:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-breadcrumb {\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  margin-bottom: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-breadcrumb__back-link {\r\n  color: var(--claude-plus-color-accent);\r\n  cursor: pointer;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$3);
+  StyleRegistry.register(stylesheet$4);
 
   /**
    * Uploaded and produced files: a table of conversations with files, and per conversation a table
@@ -8853,9 +9010,9 @@
     }
   }
 
-  var stylesheet$2 = ".claude-plus-search-result {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-search-result:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n";
+  var stylesheet$3 = ".claude-plus-search-result {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-search-result:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$2);
+  StyleRegistry.register(stylesheet$3);
 
   /**
    * Structured search over chats, files, web sources and tool uses, e.g. `file:*.pdf`,
@@ -9042,9 +9199,9 @@
     return `${Math.round((usageWindow.utilization || 0) * 100) / 100}%`;
   }
 
-  var stylesheet$1 = ".claude-plus-value-row {\r\n  display: flex;\r\n  justify-content: space-between;\r\n  padding: 2px 0;\r\n  gap: 8px;\r\n}\r\n\r\n.claude-plus-value-row span {\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
+  var stylesheet$2 = ".claude-plus-value-row {\r\n  display: flex;\r\n  justify-content: space-between;\r\n  padding: 2px 0;\r\n  gap: 8px;\r\n}\r\n\r\n.claude-plus-value-row span {\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$1);
+  StyleRegistry.register(stylesheet$2);
 
   /**
    * HTML for a label/value row.
@@ -10427,9 +10584,9 @@
     }
   }
 
-  var stylesheet = ".claude-plus-toolbar {\r\n  position: fixed;\r\n  top: 0;\r\n  left: 0;\r\n  right: 0;\r\n  height: var(--claude-plus-toolbar-height);\r\n  z-index: var(--claude-plus-layer-toolbar);\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 14px;\r\n  padding: 0 10px;\r\n  font-size: 12px;\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-toolbar__title {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-toolbar__button {\r\n  background: var(--claude-plus-color-button);\r\n  border: none;\r\n  color: var(--claude-plus-color-text);\r\n  padding: 5px 10px;\r\n  border-radius: 6px;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-toolbar__button:hover {\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-toolbar__button:disabled {\r\n  opacity: 0.5;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-toolbar__font-size {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-toolbar__font-size input[type=range] {\r\n  width: 100px;\r\n}\r\n";
+  var stylesheet$1 = ".claude-plus-toolbar {\r\n  position: fixed;\r\n  top: 0;\r\n  left: 0;\r\n  right: 0;\r\n  height: var(--claude-plus-toolbar-height);\r\n  z-index: var(--claude-plus-layer-toolbar);\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 14px;\r\n  padding: 0 10px;\r\n  font-size: 12px;\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-toolbar__title {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-toolbar__button {\r\n  background: var(--claude-plus-color-button);\r\n  border: none;\r\n  color: var(--claude-plus-color-text);\r\n  padding: 5px 10px;\r\n  border-radius: 6px;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-toolbar__button:hover {\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-toolbar__button:disabled {\r\n  opacity: 0.5;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-toolbar__font-size {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-toolbar__font-size input[type=range] {\r\n  width: 100px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet);
+  StyleRegistry.register(stylesheet$1);
 
   /**
    * Top bar with the title, the message font size slider, the layout menu, the settings menu and
@@ -10616,6 +10773,327 @@
     }
   }
 
+  /**
+   * Derives a stable cache key for a widget call from its tool name and data, so identical widgets
+   * (even across different conversations) share one cached, already-extracted card.
+   */
+  class WidgetHash {
+    /**
+     * A hex-encoded SHA-256 hash of a widget's tool name and data.
+     * @param {string} toolName The widget tool's name.
+     * @param {object} data The widget's data.
+     * @returns {Promise<string>} The hash.
+     */
+    static async hashOf(toolName, data) {
+      const text = `${toolName}:${JSON.stringify(data)}`;
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+      return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+  }
+
+  /**
+   * Extracts a widget's real rendered card straight from claude.ai's own React app, run fresh and
+   * self-contained in a hidden same-origin iframe: no widget-specific rendering code of our own, no
+   * touching the page's own native app instance. The iframe loads the conversation, React renders
+   * the widget exactly as it normally would (its own hooks, its own context, all real), and once
+   * found by its tool call's id, the finished card's HTML and stylesheet URLs are read off and the
+   * iframe is torn down.
+   */
+  class WidgetIframeSource {
+    /**
+     * How long to wait for a widget to appear before giving up.
+     * @type {number}
+     */
+    static #TIMEOUT_MS = 20000;
+
+    /**
+     * Extracts a widget's rendered card.
+     * @param {string} conversationId Conversation the widget's message belongs to.
+     * @param {string} toolUseId Id of the widget's tool_use block.
+     * @returns {Promise<{html: string, cssHrefs: string[]}>} The card's outer HTML and the
+     * stylesheet URLs it depends on.
+     * @throws {Error} When the widget doesn't appear within the timeout.
+     */
+    static async extract(conversationId, toolUseId) {
+      const iframe = WidgetIframeSource.#createHiddenIframe(conversationId);
+      document.body.append(iframe);
+      try {
+        return await WidgetIframeSource.#waitForWidget(iframe, toolUseId);
+      } finally {
+        iframe.remove();
+      }
+    }
+
+    /**
+     * Creates a hidden iframe pointed at a conversation, ready to append.
+     * @param {string} conversationId Conversation to load.
+     * @returns {HTMLIFrameElement} The iframe.
+     */
+    static #createHiddenIframe(conversationId) {
+      return createElement('iframe', {
+        src: `https://claude.ai/chat/${conversationId}`,
+        style: 'position:fixed; top:-9999px; left:-9999px; width:900px; height:3000px; border:0;',
+      });
+    }
+
+    /**
+     * Polls the iframe until the widget appears or the timeout elapses.
+     * @param {HTMLIFrameElement} iframe The extraction iframe.
+     * @param {string} toolUseId Id of the widget's tool_use block.
+     * @returns {Promise<{html: string, cssHrefs: string[]}>} The extracted card.
+     * @throws {Error} When the widget doesn't appear within the timeout.
+     */
+    static #waitForWidget(iframe, toolUseId) {
+      return new Promise((resolve, reject) => {
+        const deadline = Date.now() + WidgetIframeSource.#TIMEOUT_MS;
+        const poll = () => WidgetIframeSource.#pollOnce(iframe, toolUseId, deadline, poll, resolve, reject);
+        poll();
+      });
+    }
+
+    /**
+     * One poll attempt: resolves if found, rejects past the deadline, else schedules another attempt.
+     * @param {HTMLIFrameElement} iframe The extraction iframe.
+     * @param {string} toolUseId Id of the widget's tool_use block.
+     * @param {number} deadline Epoch ms after which to give up.
+     * @param {function(): void} poll This function, to schedule the next attempt.
+     * @param {function({html: string, cssHrefs: string[]}): void} resolve Resolves the extraction.
+     * @param {function(Error): void} reject Rejects the extraction.
+     * @returns {void}
+     */
+    static #pollOnce(iframe, toolUseId, deadline, poll, resolve, reject) {
+      const found = WidgetIframeSource.#tryFind(iframe, toolUseId);
+      if (found) resolve(found);
+      else if (Date.now() > deadline) reject(new Error(`widget ${toolUseId} did not render within the timeout`));
+      else setTimeout(poll, TIMING.widgetExtractPollMs);
+    }
+
+    /**
+     * Looks for the widget in the iframe's current document, if it has loaded far enough to have one.
+     * @param {HTMLIFrameElement} iframe The extraction iframe.
+     * @param {string} toolUseId Id of the widget's tool_use block.
+     * @returns {?{html: string, cssHrefs: string[]}} The extracted card, or null when not found yet.
+     */
+    static #tryFind(iframe, toolUseId) {
+      const documentInFrame = WidgetIframeSource.#documentOf(iframe);
+      const rootElement = documentInFrame?.getElementById('root');
+      const rootFiber = rootElement ? WidgetIframeSource.#fiberOf(rootElement) : null;
+      if (!rootFiber) return null;
+      const hostElement = WidgetIframeSource.#findWidgetElement(rootFiber, toolUseId);
+      if (!hostElement) return null;
+      const cssHrefs = [...documentInFrame.querySelectorAll('link[rel="stylesheet"]')].map(link => link.href);
+      return { html: hostElement.outerHTML, cssHrefs };
+    }
+
+    /**
+     * The iframe's document, or null while it can't be read (not yet navigated, still loading).
+     * @param {HTMLIFrameElement} iframe The extraction iframe.
+     * @returns {?Document} The document, or null.
+     */
+    static #documentOf(iframe) {
+      try {
+        return iframe.contentDocument;
+      } catch {
+        return null;
+      }
+    }
+
+    /**
+     * React's internal fiber for a DOM node, if it manages one.
+     * @param {HTMLElement} element The element.
+     * @returns {?object} The fiber, or null.
+     */
+    static #fiberOf(element) {
+      const fiberKey = Object.getOwnPropertyNames(element).find(name => name.startsWith('__reactFiber') || name.startsWith('__reactContainer'));
+      return fiberKey ? element[fiberKey] : null;
+    }
+
+    /**
+     * The rendered DOM element of the widget matching a tool call id, searching the whole fiber
+     * tree generically (works for every widget type, since it looks for the tool call id claude.ai
+     * itself passes as a prop, not for anything specific to one widget's layout).
+     * @param {object} rootFiber Root fiber to search from.
+     * @param {string} toolUseId Id of the widget's tool_use block.
+     * @returns {?HTMLElement} The widget's outermost rendered element, or null when not found.
+     */
+    static #findWidgetElement(rootFiber, toolUseId) {
+      const matchingFiber = WidgetIframeSource.#findMatchingFiber(rootFiber, new Set(), toolUseId);
+      return matchingFiber ? WidgetIframeSource.#firstHostElement(matchingFiber) : null;
+    }
+
+    /**
+     * Depth-first search of the fiber tree for a node whose props carry a given tool call id.
+     * @param {?object} fiber Fiber to check, or null past the end of a branch.
+     * @param {Set<object>} visited Fibers already checked, since child/sibling links can cross-reference.
+     * @param {string} toolUseId Id of the widget's tool_use block.
+     * @returns {?object} The matching fiber, or null.
+     */
+    static #findMatchingFiber(fiber, visited, toolUseId) {
+      if (!fiber || visited.has(fiber)) return null;
+      visited.add(fiber);
+      if (WidgetIframeSource.#isWidgetFiber(fiber, toolUseId)) return fiber;
+      return WidgetIframeSource.#findMatchingFiber(fiber.child, visited, toolUseId) || WidgetIframeSource.#findMatchingFiber(fiber.sibling, visited, toolUseId);
+    }
+
+    /**
+     * Whether a fiber's props identify it as the widget with a given tool call id.
+     * @param {object} fiber The fiber.
+     * @param {string} toolUseId Id of the widget's tool_use block.
+     * @returns {boolean} True when its props carry a matching toolUseId.
+     */
+    static #isWidgetFiber(fiber, toolUseId) {
+      const props = fiber.memoizedProps;
+      return Boolean(props) && typeof props === 'object' && props.toolUseId === toolUseId && 'input' in props;
+    }
+
+    /**
+     * The first real DOM element a fiber (or its descendants) renders to.
+     * @param {object} fiber The fiber.
+     * @returns {?HTMLElement} The element, or null when it renders nothing yet.
+     */
+    static #firstHostElement(fiber) {
+      let node = fiber;
+      while (node) {
+        if (node.stateNode instanceof HTMLElement) return node.stateNode;
+        node = node.child;
+      }
+      return null;
+    }
+  }
+
+  var stylesheet = ".claude-plus-widget-slot {\n  min-height: 48px;\n  margin: 6px 0;\n  padding: 10px 12px;\n  border-radius: 8px;\n  background: var(--claude-plus-color-tool-details);\n  color: var(--claude-plus-color-text-faint);\n  font-size: 12px;\n}\n\n.claude-plus-widget-slot__message {\n  color: var(--claude-plus-color-text-faint);\n  font-size: 12px;\n}\n\n.claude-plus-widget-card {\n  display: block;\n}\n";
+
+  StyleRegistry.register(stylesheet);
+
+  /**
+   * Mounts an extracted widget card into a container via a shadow root, so claude.ai's own
+   * stylesheet (which resets bare tag selectors) only ever applies inside the card, never leaking
+   * out to the rest of ClaudePlus, and none of ClaudePlus's own styles leak in.
+   */
+  class WidgetMount {
+    /**
+     * Replaces a container's content with an isolated widget card.
+     * @param {HTMLElement} container Element to mount into; its existing content is replaced.
+     * @param {{html: string, css: string}} card The extracted card.
+     * @returns {void}
+     */
+    static show(container, card) {
+      container.textContent = '';
+      const shadow = container.attachShadow({ mode: 'open' });
+      shadow.append(createElement('style', { textContent: card.css }));
+      shadow.append(createElement('div', { className: 'claude-plus-widget-card', innerHTML: card.html }));
+    }
+
+    /**
+     * Shows a message in place of a widget that couldn't be extracted.
+     * @param {HTMLElement} container Element to show the message in.
+     * @param {string} text The message.
+     * @returns {void}
+     */
+    static showUnavailable(container, text) {
+      container.textContent = '';
+      container.append(createElement('div', { className: 'claude-plus-widget-slot__message', textContent: text }));
+    }
+  }
+
+  /**
+   * Renders a widget tool call's real card into a slot element: a cached copy if this exact widget
+   * (by tool name and data) was extracted before, or a fresh extraction from a hidden iframe
+   * otherwise. Stylesheets are fetched once per session and reused across every widget.
+   */
+  class WidgetExtractor {
+    /**
+     * A stylesheet URL's already-started fetch, kept for the page's lifetime so every widget shares it.
+     * @type {Map<string, Promise<string>>}
+     */
+    #cssPromisesByHref = new Map();
+
+    /**
+     * Persisted extracted-card cache.
+     * @type {IndexedDbStore}
+     */
+    #database;
+
+    /**
+     * Creates the extractor on top of a persisted cache.
+     * @param {IndexedDbStore} database Persisted extracted-card cache.
+     */
+    constructor(database) {
+      this.#database = database;
+    }
+
+    /**
+     * Fills a slot element with a widget's real card, from cache or by extracting it fresh.
+     * @param {HTMLElement} container Slot element to fill.
+     * @param {?string} conversationId Conversation the widget's message belongs to; null for an
+     * unsaved local message, which can't be extracted.
+     * @param {{toolName: string, data: object, toolUseId: string}} job The widget to render.
+     * @returns {Promise<void>} Resolves once the slot has been filled, with the card or a failure message.
+     */
+    async render(container, conversationId, job) {
+      try {
+        const card = await this.#cardFor(conversationId, job);
+        WidgetMount.show(container, card);
+      } catch (error) {
+        WidgetMount.showUnavailable(container, `Couldn't render this widget (${job.toolName}).`);
+        console.warn(LOG_PREFIX, 'widget extraction failed', error);
+      }
+    }
+
+    /**
+     * A widget's card, from the persisted cache if present, else freshly extracted and cached.
+     * @param {?string} conversationId Conversation the widget's message belongs to.
+     * @param {{toolName: string, data: object, toolUseId: string}} job The widget to render.
+     * @returns {Promise<{html: string, css: string}>} The card.
+     * @throws {Error} When there is no conversation to extract from, or extraction fails.
+     */
+    async #cardFor(conversationId, job) {
+      const hash = await WidgetHash.hashOf(job.toolName, job.data);
+      const cached = await this.#database.read(DATABASE.stores.widgetCards, hash);
+      if (cached) return cached;
+      if (!conversationId) throw new Error('no conversation to extract this widget from');
+      const card = await this.#extract(conversationId, job.toolUseId);
+      await this.#database.write(DATABASE.stores.widgetCards, { hash, ...card });
+      return card;
+    }
+
+    /**
+     * Extracts a widget's card and its stylesheets' combined text.
+     * @param {string} conversationId Conversation the widget's message belongs to.
+     * @param {string} toolUseId Id of the widget's tool_use block.
+     * @returns {Promise<{html: string, css: string}>} The card.
+     */
+    async #extract(conversationId, toolUseId) {
+      const extracted = await WidgetIframeSource.extract(conversationId, toolUseId);
+      const cssParts = await Promise.all(extracted.cssHrefs.map(href => this.#cssTextOf(href)));
+      return { html: extracted.html, css: cssParts.join('\n') };
+    }
+
+    /**
+     * A stylesheet's text, fetched once per URL and reused for every widget that needs it.
+     * @param {string} href Stylesheet URL.
+     * @returns {Promise<string>} Its text, or an empty string when it couldn't be fetched.
+     */
+    #cssTextOf(href) {
+      if (!this.#cssPromisesByHref.has(href)) this.#cssPromisesByHref.set(href, WidgetExtractor.#fetchText(href));
+      return this.#cssPromisesByHref.get(href);
+    }
+
+    /**
+     * Fetches a URL's text, failing soft to an empty string.
+     * @param {string} href URL to fetch.
+     * @returns {Promise<string>} Its text, or an empty string on failure.
+     */
+    static async #fetchText(href) {
+      try {
+        const response = await fetch(href);
+        return response.ok ? await response.text() : '';
+      } catch {
+        return '';
+      }
+    }
+  }
+
   var nativeAppHidingStylesheet = "#root,\r\n#portal-root {\r\n  display: none !important;\r\n}\r\n";
 
   var themeStylesheet = ":root {\r\n  --claude-plus-color-background: #1a1918;\r\n  --claude-plus-color-bar: #1c1b1a;\r\n  --claude-plus-color-raised: #262523;\r\n  --claude-plus-color-raised-hover: #3a3937;\r\n  --claude-plus-color-tool-details: #232221;\r\n  --claude-plus-color-code-block: #101010;\r\n  --claude-plus-color-button: #333;\r\n  --claude-plus-color-button-hover: #444;\r\n  --claude-plus-color-text: #ececec;\r\n  --claude-plus-color-text-muted: #b8b6b3;\r\n  --claude-plus-color-text-faint: #8a8886;\r\n  --claude-plus-color-accent: #d97757;\r\n  --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);\r\n  --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);\r\n  --claude-plus-color-message-human-bg: rgba(255, 255, 255, 0.07);\r\n  --claude-plus-color-error: #e57373;\r\n  --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);\r\n  --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);\r\n  --claude-plus-color-border: rgba(255, 255, 255, 0.08);\r\n  --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);\r\n  --claude-plus-color-hover: rgba(255, 255, 255, 0.06);\r\n  --claude-plus-font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\r\n  --claude-plus-layer-zone-chrome: 2147480000;\r\n  --claude-plus-layer-panel: 2147480500;\r\n  --claude-plus-layer-divider: 2147480600;\r\n  --claude-plus-layer-toolbar: 2147483000;\r\n  --claude-plus-layer-popup-menu: 2147483001;\r\n  --claude-plus-layer-drop-highlight: 2147483646;\r\n  --claude-plus-layer-drag-label: 2147483647;\r\n}\r\n\r\n.claude-plus-themed {\r\n  font-family: var(--claude-plus-font-family);\r\n  color: var(--claude-plus-color-text);\r\n  color-scheme: dark;\r\n}\r\n\r\n.claude-plus-themed [hidden],\r\n.claude-plus-themed[hidden] {\r\n  display: none !important;\r\n}\r\n";
@@ -10686,7 +11164,8 @@
       const stats = new StatsIndex(api, database);
       const activity = new ActivityTracker(database);
       const rateLimits = new RateLimitMonitor(api);
-      const paneManager = new ChatPaneManager({ api, settings, directory, preferences, stats });
+      const widgetExtractor = new WidgetExtractor(database);
+      const paneManager = new ChatPaneManager({ api, settings, directory, preferences, stats, widgetExtractor });
       const router = new Router(paneManager);
       ClaudePlusApp.#connectServices({ directory, paneManager, stats, rateLimits });
       paneManager.restorePanes(conversationIdFromPath(location.pathname));

@@ -1,7 +1,11 @@
+import { WIDGET_TOOL_NAMES } from '../config/WIDGET_TOOL_NAMES.js';
+
 /**
- * Groups a message's thinking and tool-call content blocks into a chronological list of steps —
- * each tool call paired with its result — so a message's "thinking and tool calls" sub-pane can
- * list what happened without that ever appearing in the chat log itself.
+ * Groups a message's thinking and ordinary tool-call content blocks into a chronological list of
+ * steps — each tool call paired with its result — so a message's "thinking and tool calls"
+ * sub-pane can list what happened without that ever appearing in the chat log itself. A widget
+ * tool call (see WIDGET_TOOL_NAMES) is excluded here since it renders inline in the message
+ * instead (see MessageContent), not hidden in this sub-pane.
  */
 export class MessageToolSteps {
   /**
@@ -27,7 +31,7 @@ export class MessageToolSteps {
    */
   static #addBlock(block, steps, stepByToolUseId) {
     if (block.type === 'thinking') steps.push({ kind: 'thinking', block });
-    else if (block.type === 'tool_use') MessageToolSteps.#addToolUse(block, steps, stepByToolUseId);
+    else if (block.type === 'tool_use' && !WIDGET_TOOL_NAMES.includes(block.name)) MessageToolSteps.#addToolUse(block, steps, stepByToolUseId);
     else if (block.type === 'tool_result') MessageToolSteps.#attachResult(block, stepByToolUseId);
   }
 

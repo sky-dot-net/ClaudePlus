@@ -22,6 +22,7 @@ import { SettingsTransfer } from '../settings/SettingsTransfer.js';
 import { StatsIndex } from '../stats/StatsIndex.js';
 import { StyleRegistry } from '../styles/StyleRegistry.js';
 import { Toolbar } from '../ui/Toolbar.js';
+import { WidgetExtractor } from '../chat/widgets/WidgetExtractor.js';
 import { conversationIdFromPath } from '../routing/conversationIdFromPath.js';
 import { createElement } from '../dom/createElement.js';
 import nativeAppHidingStylesheet from './nativeAppHiding.css';
@@ -93,7 +94,8 @@ export class ClaudePlusApp {
     const stats = new StatsIndex(api, database);
     const activity = new ActivityTracker(database);
     const rateLimits = new RateLimitMonitor(api);
-    const paneManager = new ChatPaneManager({ api, settings, directory, preferences, stats });
+    const widgetExtractor = new WidgetExtractor(database);
+    const paneManager = new ChatPaneManager({ api, settings, directory, preferences, stats, widgetExtractor });
     const router = new Router(paneManager);
     ClaudePlusApp.#connectServices({ directory, paneManager, stats, rateLimits });
     paneManager.restorePanes(conversationIdFromPath(location.pathname));
