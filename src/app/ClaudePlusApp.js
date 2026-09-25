@@ -10,20 +10,22 @@ import { DockTree } from '../dock/DockTree.js';
 import { DockWorkspace } from '../dock/DockWorkspace.js';
 import { IndexedDbStore } from '../core/IndexedDbStore.js';
 import { KeyboardShortcuts } from '../ui/KeyboardShortcuts.js';
+import { LAYOUT } from '../config/LAYOUT.js';
 import { LOG_PREFIX } from '../config/LOG_PREFIX.js';
 import { LayoutLibrary } from '../dock/LayoutLibrary.js';
-import { NATIVE_APP_HIDING_STYLES } from '../styles/NATIVE_APP_HIDING_STYLES.js';
 import { PanelFactory } from '../dock/PanelFactory.js';
 import { Preferences } from '../core/Preferences.js';
 import { RateLimitMonitor } from '../stats/RateLimitMonitor.js';
 import { Router } from '../routing/Router.js';
 import { STORAGE_KEYS } from '../config/STORAGE_KEYS.js';
-import { STYLES } from '../styles/STYLES.js';
 import { SettingsTransfer } from '../settings/SettingsTransfer.js';
 import { StatsIndex } from '../stats/StatsIndex.js';
+import { StyleRegistry } from '../styles/StyleRegistry.js';
 import { Toolbar } from '../ui/Toolbar.js';
 import { conversationIdFromPath } from '../routing/conversationIdFromPath.js';
 import { createElement } from '../dom/createElement.js';
+import nativeAppHidingStylesheet from './nativeAppHiding.css';
+import themeStylesheet from '../ui/theme.css';
 
 /**
  * Composes every part of the UI and starts it.
@@ -38,6 +40,16 @@ export class ClaudePlusApp {
     for (const [storeKey, storeName] of Object.entries(DATABASE.stores)) {
       if (!database.objectStoreNames.contains(storeName)) database.createObjectStore(storeName, { keyPath: DATABASE.keyPaths[storeKey] });
     }
+  }
+
+  /**
+   * The stylesheet of the whole UI: the theme variables, the toolbar height from the layout
+   * configuration, then the stylesheets every component registered.
+   * @returns {string} The stylesheet text.
+   */
+  static #interfaceStylesheet() {
+    const layoutVariables = `:root { --claude-plus-toolbar-height: ${LAYOUT.toolbarHeight}px; }`;
+    return [themeStylesheet, layoutVariables, StyleRegistry.combinedCss].join('\n');
   }
 
   /**
@@ -57,7 +69,7 @@ export class ClaudePlusApp {
   static #mountOrRestore() {
     try {
       const services = ClaudePlusApp.#mountInterface();
-      document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: NATIVE_APP_HIDING_STYLES }));
+      document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: nativeAppHidingStylesheet }));
       return services;
     } catch (error) {
       ClaudePlusApp.#removeInterface();
@@ -72,7 +84,7 @@ export class ClaudePlusApp {
    * @throws {Error} When any part fails to build or mount.
    */
   static #mountInterface() {
-    document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: STYLES }));
+    document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: ClaudePlusApp.#interfaceStylesheet() }));
     const preferences = new Preferences();
     const api = new ClaudeApi();
     const database = new IndexedDbStore({ name: DATABASE.name, version: DATABASE.version, upgrade: ClaudePlusApp.#createMissingStores });

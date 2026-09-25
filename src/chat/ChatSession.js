@@ -1,11 +1,13 @@
 import { ChatMessage } from './ChatMessage.js';
-import { ConversationTree } from './ConversationTree.js';
 import { EventEmitter } from '../core/EventEmitter.js';
 import { LOG_PREFIX } from '../config/LOG_PREFIX.js';
+import { NavigationCounter } from './NavigationCounter.js';
 import { ROOT_MESSAGE_UUID } from '../config/ROOT_MESSAGE_UUID.js';
-import { STREAM_START } from '../config/STREAM_START.js';
+import { StreamEventApplier } from './StreamEventApplier.js';
 import { Turn } from './Turn.js';
+import { createErrorNotice } from './createErrorNotice.js';
 import { createLocalMessageId } from './createLocalMessageId.js';
+import { currentBranchMessages } from './currentBranchMessages.js';
 
 /**
  * One chat: the conversation open in a chat pane, its messages and the prompt being sent. Every
@@ -68,21 +70,20 @@ export class ChatSession extends EventEmitter {
   #abortController = null;
 
   /**
-   * Incremented on every navigation, so late responses for an old one are dropped.
-   * @type {number}
+   * Numbers navigations, so late responses for an old one are dropped.
+   * @type {NavigationCounter}
    */
-  #navigationCount = 0;
+  #navigations = new NavigationCounter();
 
   /**
-   * Handler per stream event type.
-   * @type {Map<string, function(Turn, object): void>}
+   * Applies completion stream events to the turn being sent.
+   * @type {StreamEventApplier}
    */
-  #streamEventHandlers = new Map([
-    [STREAM_START, (turn, event) => this.#onStreamStart(turn, event)],
-    ['content_block_delta', (turn, event) => this.#onContentDelta(turn, event)],
-    ['message_limit', (turn, event) => this.#onMessageLimit(event)],
-    ['message_stop', turn => this.#onMessageStop(turn)],
-  ]);
+  #streamEvents = new StreamEventApplier({
+    appendMessage: message => this.#setMessages([...this.#messages, message]),
+    registerNewConversation: (conversationId, prompt) => this.#registerNewConversation(conversationId, prompt),
+    publish: (eventName, payload) => this.publish(eventName, payload),
+  });
 
   /**
    * Creates an empty session showing a new chat.
@@ -150,7 +151,7 @@ export class ChatSession extends EventEmitter {
     const navigation = this.#beginNavigation(conversationId);
     try {
       const conversation = await this.#api.getConversation(conversationId);
-      if (this.#isLatestNavigation(navigation)) this.#showConversation(conversation);
+      if (this.#navigations.isLatest(navigation)) this.#showConversation(conversation);
     } catch (error) {
       this.#showLoadError(navigation, error);
     }
@@ -203,31 +204,22 @@ export class ChatSession extends EventEmitter {
    */
   #beginNavigation(conversationId) {
     this.stopReply();
-    this.#navigationCount += 1;
+    const navigation = this.#navigations.begin();
     this.#setOpenConversation(conversationId);
     this.#setMessages([]);
-    return this.#navigationCount;
-  }
-
-  /**
-   * Whether a navigation is still the latest one.
-   * @param {number} navigation Number returned by #beginNavigation.
-   * @returns {boolean} True if no navigation happened since.
-   */
-  #isLatestNavigation(navigation) {
-    return navigation === this.#navigationCount;
+    return navigation;
   }
 
   /**
    * Shows a conversation load failure, unless the user has navigated away since.
-   * @param {number} navigation Number of the failed navigation.
+   * @param {number} navigation Number of the failed navigation, from NavigationCounter.begin().
    * @param {Error} error The failure.
    * @returns {void}
    */
   #showLoadError(navigation, error) {
-    if (!this.#isLatestNavigation(navigation)) return;
+    if (!this.#navigations.isLatest(navigation)) return;
     console.warn(LOG_PREFIX, 'loading conversation failed', error);
-    this.#setMessages([ChatSession.#createErrorNotice(`Could not load this conversation (${error.message}).`)]);
+    this.#setMessages([createErrorNotice(`Could not load this conversation (${error.message}).`)]);
   }
 
   /**
@@ -291,74 +283,7 @@ export class ChatSession extends EventEmitter {
       fileUuids: turn.files.map(file => file.file_uuid),
       signal: turn.abortController.signal,
     });
-    for await (const event of events) this.#handleStreamEvent(turn, event);
-  }
-
-  /**
-   * Applies one stream event; unknown types are ignored.
-   * @param {Turn} turn The turn.
-   * @param {StreamEvent} event The event.
-   * @returns {void}
-   */
-  #handleStreamEvent(turn, event) {
-    const handleEvent = this.#streamEventHandlers.get(event.type);
-    if (handleEvent) handleEvent(turn, event);
-  }
-
-  /**
-   * Marks the prompt as accepted and adds the empty reply; registers a new conversation.
-   * @param {Turn} turn The turn.
-   * @param {{humanMessageId: string, assistantMessageId: string}} event The STREAM_START event.
-   * @returns {void}
-   */
-  #onStreamStart(turn, event) {
-    turn.promptMessage.id = event.humanMessageId;
-    turn.promptMessage.isPersisted = true;
-    turn.replyMessage = new ChatMessage({ id: event.assistantMessageId, parentId: event.humanMessageId, sender: 'assistant', isStreaming: true });
-    if (turn.isNewConversation) this.#registerNewConversation(turn.conversationId, turn.prompt);
-    this.#setMessages([...this.#messages, turn.replyMessage]);
-  }
-
-  /**
-   * Appends streamed reply text.
-   * @param {Turn} turn The turn.
-   * @param {{delta: ?{type: string, text: string}}} event A content_block_delta event.
-   * @returns {void}
-   */
-  #onContentDelta(turn, event) {
-    if (!turn.replyMessage || !ChatSession.#isTextDelta(event)) return;
-    turn.replyMessage.appendText(event.delta.text);
-    this.publish('messageContent', turn.replyMessage);
-  }
-
-  /**
-   * Whether a content_block_delta event carries text.
-   * @param {{delta: ?{type: string}}} event The event.
-   * @returns {boolean} True for text deltas.
-   */
-  static #isTextDelta(event) {
-    return Boolean(event.delta) && event.delta.type === 'text_delta';
-  }
-
-  /**
-   * Publishes the usage windows reported during the stream.
-   * @param {{message_limit: ?{windows: ?Object<string, UsageWindow>}}} event A message_limit event.
-   * @returns {void}
-   */
-  #onMessageLimit(event) {
-    const windows = event.message_limit ? event.message_limit.windows : null;
-    if (windows) this.publish('rateLimits', { fiveHour: windows['5h'], sevenDay: windows['7d'] });
-  }
-
-  /**
-   * Marks the reply as complete.
-   * @param {Turn} turn The turn.
-   * @returns {void}
-   */
-  #onMessageStop(turn) {
-    if (!turn.replyMessage) return;
-    turn.replyMessage.isStreaming = false;
-    this.publish('messageContent', turn.replyMessage);
+    for await (const event of events) this.#streamEvents.apply(turn, event);
   }
 
   /**
@@ -373,7 +298,7 @@ export class ChatSession extends EventEmitter {
     turn.hasFailed = true;
     console.warn(LOG_PREFIX, 'send failed', error);
     if (turn.replyMessage) turn.replyMessage.errorText = error.message;
-    else this.#messages.push(ChatSession.#createErrorNotice(error.message));
+    else this.#messages.push(createErrorNotice(error.message));
   }
 
   /**
@@ -401,7 +326,7 @@ export class ChatSession extends EventEmitter {
       const conversation = await this.#api.getConversation(conversationId);
       this.#directory.updateListing(conversation);
       this.publish('conversationLoaded', conversation);
-      if (replaceMessages && this.#isOpenAndIdle(conversationId)) this.#setMessages(ChatSession.#branchMessages(conversation));
+      if (replaceMessages && this.#isOpenAndIdle(conversationId)) this.#setMessages(currentBranchMessages(conversation));
     } catch (error) {
       console.warn(LOG_PREFIX, 'refreshing conversation failed', error);
     }
@@ -422,17 +347,8 @@ export class ChatSession extends EventEmitter {
    * @returns {void}
    */
   #showConversation(conversation) {
-    this.#setMessages(ChatSession.#branchMessages(conversation));
+    this.#setMessages(currentBranchMessages(conversation));
     this.publish('conversationLoaded', conversation);
-  }
-
-  /**
-   * Chat messages of a conversation's current branch.
-   * @param {ApiConversation} conversation The conversation.
-   * @returns {ChatMessage[]} The messages, oldest first.
-   */
-  static #branchMessages(conversation) {
-    return ConversationTree.currentBranch(conversation).map(apiMessage => ChatMessage.fromApi(apiMessage));
   }
 
   /**
@@ -454,15 +370,6 @@ export class ChatSession extends EventEmitter {
   #lastPersistedMessageIdBefore(index) {
     const message = this.#messages.slice(0, index).findLast(candidate => candidate.isPersisted);
     return message ? message.id : null;
-  }
-
-  /**
-   * Creates a local assistant message showing an error.
-   * @param {string} errorText Error text.
-   * @returns {ChatMessage} The notice.
-   */
-  static #createErrorNotice(errorText) {
-    return new ChatMessage({ id: createLocalMessageId(), sender: 'assistant', isPersisted: false, errorText });
   }
 
   /**

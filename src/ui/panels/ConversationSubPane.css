@@ -1,0 +1,42 @@
+.claude-plus-subpane {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  flex: 1;
+  padding: 6px;
+  border: 1px solid var(--claude-plus-color-border-strong);
+  border-radius: 6px;
+  background: var(--claude-plus-color-bar);
+}
+
+.claude-plus-subpane__header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.claude-plus-subpane__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.claude-plus-subpane__button {
+  background: none;
+  border: none;
+  color: var(--claude-plus-color-text-faint);
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.claude-plus-subpane__button:hover {
+  background: var(--claude-plus-color-hover);
+  color: var(--claude-plus-color-text);
+}

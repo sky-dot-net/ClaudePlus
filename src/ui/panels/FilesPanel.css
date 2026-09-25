@@ -1,0 +1,19 @@
+.claude-plus-folder {
+  cursor: pointer;
+}
+
+.claude-plus-folder:hover > td {
+  background: var(--claude-plus-color-hover);
+}
+
+.claude-plus-breadcrumb {
+  font-size: 12px;
+  color: var(--claude-plus-color-text-muted);
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.claude-plus-breadcrumb__back-link {
+  color: var(--claude-plus-color-accent);
+  cursor: pointer;
+}

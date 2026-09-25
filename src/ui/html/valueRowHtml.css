@@ -1,0 +1,10 @@
+.claude-plus-value-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  gap: 8px;
+}
+
+.claude-plus-value-row span {
+  color: var(--claude-plus-color-text-muted);
+}

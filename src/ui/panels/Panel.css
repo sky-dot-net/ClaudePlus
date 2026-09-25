@@ -1,0 +1,89 @@
+.claude-plus-panel {
+  position: fixed;
+  z-index: var(--claude-plus-layer-panel);
+  box-sizing: border-box;
+  padding: 10px 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  background: var(--claude-plus-color-background);
+}
+
+.claude-plus-panel summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.claude-plus-panel select,
+.claude-plus-panel input[type=text],
+.claude-plus-panel input[type=date],
+.claude-plus-panel textarea {
+  background: var(--claude-plus-color-bar);
+  border: 1px solid var(--claude-plus-color-border-strong);
+  border-radius: 6px;
+  color: var(--claude-plus-color-text);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.claude-plus-panel__section {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--claude-plus-color-hover);
+  flex-shrink: 0;
+}
+
+.claude-plus-panel__section:last-child {
+  border-bottom: none;
+}
+
+.claude-plus-spaced-above {
+  margin-top: 6px;
+}
+
+.claude-plus-hint {
+  color: var(--claude-plus-color-text-faint);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.claude-plus-scrollable {
+  overflow-y: auto;
+}
+
+.claude-plus-fill-remaining {
+  flex: 1;
+  min-height: 0;
+}
+
+.claude-plus-pending {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.claude-plus-primary-button {
+  padding: 8px;
+  background: var(--claude-plus-color-accent);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.claude-plus-primary-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.claude-plus-full-width {
+  width: 100%;
+}
+
+.claude-plus-search-input {
+  flex-shrink: 0;
+  padding: 6px 8px;
+}

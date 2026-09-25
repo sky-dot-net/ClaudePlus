@@ -1,0 +1,22 @@
+.claude-plus-value-combobox {
+  position: fixed;
+  z-index: var(--claude-plus-layer-popup-menu);
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--claude-plus-color-raised);
+  border: 1px solid var(--claude-plus-color-border-strong);
+  border-radius: 6px;
+  padding: 4px;
+  font-size: 12px;
+}
+
+.claude-plus-value-combobox__entry {
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.claude-plus-value-combobox__entry:hover {
+  background: var(--claude-plus-color-raised-hover);
+}

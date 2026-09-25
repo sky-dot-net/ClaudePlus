@@ -1,0 +1,7 @@
+.claude-plus-search-result {
+  cursor: pointer;
+}
+
+.claude-plus-search-result:hover > td {
+  background: var(--claude-plus-color-hover);
+}

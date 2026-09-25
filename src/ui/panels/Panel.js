@@ -1,5 +1,9 @@
+import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { collectNamedElements } from '../../dom/collectNamedElements.js';
 import { createElement } from '../../dom/createElement.js';
+import stylesheet from './Panel.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * A dockable panel. Its DOM is built on first access and immediately rendered from current state,

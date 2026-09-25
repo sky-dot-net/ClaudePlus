@@ -1,4 +1,8 @@
+import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { escapeHtml } from '../../text/escapeHtml.js';
+import stylesheet from './valueRowHtml.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * HTML for a label/value row.

@@ -1,7 +1,11 @@
 import { ATTACHMENT_NAME_FIELDS } from '../config/ATTACHMENT_NAME_FIELDS.js';
 import { LIMITS } from '../config/LIMITS.js';
 import { Markdown } from '../text/Markdown.js';
+import { StyleRegistry } from '../styles/StyleRegistry.js';
 import { escapeHtml } from '../text/escapeHtml.js';
+import stylesheet from './MessageContent.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * Reads text, uploads and renderable HTML from API messages.

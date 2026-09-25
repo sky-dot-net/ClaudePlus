@@ -1,9 +1,13 @@
 import { PopupMenu } from './PopupMenu.js';
+import { PromptDialog } from './dialogs/PromptDialog.js';
 import { STORAGE_KEYS } from '../config/STORAGE_KEYS.js';
+import { StyleRegistry } from '../styles/StyleRegistry.js';
 import { clamp } from '../math/clamp.js';
 import { collectNamedElements } from '../dom/collectNamedElements.js';
 import { createElement } from '../dom/createElement.js';
-import { promptDialog } from './dialogs/promptDialog.js';
+import stylesheet from './Toolbar.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * Top bar with the title, the message font size slider, the layout menu, the settings menu and
@@ -135,7 +139,7 @@ export class Toolbar {
    * @returns {Promise<void>} Resolves once saved or cancelled.
    */
   async #askNameAndSave() {
-    const name = await promptDialog('Name of this layout:', '', 'Save');
+    const name = await PromptDialog.ask('Name of this layout:', '', 'Save');
     if (name && name.trim()) this.#layoutLibrary.save(name.trim());
   }
 

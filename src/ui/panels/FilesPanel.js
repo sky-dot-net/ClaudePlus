@@ -1,8 +1,12 @@
 import { ColumnTable } from '../tables/ColumnTable.js';
 import { Panel } from './Panel.js';
-import { TableColumns } from '../tables/TableColumns.js';
+import { StyleRegistry } from '../../styles/StyleRegistry.js';
+import { createFileColumns } from '../tables/createFileColumns.js';
 import { escapeHtml } from '../../text/escapeHtml.js';
 import { formatTimestamp } from '../../time/formatTimestamp.js';
+import stylesheet from './FilesPanel.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * Uploaded and produced files: a table of conversations with files, and per conversation a table
@@ -79,7 +83,7 @@ export class FilesPanel extends Panel {
     this.#fileTable = new ColumnTable({
       container: this.elements.fileTableHost,
       tableId: 'files',
-      columns: TableColumns.files(false),
+      columns: createFileColumns(false),
       preferences: this.#preferences,
       defaultSort: { column: 'date', direction: -1 },
       rowAttributes: () => '',

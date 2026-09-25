@@ -1,0 +1,36 @@
+html.claude-plus-resizing-horizontally,
+html.claude-plus-resizing-horizontally * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+html.claude-plus-resizing-vertically,
+html.claude-plus-resizing-vertically * {
+  cursor: row-resize !important;
+  user-select: none;
+}
+
+.claude-plus-divider-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--claude-plus-layer-divider);
+}
+
+.claude-plus-divider {
+  position: fixed;
+  pointer-events: auto;
+  background: transparent;
+}
+
+.claude-plus-divider--vertical {
+  cursor: col-resize;
+}
+
+.claude-plus-divider--horizontal {
+  cursor: row-resize;
+}
+
+.claude-plus-divider:hover {
+  background: var(--claude-plus-color-accent);
+}

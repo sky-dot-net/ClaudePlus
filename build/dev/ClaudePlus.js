@@ -253,6 +253,72 @@
   }
 
   /**
+   * Which columns of a table are shown. Always-visible columns can never be hidden.
+   */
+  class ColumnVisibility {
+    /**
+     * All columns, in display order.
+     * @type {TableColumn[]}
+     */
+    #columns;
+
+    /**
+     * Ids of the visible columns.
+     * @type {Set<string>}
+     */
+    #visibleColumnIds;
+
+    /**
+     * Restores the visible columns from stored ids, or uses the columns visible by default.
+     * @param {TableColumn[]} columns All columns, in display order.
+     * @param {*} storedIds Stored ids of the visible columns; ignored unless an array.
+     */
+    constructor(columns, storedIds) {
+      this.#columns = columns;
+      const columnIds = columns.map(column => column.id);
+      const knownStoredIds = Array.isArray(storedIds) ? storedIds.filter(columnId => columnIds.includes(columnId)) : null;
+      this.#visibleColumnIds = new Set(knownStoredIds ?? columns.filter(column => column.isVisibleByDefault).map(column => column.id));
+      columns.filter(column => column.isAlwaysVisible).forEach(column => this.#visibleColumnIds.add(column.id));
+    }
+
+    /**
+     * Columns currently shown.
+     * @returns {TableColumn[]} The visible columns, in display order.
+     */
+    get visibleColumns() {
+      return this.#columns.filter(column => this.#visibleColumnIds.has(column.id));
+    }
+
+    /**
+     * Ids of the visible columns, in a storable form.
+     * @returns {string[]} The ids.
+     */
+    get visibleColumnIds() {
+      return [...this.#visibleColumnIds];
+    }
+
+    /**
+     * Whether a column is shown.
+     * @param {string} columnId Column id.
+     * @returns {boolean} True when shown.
+     */
+    isVisible(columnId) {
+      return this.#visibleColumnIds.has(columnId);
+    }
+
+    /**
+     * Shows or hides a column.
+     * @param {string} columnId Column id.
+     * @param {boolean} isVisible Whether it should be shown.
+     * @returns {void}
+     */
+    setVisible(columnId, isVisible) {
+      if (isVisible) this.#visibleColumnIds.add(columnId);
+      else this.#visibleColumnIds.delete(columnId);
+    }
+  }
+
+  /**
    * Parses a date string into epoch milliseconds.
    * @param {?string} isoDate ISO date string.
    * @returns {number} Epoch milliseconds, or 0 when missing or invalid.
@@ -331,46 +397,6 @@
   }
 
   /**
-   * localStorage keys.
-   * @type {Readonly<Record<string, string>>}
-   */
-  const STORAGE_KEYS = Object.freeze({
-    dockLayout: 'claudePlus.dockLayout',
-    model: 'claudePlus.model',
-    effort: 'claudePlus.effort',
-    thinkingMode: 'claudePlus.thinkingMode',
-    messageFontSize: 'claudePlus.messageFontSize',
-    chatPanes: 'claudePlus.chatPanes',
-    savedLayouts: 'claudePlus.savedLayouts',
-    tablePrefix: 'claudePlus.table.',
-  });
-
-  /**
-   * Result limits. sidebarPageSize / backfillPageSize: conversations requested per API page.
-   * listedSources: web sources listed at once. rankedOutlets: outlets in the ranking.
-   * toolResultCharacters: characters of a tool result shown. provisionalTitleLength: characters of
-   * the first prompt used as a new conversation's title. backfillRefreshInterval: conversations
-   * stored between aggregate refreshes during a backfill. followOutputDistance: distance from the
-   * bottom, in pixels, within which the chat keeps following new output. exportFileNameLength:
-   * characters of the conversation title used in an export file name. comboboxEntries: values listed
-   * by a filter typeahead. searchResults: results shown by the search panel.
-   * @type {Readonly<Record<string, number>>}
-   */
-  const LIMITS = Object.freeze({
-    sidebarPageSize: 100,
-    backfillPageSize: 100,
-    listedSources: 500,
-    rankedOutlets: 30,
-    toolResultCharacters: 4000,
-    provisionalTitleLength: 60,
-    backfillRefreshInterval: 10,
-    followOutputDistance: 40,
-    exportFileNameLength: 80,
-    comboboxEntries: 200,
-    searchResults: 300,
-  });
-
-  /**
    * Case-insensitive text matching with `*` wildcards. A pattern without a wildcard matches any text
    * containing it; a pattern with wildcards must match the whole text, each `*` standing for any
    * characters (so `*nbc*` matches both "NBC" and "MSNBC").
@@ -436,6 +462,267 @@
   }
 
   /**
+   * Value a column's filter tests for a row.
+   * @param {TableColumn} column The column.
+   * @param {object} row The row.
+   * @returns {*} The filter value, or the sort value when the column has no separate filter value.
+   */
+  function columnFilterValue(column, row) {
+    return column.filterValue ? column.filterValue(row) : column.sortValue(row);
+  }
+
+  /**
+   * The values entered into a table's filter inputs and the rows passing them: a wildcard pattern
+   * for value filters, a from/to range for date filters.
+   */
+  class RowFilterSet {
+    /**
+     * All columns.
+     * @type {TableColumn[]}
+     */
+    #columns;
+
+    /**
+     * Entered values per column id, keyed by bound ('text', 'from' or 'to').
+     * @type {Map<string, Object<string, string>>}
+     */
+    #valuesByColumn = new Map();
+
+    /**
+     * Creates an empty filter set.
+     * @param {TableColumn[]} columns All columns.
+     */
+    constructor(columns) {
+      this.#columns = columns;
+    }
+
+    /**
+     * Records the value of one filter input.
+     * @param {string} columnId Column id.
+     * @param {string} bound 'text', 'from' or 'to'.
+     * @param {string} value Entered value.
+     * @returns {void}
+     */
+    record(columnId, bound, value) {
+      const values = this.#valuesByColumn.get(columnId) ?? {};
+      values[bound] = value;
+      this.#valuesByColumn.set(columnId, values);
+    }
+
+    /**
+     * The recorded value of one filter input.
+     * @param {string} columnId Column id.
+     * @param {string} bound 'text', 'from' or 'to'.
+     * @returns {string} The value, or empty when none was entered.
+     */
+    valueOf(columnId, bound) {
+      return this.#valuesByColumn.get(columnId)?.[bound] ?? '';
+    }
+
+    /**
+     * Drops a column's filter.
+     * @param {string} columnId Column id.
+     * @returns {void}
+     */
+    drop(columnId) {
+      this.#valuesByColumn.delete(columnId);
+    }
+
+    /**
+     * Rows passing every filter of a visible column.
+     * @param {object[]} rows Rows to filter.
+     * @param {ColumnVisibility} visibility Which columns are shown; filters of hidden columns are ignored.
+     * @returns {object[]} The passing rows.
+     */
+    apply(rows, visibility) {
+      const rowTests = [...this.#valuesByColumn]
+        .filter(([columnId]) => visibility.isVisible(columnId))
+        .map(([columnId, values]) => this.#createRowTest(columnId, values));
+      return rows.filter(row => rowTests.every(passes => passes(row)));
+    }
+
+    /**
+     * Creates the test for one column's filter.
+     * @param {string} columnId Column id.
+     * @param {Object<string, string>} values Filter input values by bound.
+     * @returns {function(object): boolean} Returns whether a row passes.
+     */
+    #createRowTest(columnId, values) {
+      const column = this.#columns.find(candidate => candidate.id === columnId);
+      if (column.filter === 'date') {
+        const range = new DateRange(values.from, values.to);
+        return row => range.contains(columnFilterValue(column, row));
+      }
+      const pattern = new WildcardPattern(values.text ?? '');
+      return row => pattern.matches(columnFilterValue(column, row));
+    }
+  }
+
+  /**
+   * localStorage keys.
+   * @type {Readonly<Record<string, string>>}
+   */
+  const STORAGE_KEYS = Object.freeze({
+    dockLayout: 'claudePlus.dockLayout',
+    model: 'claudePlus.model',
+    effort: 'claudePlus.effort',
+    thinkingMode: 'claudePlus.thinkingMode',
+    messageFontSize: 'claudePlus.messageFontSize',
+    chatPanes: 'claudePlus.chatPanes',
+    savedLayouts: 'claudePlus.savedLayouts',
+    tablePrefix: 'claudePlus.table.',
+  });
+
+  /**
+   * Orders two sortable values ascending.
+   * @param {string|number} first First value.
+   * @param {string|number} second Second value.
+   * @returns {number} Negative if the first sorts first, positive if the second does, 0 if equal.
+   */
+  function compareAscending(first, second) {
+    if (first === second) return 0;
+    return first < second ? -1 : 1;
+  }
+
+  /**
+   * The column a table is sorted by and the direction. Sorting by the current column again reverses
+   * the direction; another column starts ascending.
+   */
+  class SortOrder {
+    /**
+     * All columns.
+     * @type {TableColumn[]}
+     */
+    #columns;
+
+    /**
+     * Id of the sort column.
+     * @type {string}
+     */
+    #columnId;
+
+    /**
+     * 1 ascending, -1 descending.
+     * @type {number}
+     */
+    #direction;
+
+    /**
+     * Restores the order from stored settings, or uses the default one.
+     * @param {TableColumn[]} columns All columns.
+     * @param {*} stored Stored sort order; ignored unless it names a known column.
+     * @param {{column: string, direction: number}} defaultSort Sort used until the user sorts.
+     */
+    constructor(columns, stored, defaultSort) {
+      this.#columns = columns;
+      const isValid = Boolean(stored) && columns.some(column => column.id === stored.column);
+      this.#columnId = isValid ? stored.column : defaultSort.column;
+      this.#direction = SortOrder.#validDirection(isValid ? stored.direction : defaultSort.direction);
+    }
+
+    /**
+     * A direction limited to the two valid values.
+     * @param {*} direction Direction to check.
+     * @returns {number} 1 for 1, otherwise -1.
+     */
+    static #validDirection(direction) {
+      return direction === 1 ? 1 : -1;
+    }
+
+    /**
+     * Sorts by a column; the current column reverses direction, another one starts ascending.
+     * @param {string} columnId Column id.
+     * @returns {void}
+     */
+    sortBy(columnId) {
+      this.#direction = this.#columnId === columnId ? -this.#direction : 1;
+      this.#columnId = columnId;
+    }
+
+    /**
+     * Arrow shown after a column's header label.
+     * @param {string} columnId Column id.
+     * @returns {string} " ▲" or " ▼" for the sort column, otherwise empty.
+     */
+    indicatorFor(columnId) {
+      if (this.#columnId !== columnId) return '';
+      return this.#direction === 1 ? ' ▲' : ' ▼';
+    }
+
+    /**
+     * Rows in this order.
+     * @param {object[]} rows Rows to sort.
+     * @returns {object[]} A sorted copy.
+     */
+    sort(rows) {
+      const column = this.#columns.find(candidate => candidate.id === this.#columnId) ?? this.#columns[0];
+      return [...rows].sort((first, second) => compareAscending(column.sortValue(first), column.sortValue(second)) * this.#direction);
+    }
+
+    /**
+     * Serializable form.
+     * @returns {{column: string, direction: number}} The sort column and direction.
+     */
+    toJSON() {
+      return { column: this.#columnId, direction: this.#direction };
+    }
+  }
+
+  /**
+   * Collects the stylesheets of all components. Every component registers its own stylesheet when
+   * its module is evaluated, so the app injects one combined stylesheet without knowing the components.
+   */
+  class StyleRegistry {
+    /**
+     * Registered stylesheets, in registration order.
+     * @type {string[]}
+     */
+    static #stylesheets = [];
+
+    /**
+     * Adds a component's stylesheet.
+     * @param {string} css The stylesheet text.
+     * @returns {void}
+     */
+    static register(css) {
+      StyleRegistry.#stylesheets.push(css);
+    }
+
+    /**
+     * All registered stylesheets joined into one.
+     * @returns {string} The combined stylesheet text.
+     */
+    static get combinedCss() {
+      return StyleRegistry.#stylesheets.join('\n');
+    }
+  }
+
+  /**
+   * Result limits. sidebarPageSize / backfillPageSize: conversations requested per API page.
+   * listedSources: web sources listed at once. rankedOutlets: outlets in the ranking.
+   * toolResultCharacters: characters of a tool result shown. provisionalTitleLength: characters of
+   * the first prompt used as a new conversation's title. backfillRefreshInterval: conversations
+   * stored between aggregate refreshes during a backfill. followOutputDistance: distance from the
+   * bottom, in pixels, within which the chat keeps following new output. exportFileNameLength:
+   * characters of the conversation title used in an export file name. comboboxEntries: values listed
+   * by a filter typeahead. searchResults: results shown by the search panel.
+   * @type {Readonly<Record<string, number>>}
+   */
+  const LIMITS = Object.freeze({
+    sidebarPageSize: 100,
+    backfillPageSize: 100,
+    listedSources: 500,
+    rankedOutlets: 30,
+    toolResultCharacters: 4000,
+    provisionalTitleLength: 60,
+    backfillRefreshInterval: 10,
+    followOutputDistance: 40,
+    exportFileNameLength: 80,
+    comboboxEntries: 200,
+    searchResults: 300,
+  });
+
+  /**
    * Creates an element and assigns properties to it.
    * @param {string} tagName Tag name.
    * @param {object} properties Element properties to set, e.g. className, textContent, innerHTML, title, hidden.
@@ -460,6 +747,10 @@
     return String(value ?? '').replace(/[&<>"']/g, character => HTML_ENTITIES[character]);
   }
 
+  var stylesheet$l = ".claude-plus-empty-state {\n  color: var(--claude-plus-color-text-faint);\n  font-style: italic;\n  padding: 6px 0;\n}\n\n.claude-plus-empty-state--padded {\n  padding: 24px;\n}\n";
+
+  StyleRegistry.register(stylesheet$l);
+
   /**
    * HTML for an empty-state message.
    * @param {string} message The message.
@@ -468,6 +759,10 @@
   function emptyStateHtml(message) {
     return `<div class="claude-plus-empty-state">${escapeHtml(message)}</div>`;
   }
+
+  var stylesheet$k = ".claude-plus-value-combobox {\n  position: fixed;\n  z-index: var(--claude-plus-layer-popup-menu);\n  max-height: 240px;\n  overflow-y: auto;\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  padding: 4px;\n  font-size: 12px;\n}\n\n.claude-plus-value-combobox__entry {\n  padding: 4px 8px;\n  border-radius: 4px;\n  cursor: pointer;\n  white-space: nowrap;\n}\n\n.claude-plus-value-combobox__entry:hover {\n  background: var(--claude-plus-color-raised-hover);\n}\n";
+
+  StyleRegistry.register(stylesheet$k);
 
   /**
    * A text input that shows the distinct values it can filter by in a list below it while focused.
@@ -592,15 +887,28 @@
   }
 
   /**
-   * Orders two sortable values ascending.
-   * @param {string|number} first First value.
-   * @param {string|number} second Second value.
-   * @returns {number} Negative if the first sorts first, positive if the second does, 0 if equal.
+   * Filter control HTML per filter kind: none, a typeahead text input for values, or a from/to pair
+   * of date inputs for dates.
+   * @type {Readonly<Record<string, function(TableColumn): string>>}
    */
-  function compareAscending(first, second) {
-    if (first === second) return 0;
-    return first < second ? -1 : 1;
+  const FILTER_CONTROLS = Object.freeze({
+    none: () => '',
+    values: column => `<input type="text" class="claude-plus-column-table__filter-input" data-filter-column="${column.id}" data-filter-bound="text" placeholder="Filter…" />`,
+    date: column => `<input type="date" class="claude-plus-column-table__filter-input" data-filter-column="${column.id}" data-filter-bound="from" title="From" /><input type="date" class="claude-plus-column-table__filter-input" data-filter-column="${column.id}" data-filter-bound="to" title="To" />`,
+  });
+
+  /**
+   * HTML of the filter control under a column's header.
+   * @param {TableColumn} column The column.
+   * @returns {string} The control's HTML; empty for a column without a filter.
+   */
+  function filterControlHtml(column) {
+    return FILTER_CONTROLS[column.filter ?? 'none'](column);
   }
+
+  var stylesheet$j = ".claude-plus-column-table__column-picker {\n  flex-shrink: 0;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n\ndetails.claude-plus-column-table__column-picker summary {\n  padding: 0;\n}\n\n.claude-plus-column-table__column-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  margin: 2px 10px 2px 0;\n  cursor: pointer;\n}\n\n.claude-plus-column-table__table {\n  width: 100%;\n  border-collapse: collapse;\n  font-size: 12px;\n}\n\n.claude-plus-column-table__table th {\n  text-align: left;\n  padding: 4px 6px;\n  color: var(--claude-plus-color-text-muted);\n  background: var(--claude-plus-color-raised);\n  position: sticky;\n  z-index: 1;\n  white-space: nowrap;\n  font-weight: 600;\n}\n\n.claude-plus-column-table__table thead tr:first-child th {\n  top: 0;\n}\n\n.claude-plus-column-table__filter-row th {\n  top: 24px;\n  padding-top: 0;\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\n  font-weight: normal;\n}\n\n.claude-plus-column-table__sortable {\n  cursor: pointer;\n  user-select: none;\n}\n\n.claude-plus-column-table__sortable:hover {\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-panel .claude-plus-column-table__filter-input {\n  display: block;\n  width: 100%;\n  min-width: 40px;\n  box-sizing: border-box;\n  padding: 2px 4px;\n  font-size: 11px;\n}\n\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\n  min-width: 0;\n  max-width: 112px;\n  padding: 1px 2px;\n  font-size: 10px;\n}\n\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\n  margin-top: 2px;\n}\n\n.claude-plus-column-table__cell {\n  padding: 4px 6px;\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\n  vertical-align: top;\n}\n\n.claude-plus-column-table__cell--name,\n.claude-plus-column-table__cell--title,\n.claude-plus-column-table__cell--match {\n  width: 100%;\n  max-width: 1px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-column-table__cell a {\n  color: var(--claude-plus-color-accent);\n  text-decoration: none;\n}\n\n.claude-plus-column-table__cell a:hover {\n  text-decoration: underline;\n}\n";
+
+  StyleRegistry.register(stylesheet$j);
 
   /**
    * A reusable table with toggleable columns, sorting by clicking a header (clicking again reverses
@@ -608,16 +916,6 @@
    * date ranges for timestamp columns. Column visibility and sort order persist per table id.
    */
   class ColumnTable {
-    /**
-     * Filter control HTML per filter kind.
-     * @type {Readonly<Record<string, function(TableColumn): string>>}
-     */
-    static #FILTER_CONTROLS = Object.freeze({
-      none: () => '',
-      values: column => `<input type="text" class="claude-plus-column-table__filter-input" data-filter-column="${column.id}" data-filter-bound="text" placeholder="Filter…" />`,
-      date: column => `<input type="date" class="claude-plus-column-table__filter-input" data-filter-column="${column.id}" data-filter-bound="from" title="From" /><input type="date" class="claude-plus-column-table__filter-input" data-filter-column="${column.id}" data-filter-bound="to" title="To" />`,
-    });
-
     /**
      * Storage key of the column and sort settings.
      * @type {string}
@@ -661,22 +959,22 @@
     #rows = [];
 
     /**
-     * Ids of the visible columns.
-     * @type {Set<string>}
+     * Which columns are shown.
+     * @type {ColumnVisibility}
      */
-    #visibleColumnIds;
+    #visibility;
 
     /**
-     * Sort column and direction (1 ascending, -1 descending).
-     * @type {{column: string, direction: number}}
+     * Sort column and direction.
+     * @type {SortOrder}
      */
     #sortOrder;
 
     /**
-     * Filter input values per column id, keyed by bound ('text', 'from' or 'to').
-     * @type {Map<string, Object<string, string>>}
+     * Entered filter values.
+     * @type {RowFilterSet}
      */
-    #filterInputs = new Map();
+    #filters;
 
     /**
      * Named elements of the table.
@@ -709,9 +1007,10 @@
       this.#rowAttributes = rowAttributes;
       this.#emptyText = emptyText;
       this.#maxRenderedRows = maxRenderedRows;
-      const stored = preferences.readJson(this.#storageKey);
-      this.#visibleColumnIds = ColumnTable.#storedVisibleColumns(stored, columns);
-      this.#sortOrder = ColumnTable.#storedSortOrder(stored, columns, defaultSort);
+      const stored = preferences.readJson(this.#storageKey) ?? {};
+      this.#visibility = new ColumnVisibility(columns, stored.visibleColumnIds);
+      this.#sortOrder = new SortOrder(columns, stored.sortOrder, defaultSort);
+      this.#filters = new RowFilterSet(columns);
       container.innerHTML = ColumnTable.#skeletonHtml(columns);
       this.#elements = collectNamedElements(container);
       this.#bindEvents();
@@ -745,33 +1044,6 @@
     }
 
     /**
-     * Visible columns from stored settings, or the default ones; always-visible columns are always included.
-     * @param {*} stored Parsed stored settings.
-     * @param {TableColumn[]} columns All columns.
-     * @returns {Set<string>} Ids of the visible columns.
-     */
-    static #storedVisibleColumns(stored, columns) {
-      const columnIds = columns.map(column => column.id);
-      const storedIds = stored && Array.isArray(stored.visibleColumnIds) ? stored.visibleColumnIds.filter(id => columnIds.includes(id)) : null;
-      const visible = new Set(storedIds ?? columns.filter(column => column.isVisibleByDefault).map(column => column.id));
-      columns.filter(column => column.isAlwaysVisible).forEach(column => visible.add(column.id));
-      return visible;
-    }
-
-    /**
-     * Sort order from stored settings, or the default one.
-     * @param {*} stored Parsed stored settings.
-     * @param {TableColumn[]} columns All columns.
-     * @param {{column: string, direction: number}} defaultSort Default sort.
-     * @returns {{column: string, direction: number}} The sort order.
-     */
-    static #storedSortOrder(stored, columns, defaultSort) {
-      const sortOrder = stored ? stored.sortOrder : null;
-      const isValid = Boolean(sortOrder) && columns.some(column => column.id === sortOrder.column);
-      return isValid ? { column: sortOrder.column, direction: sortOrder.direction === 1 ? 1 : -1 } : { ...defaultSort };
-    }
-
-    /**
      * HTML of the column picker and the empty table.
      * @param {TableColumn[]} columns All columns.
      * @returns {string} The HTML.
@@ -801,17 +1073,8 @@
      */
     #onHeaderClick(event) {
       const header = event.target.closest('[data-sort-column]');
-      if (header) this.#sortBy(header.dataset.sortColumn);
-    }
-
-    /**
-     * Sorts by a column; the current column reverses direction, another one starts ascending.
-     * @param {string} columnId Column id.
-     * @returns {void}
-     */
-    #sortBy(columnId) {
-      const direction = this.#sortOrder.column === columnId ? -this.#sortOrder.direction : 1;
-      this.#sortOrder = { column: columnId, direction };
+      if (!header) return;
+      this.#sortOrder.sortBy(header.dataset.sortColumn);
       this.#saveSettings();
       this.#renderHeader();
       this.#renderBody();
@@ -826,20 +1089,10 @@
       const checkbox = event.target.closest('[data-column-toggle]');
       if (!checkbox) return;
       const columnId = checkbox.dataset.columnToggle;
-      if (checkbox.checked) this.#visibleColumnIds.add(columnId);
-      else this.#hideColumn(columnId);
+      this.#visibility.setVisible(columnId, checkbox.checked);
+      if (!checkbox.checked) this.#filters.drop(columnId);
       this.#saveSettings();
       this.#renderColumns();
-    }
-
-    /**
-     * Hides a column and drops its filter.
-     * @param {string} columnId Column id.
-     * @returns {void}
-     */
-    #hideColumn(columnId) {
-      this.#visibleColumnIds.delete(columnId);
-      this.#filterInputs.delete(columnId);
     }
 
     /**
@@ -850,9 +1103,7 @@
     #onFilterInput(event) {
       const input = event.target.closest('[data-filter-column]');
       if (!input) return;
-      const values = this.#filterInputs.get(input.dataset.filterColumn) ?? {};
-      values[input.dataset.filterBound] = input.value;
-      this.#filterInputs.set(input.dataset.filterColumn, values);
+      this.#filters.record(input.dataset.filterColumn, input.dataset.filterBound, input.value);
       this.#renderBody();
     }
 
@@ -861,15 +1112,7 @@
      * @returns {void}
      */
     #saveSettings() {
-      this.#preferences.writeJson(this.#storageKey, { visibleColumnIds: [...this.#visibleColumnIds], sortOrder: this.#sortOrder });
-    }
-
-    /**
-     * Columns currently shown.
-     * @returns {TableColumn[]} The visible columns, in display order.
-     */
-    #visibleColumns() {
-      return this.#columns.filter(column => this.#visibleColumnIds.has(column.id));
+      this.#preferences.writeJson(this.#storageKey, { visibleColumnIds: this.#visibility.visibleColumnIds, sortOrder: this.#sortOrder });
     }
 
     /**
@@ -889,8 +1132,8 @@
      */
     #syncColumnToggles() {
       if (!this.#elements.columnToggles) return;
-      this.#elements.columnToggles.querySelectorAll('[data-column-toggle]').forEach((checkbox) => {
-        checkbox.checked = this.#visibleColumnIds.has(checkbox.dataset.columnToggle);
+      this.#elements.columnToggles.querySelectorAll('[data-column-toggle]').forEach(checkbox => {
+        checkbox.checked = this.#visibility.isVisible(checkbox.dataset.columnToggle);
       });
     }
 
@@ -899,7 +1142,7 @@
      * @returns {void}
      */
     #renderHeader() {
-      this.#elements.headerRow.innerHTML = this.#visibleColumns().map(column => this.#headerCellHtml(column)).join('');
+      this.#elements.headerRow.innerHTML = this.#visibility.visibleColumns.map(column => this.#headerCellHtml(column)).join('');
     }
 
     /**
@@ -909,18 +1152,7 @@
      */
     #headerCellHtml(column) {
       if (column.isNotSortable) return `<th>${escapeHtml(column.label)}</th>`;
-      const isSorted = this.#sortOrder.column === column.id;
-      const indicator = isSorted ? ColumnTable.#sortIndicator(this.#sortOrder.direction) : '';
-      return `<th class="claude-plus-column-table__sortable" data-sort-column="${column.id}">${escapeHtml(column.label)}${indicator}</th>`;
-    }
-
-    /**
-     * Arrow showing a sort direction.
-     * @param {number} direction 1 ascending, -1 descending.
-     * @returns {string} " ▲" or " ▼".
-     */
-    static #sortIndicator(direction) {
-      return direction === 1 ? ' ▲' : ' ▼';
+      return `<th class="claude-plus-column-table__sortable" data-sort-column="${column.id}">${escapeHtml(column.label)}${this.#sortOrder.indicatorFor(column.id)}</th>`;
     }
 
     /**
@@ -930,20 +1162,12 @@
      */
     #renderFilterRow() {
       this.#comboboxes.forEach(combobox => combobox.dispose());
-      this.#elements.filterRow.innerHTML = this.#visibleColumns().map(column => `<th>${ColumnTable.#FILTER_CONTROLS[column.filter ?? 'none'](column)}</th>`).join('');
-      this.#elements.filterRow.querySelectorAll('[data-filter-column]').forEach(input => this.#restoreFilterInput(input));
+      this.#elements.filterRow.innerHTML = this.#visibility.visibleColumns.map(column => `<th>${filterControlHtml(column)}</th>`).join('');
+      this.#elements.filterRow.querySelectorAll('[data-filter-column]').forEach(input => {
+        input.value = this.#filters.valueOf(input.dataset.filterColumn, input.dataset.filterBound);
+      });
       this.#comboboxes = [...this.#elements.filterRow.querySelectorAll('[data-filter-bound="text"]')]
         .map(input => new ValueCombobox(input, () => this.#distinctFilterValues(input.dataset.filterColumn)));
-    }
-
-    /**
-     * Puts a filter input's recorded value back after re-rendering.
-     * @param {HTMLInputElement} input The input.
-     * @returns {void}
-     */
-    #restoreFilterInput(input) {
-      const values = this.#filterInputs.get(input.dataset.filterColumn) ?? {};
-      input.value = values[input.dataset.filterBound] ?? '';
     }
 
     /**
@@ -953,7 +1177,7 @@
      */
     #distinctFilterValues(columnId) {
       const column = this.#columns.find(candidate => candidate.id === columnId);
-      const values = this.#rows.map(row => ColumnTable.#filterValue(column, row)).filter(Boolean).map(String);
+      const values = this.#rows.map(row => columnFilterValue(column, row)).filter(Boolean).map(String);
       return [...new Set(values)].sort((first, second) => first.localeCompare(second));
     }
 
@@ -962,8 +1186,8 @@
      * @returns {void}
      */
     #renderBody() {
-      const visibleColumns = this.#visibleColumns();
-      const rows = this.#sortedRows(this.#filteredRows()).slice(0, this.#maxRenderedRows);
+      const visibleColumns = this.#visibility.visibleColumns;
+      const rows = this.#sortOrder.sort(this.#filters.apply(this.#rows, this.#visibility)).slice(0, this.#maxRenderedRows);
       this.#elements.tableBody.innerHTML = rows.map(row => this.#rowHtml(row, visibleColumns)).join('')
         || `<tr><td colspan="${visibleColumns.length}" class="claude-plus-empty-state">${escapeHtml(this.#emptyText)}</td></tr>`;
     }
@@ -978,54 +1202,43 @@
       const cells = visibleColumns.map(column => `<td class="claude-plus-column-table__cell claude-plus-column-table__cell--${column.id}">${column.cellHtml(row)}</td>`);
       return `<tr ${this.#rowAttributes(row)}>${cells.join('')}</tr>`;
     }
+  }
 
-    /**
-     * Rows passing every active filter of a visible column.
-     * @returns {object[]} The rows.
-     */
-    #filteredRows() {
-      const rowTests = [...this.#filterInputs]
-        .filter(([columnId]) => this.#visibleColumnIds.has(columnId))
-        .map(([columnId, values]) => this.#createRowTest(columnId, values));
-      return this.#rows.filter(row => rowTests.every(passes => passes(row)));
-    }
+  /**
+   * A column naming the conversation a row belongs to, read from the row's conversationTitle.
+   * @returns {TableColumn} The column.
+   */
+  function createConversationColumn() {
+    return {
+      id: 'conversation', label: 'Chat', isVisibleByDefault: true, filter: 'values',
+      sortValue: row => (row.conversationTitle || '').toLowerCase(),
+      filterValue: row => row.conversationTitle,
+      cellHtml: row => escapeHtml(row.conversationTitle || ''),
+    };
+  }
 
-    /**
-     * Creates the test for one column's filter.
-     * @param {string} columnId Column id.
-     * @param {Object<string, string>} values Filter input values by bound.
-     * @returns {function(object): boolean} Returns whether a row passes.
-     */
-    #createRowTest(columnId, values) {
-      const column = this.#columns.find(candidate => candidate.id === columnId);
-      if (column.filter === 'date') {
-        const range = new DateRange(values.from, values.to);
-        return row => range.contains(ColumnTable.#filterValue(column, row));
-      }
-      const pattern = new WildcardPattern(values.text ?? '');
-      return row => pattern.matches(ColumnTable.#filterValue(column, row));
-    }
+  /**
+   * A timestamp as local date and time.
+   * @param {?string} isoDate ISO timestamp.
+   * @returns {string} The formatted date and time, or an empty string when missing or invalid.
+   */
+  function formatTimestamp(isoDate) {
+    const epochMs = toEpochMs(isoDate);
+    return epochMs ? new Date(epochMs).toLocaleString() : '';
+  }
 
-    /**
-     * Rows in the current sort order.
-     * @param {object[]} rows Rows to sort.
-     * @returns {object[]} A sorted copy.
-     */
-    #sortedRows(rows) {
-      const column = this.#columns.find(candidate => candidate.id === this.#sortOrder.column) ?? this.#columns[0];
-      const direction = this.#sortOrder.direction;
-      return [...rows].sort((first, second) => compareAscending(column.sortValue(first), column.sortValue(second)) * direction);
-    }
-
-    /**
-     * Value a column's filter tests for a row.
-     * @param {TableColumn} column The column.
-     * @param {object} row The row.
-     * @returns {*} The filter value, or the sort value when the column has no separate filter value.
-     */
-    static #filterValue(column, row) {
-      return column.filterValue ? column.filterValue(row) : column.sortValue(row);
-    }
+  /**
+   * A sortable, date-range-filterable timestamp column.
+   * @param {function(object): ?string} timestampOf Returns a row's ISO timestamp.
+   * @returns {TableColumn} The column.
+   */
+  function createDateColumn(timestampOf) {
+    return {
+      id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date',
+      sortValue: row => toEpochMs(timestampOf(row)),
+      filterValue: row => timestampOf(row),
+      cellHtml: row => escapeHtml(formatTimestamp(timestampOf(row))),
+    };
   }
 
   /**
@@ -1048,85 +1261,48 @@
   }
 
   /**
-   * A timestamp as local date and time.
-   * @param {?string} isoDate ISO timestamp.
-   * @returns {string} The formatted date and time, or an empty string when missing or invalid.
+   * Who provided a file.
+   * @param {FileEntry} file The file.
+   * @returns {string} "User" or "Claude".
    */
-  function formatTimestamp(isoDate) {
-    const epochMs = toEpochMs(isoDate);
-    return epochMs ? new Date(epochMs).toLocaleString() : '';
+  function fileSourceLabel(file) {
+    return file.source === 'user' ? 'User' : 'Claude';
   }
 
   /**
-   * Column definitions shared by the tables showing web sources and files.
+   * Columns of a file table: name, type, date, who provided it and optionally the conversation.
+   * @param {boolean} includesConversation Whether to offer a column with the file's conversation.
+   * @returns {TableColumn[]} The columns.
    */
-  class TableColumns {
-    /**
-     * Columns of a web source table.
-     * @param {boolean} includesConversation Whether to offer a column with the source's conversation.
-     * @returns {TableColumn[]} The columns.
-     */
-    static sources(includesConversation) {
-      const columns = [
-        { id: 'title', label: 'Title', isAlwaysVisible: true, filter: 'values', sortValue: source => (source.title || '').toLowerCase(), filterValue: source => source.title, cellHtml: source => `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a>` },
-        { id: 'outlet', label: 'Outlet', isVisibleByDefault: true, filter: 'values', sortValue: source => source.outlet || '', cellHtml: source => escapeHtml(source.outlet || '') },
-        { id: 'topLevelDomain', label: 'TLD', filter: 'values', sortValue: source => source.topLevelDomain || '', cellHtml: source => escapeHtml(source.topLevelDomain ? `.${source.topLevelDomain}` : '') },
-        TableColumns.#dateColumn(source => source.timestamp),
-      ];
-      return includesConversation ? [...columns, TableColumns.#conversationColumn()] : columns;
-    }
-
-    /**
-     * Columns of a file table.
-     * @param {boolean} includesConversation Whether to offer a column with the file's conversation.
-     * @returns {TableColumn[]} The columns.
-     */
-    static files(includesConversation) {
-      const columns = [
-        { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: file => (file.title || '').toLowerCase(), filterValue: file => file.title, cellHtml: file => escapeHtml(file.title || '(file)') },
-        { id: 'type', label: 'Type', isVisibleByDefault: true, filter: 'values', sortValue: file => fileExtension(file.title || file.path), cellHtml: file => escapeHtml(fileExtension(file.title || file.path)) },
-        TableColumns.#dateColumn(file => file.timestamp),
-        { id: 'source', label: 'Source', isVisibleByDefault: true, filter: 'values', sortValue: file => TableColumns.#fileSourceLabel(file), cellHtml: file => TableColumns.#fileSourceLabel(file) },
-      ];
-      return includesConversation ? [...columns, TableColumns.#conversationColumn()] : columns;
-    }
-
-    /**
-     * A sortable, date-range-filterable timestamp column.
-     * @param {function(object): ?string} timestampOf Returns a row's ISO timestamp.
-     * @returns {TableColumn} The column.
-     */
-    static #dateColumn(timestampOf) {
-      return {
-        id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date',
-        sortValue: row => toEpochMs(timestampOf(row)),
-        filterValue: row => timestampOf(row),
-        cellHtml: row => escapeHtml(formatTimestamp(timestampOf(row))),
-      };
-    }
-
-    /**
-     * A column naming the conversation a row belongs to.
-     * @returns {TableColumn} The column.
-     */
-    static #conversationColumn() {
-      return {
-        id: 'conversation', label: 'Chat', isVisibleByDefault: true, filter: 'values',
-        sortValue: row => (row.conversationTitle || '').toLowerCase(),
-        filterValue: row => row.conversationTitle,
-        cellHtml: row => escapeHtml(row.conversationTitle || ''),
-      };
-    }
-
-    /**
-     * Who provided a file.
-     * @param {FileEntry} file The file.
-     * @returns {string} "User" or "Claude".
-     */
-    static #fileSourceLabel(file) {
-      return file.source === 'user' ? 'User' : 'Claude';
-    }
+  function createFileColumns(includesConversation) {
+    const columns = [
+      { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: file => (file.title || '').toLowerCase(), filterValue: file => file.title, cellHtml: file => escapeHtml(file.title || '(file)') },
+      { id: 'type', label: 'Type', isVisibleByDefault: true, filter: 'values', sortValue: file => fileExtension(file.title || file.path), cellHtml: file => escapeHtml(fileExtension(file.title || file.path)) },
+      createDateColumn(file => file.timestamp),
+      { id: 'source', label: 'Source', isVisibleByDefault: true, filter: 'values', sortValue: file => fileSourceLabel(file), cellHtml: file => fileSourceLabel(file) },
+    ];
+    return includesConversation ? [...columns, createConversationColumn()] : columns;
   }
+
+  /**
+   * Columns of a web source table: title (a link), outlet, top-level domain, date and optionally
+   * the conversation.
+   * @param {boolean} includesConversation Whether to offer a column with the source's conversation.
+   * @returns {TableColumn[]} The columns.
+   */
+  function createSourceColumns(includesConversation) {
+    const columns = [
+      { id: 'title', label: 'Title', isAlwaysVisible: true, filter: 'values', sortValue: source => (source.title || '').toLowerCase(), filterValue: source => source.title, cellHtml: source => `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a>` },
+      { id: 'outlet', label: 'Outlet', isVisibleByDefault: true, filter: 'values', sortValue: source => source.outlet || '', cellHtml: source => escapeHtml(source.outlet || '') },
+      { id: 'topLevelDomain', label: 'TLD', filter: 'values', sortValue: source => source.topLevelDomain || '', cellHtml: source => escapeHtml(source.topLevelDomain ? `.${source.topLevelDomain}` : '') },
+      createDateColumn(source => source.timestamp),
+    ];
+    return includesConversation ? [...columns, createConversationColumn()] : columns;
+  }
+
+  var stylesheet$i = ".claude-plus-subpane {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-height: 0;\n  flex: 1;\n  padding: 6px;\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  background: var(--claude-plus-color-bar);\n}\n\n.claude-plus-subpane__header {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  flex-shrink: 0;\n}\n\n.claude-plus-subpane__title {\n  flex: 1;\n  min-width: 0;\n  font-size: 12px;\n  font-weight: 600;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.claude-plus-subpane__button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-faint);\n  cursor: pointer;\n  padding: 2px 5px;\n  border-radius: 4px;\n}\n\n.claude-plus-subpane__button:hover {\n  background: var(--claude-plus-color-hover);\n  color: var(--claude-plus-color-text);\n}\n";
+
+  StyleRegistry.register(stylesheet$i);
 
   /**
    * A sub-pane inside a chat pane listing the web sources or files of that pane's conversation.
@@ -1141,13 +1317,13 @@
       sources: {
         title: '🌐 Sources in this chat',
         tableId: 'conversationSources',
-        columns: () => TableColumns.sources(false),
+        columns: () => createSourceColumns(false),
         rowsOf: (aggregate, conversationId) => aggregate.sources.filter(source => source.conversationId === conversationId),
       },
       files: {
         title: '📁 Files in this chat',
         tableId: 'conversationFiles',
-        columns: () => TableColumns.files(false),
+        columns: () => createFileColumns(false),
         rowsOf: (aggregate, conversationId) => ConversationSubPane.#folderFiles(aggregate, conversationId),
       },
     });
@@ -1337,6 +1513,108 @@
   }
 
   /**
+   * Base of every modal dialog: a themed overlay over the whole page holding the dialog's content.
+   * Showing returns a promise resolved with the dialog's result once it closes. Pressing Escape or
+   * pressing the backdrop closes it with the cancel value. Subclasses supply the overlay class and
+   * the content, and can react once the dialog is on screen.
+   * @abstract
+   */
+  class Dialog {
+    /**
+     * The overlay while the dialog is shown, otherwise null.
+     * @type {?HTMLElement}
+     */
+    #overlay = null;
+
+    /**
+     * Resolves the promise returned by show().
+     * @type {?function(*): void}
+     */
+    #resolveResult = null;
+
+    /**
+     * CSS class of the overlay, which also styles the content inside it.
+     * @abstract
+     * @returns {string} The class name.
+     * @throws {Error} When a subclass does not override it.
+     */
+    get overlayClassName() {
+      throw new Error(`${this.constructor.name} must override overlayClassName`);
+    }
+
+    /**
+     * Result of the dialog when dismissed by Escape or a press on the backdrop.
+     * @returns {*} The cancel result; undefined unless overridden.
+     */
+    get cancelValue() {
+      return undefined;
+    }
+
+    /**
+     * Builds the elements placed inside the overlay.
+     * @abstract
+     * @returns {HTMLElement[]} The content elements.
+     * @throws {Error} When a subclass does not override it.
+     */
+    createContent() {
+      throw new Error(`${this.constructor.name} must override createContent`);
+    }
+
+    /**
+     * Called once the dialog is on screen, e.g. to focus an input. Does nothing unless overridden.
+     * @returns {void}
+     */
+    afterShow() {}
+
+    /**
+     * Puts the dialog on screen.
+     * @returns {Promise<*>} Resolves with the result passed to close(), or the cancel value.
+     */
+    show() {
+      return new Promise(resolve => {
+        this.#resolveResult = resolve;
+        this.#overlay = createElement('div', { className: `claude-plus-themed ${this.overlayClassName}` });
+        this.#overlay.append(...this.createContent());
+        this.#overlay.addEventListener('mousedown', this.#closeOnBackdropPress);
+        document.addEventListener('keydown', this.#closeOnEscape);
+        document.body.append(this.#overlay);
+        this.afterShow();
+      });
+    }
+
+    /**
+     * Removes the dialog and resolves its promise. Does nothing when it is not shown.
+     * @param {*} result Result of the dialog.
+     * @returns {void}
+     */
+    close(result) {
+      if (!this.#overlay) return;
+      this.#overlay.remove();
+      this.#overlay = null;
+      document.removeEventListener('keydown', this.#closeOnEscape);
+      this.#resolveResult(result);
+    }
+
+    /**
+     * Closes with the cancel value when the press landed on the backdrop itself.
+     * @param {MouseEvent} event The mousedown event.
+     * @returns {void}
+     */
+    #closeOnBackdropPress = event => {
+      if (event.target === this.#overlay) this.close(this.cancelValue);
+    };
+
+    /**
+     * Closes with the cancel value when Escape is pressed.
+     * @param {KeyboardEvent} event The keydown event.
+     * @returns {void}
+     */
+    #closeOnEscape = event => {
+      if (event.key === 'Escape') this.close(this.cancelValue);
+    };
+  }
+
+  /**
    * Tracks one mouse drag gesture on the window. Its listeners exist only while the button is held
    * and are always removed on release.
    */
@@ -1442,68 +1720,166 @@
   }
 
   /**
-   * Opens a full-size view of an image over a dark backdrop, capped at 90% of the viewport.
-   * Scrolling zooms; dragging pans once the image is too big to fit fully. A button below opens the
-   * same image in a new browser tab.
-   * @param {string} src Image URL.
-   * @param {string} altText Alt text for the image.
-   * @returns {void}
+   * Zooms an image with the mouse wheel over its frame and pans it by dragging, through a CSS transform.
    */
-  function openImageViewer(src, altText) {
-    const overlay = createElement('div', { className: 'claude-plus-themed claude-plus-image-viewer-overlay' });
-    const frame = createElement('div', { className: 'claude-plus-image-viewer__frame' });
-    const image = createElement('img', { className: 'claude-plus-image-viewer__image', src, alt: altText });
-    const openButton = createElement('button', {
-      className: 'claude-plus-toolbar__button claude-plus-image-viewer__open-button',
-      textContent: 'Open in new window',
-    });
-    frame.append(image);
-    overlay.append(frame, openButton);
-    document.body.append(overlay);
+  class ImageZoomPan {
+    /**
+     * Factor applied to the scale per wheel step.
+     * @type {number}
+     */
+    static #ZOOM_STEP = 1.15;
 
-    let scale = 1;
-    let offsetX = 0;
-    let offsetY = 0;
-    const applyTransform = () => {
-      image.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
-    };
-    const close = () => {
-      overlay.remove();
-      document.removeEventListener('keydown', onKeydown);
-    };
-    const onKeydown = event => {
-      if (event.key === 'Escape') close();
-    };
+    /**
+     * Smallest scale; the image's fitted size.
+     * @type {number}
+     */
+    static #MIN_SCALE = 1;
 
-    frame.addEventListener('wheel', event => {
+    /**
+     * Largest scale.
+     * @type {number}
+     */
+    static #MAX_SCALE = 8;
+
+    /**
+     * The transformed image.
+     * @type {HTMLImageElement}
+     */
+    #image;
+
+    /**
+     * Current scale.
+     * @type {number}
+     */
+    #scale = ImageZoomPan.#MIN_SCALE;
+
+    /**
+     * Current horizontal offset in pixels.
+     * @type {number}
+     */
+    #offsetX = 0;
+
+    /**
+     * Current vertical offset in pixels.
+     * @type {number}
+     */
+    #offsetY = 0;
+
+    /**
+     * Makes an image zoomable and pannable.
+     * @param {HTMLElement} frame Element receiving the wheel events.
+     * @param {HTMLImageElement} image The image to transform.
+     */
+    constructor(frame, image) {
+      this.#image = image;
+      frame.addEventListener('wheel', event => this.#zoom(event), { passive: false });
+      image.addEventListener('mousedown', event => this.#startPan(event));
+    }
+
+    /**
+     * Zooms one step in or out, keeping the offset proportional to the scale.
+     * @param {WheelEvent} event The wheel event.
+     * @returns {void}
+     */
+    #zoom(event) {
       event.preventDefault();
-      const previousScale = scale;
-      scale = clamp(scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15), 1, 8);
-      const scaleRatio = scale / previousScale;
-      offsetX *= scaleRatio;
-      offsetY *= scaleRatio;
-      applyTransform();
-    }, { passive: false });
-    image.addEventListener('mousedown', startEvent => {
+      const stepFactor = event.deltaY < 0 ? ImageZoomPan.#ZOOM_STEP : 1 / ImageZoomPan.#ZOOM_STEP;
+      const nextScale = clamp(this.#scale * stepFactor, ImageZoomPan.#MIN_SCALE, ImageZoomPan.#MAX_SCALE);
+      const scaleRatio = nextScale / this.#scale;
+      this.#scale = nextScale;
+      this.#moveTo(this.#offsetX * scaleRatio, this.#offsetY * scaleRatio);
+    }
+
+    /**
+     * Pans the image along with the pointer until the button is released.
+     * @param {MouseEvent} startEvent The mousedown on the image.
+     * @returns {void}
+     */
+    #startPan(startEvent) {
       startEvent.preventDefault();
-      const startOffsetX = offsetX;
-      const startOffsetY = offsetY;
+      const startOffsetX = this.#offsetX;
+      const startOffsetY = this.#offsetY;
       new DragGesture(startEvent, {
         threshold: 0,
-        onMove: event => {
-          offsetX = startOffsetX + (event.clientX - startEvent.clientX);
-          offsetY = startOffsetY + (event.clientY - startEvent.clientY);
-          applyTransform();
-        },
+        onMove: event => this.#moveTo(startOffsetX + event.clientX - startEvent.clientX, startOffsetY + event.clientY - startEvent.clientY),
         onEnd: () => undefined,
       });
-    });
-    openButton.addEventListener('click', () => window.open(src, '_blank', 'noopener'));
-    overlay.addEventListener('mousedown', event => {
-      if (event.target === overlay) close();
-    });
-    document.addEventListener('keydown', onKeydown);
+    }
+
+    /**
+     * Sets the offset and applies the transform.
+     * @param {number} offsetX Horizontal offset in pixels.
+     * @param {number} offsetY Vertical offset in pixels.
+     * @returns {void}
+     */
+    #moveTo(offsetX, offsetY) {
+      this.#offsetX = offsetX;
+      this.#offsetY = offsetY;
+      this.#image.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${this.#scale})`;
+    }
   }
+
+  var stylesheet$h = ".claude-plus-image-viewer-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.8);\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 12px;\n}\n\n.claude-plus-image-viewer__frame {\n  max-width: 90vw;\n  max-height: 90vh;\n  overflow: hidden;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-image-viewer__image {\n  max-width: 90vw;\n  max-height: 90vh;\n  width: auto;\n  height: auto;\n  cursor: grab;\n  user-select: none;\n}\n\n.claude-plus-image-viewer__open-button {\n  flex-shrink: 0;\n}\n";
+
+  StyleRegistry.register(stylesheet$h);
+
+  /**
+   * Shows an image at full size over a dark backdrop, capped at 90% of the viewport. Scrolling zooms;
+   * dragging pans. A button below opens the same image in a new browser tab.
+   */
+  class ImageViewerDialog extends Dialog {
+    /**
+     * Image URL.
+     * @type {string}
+     */
+    #imageUrl;
+
+    /**
+     * Alt text of the image.
+     * @type {string}
+     */
+    #altText;
+
+    /**
+     * Creates the viewer without showing it.
+     * @param {string} imageUrl Image URL.
+     * @param {string} altText Alt text of the image.
+     */
+    constructor(imageUrl, altText) {
+      super();
+      this.#imageUrl = imageUrl;
+      this.#altText = altText;
+    }
+
+    /**
+     * CSS class of the dark overlay stacking the image and the button.
+     * @returns {string} The class name.
+     */
+    get overlayClassName() {
+      return 'claude-plus-image-viewer-overlay';
+    }
+
+    /**
+     * Builds the zoomable image frame and the button opening the image in a new tab.
+     * @returns {HTMLElement[]} The frame and the button.
+     */
+    createContent() {
+      const image = createElement('img', { className: 'claude-plus-image-viewer__image', src: this.#imageUrl, alt: this.#altText });
+      const frame = createElement('div', { className: 'claude-plus-image-viewer__frame' });
+      frame.append(image);
+      new ImageZoomPan(frame, image);
+      const openButton = createElement('button', {
+        className: 'claude-plus-toolbar__button claude-plus-image-viewer__open-button',
+        textContent: 'Open in new window',
+      });
+      openButton.addEventListener('click', () => window.open(this.#imageUrl, '_blank', 'noopener'));
+      return [frame, openButton];
+    }
+  }
+
+  var stylesheet$g = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n}\n\n.claude-plus-message {\n  padding: 10px 12px;\n  border-radius: 8px;\n  max-width: 100%;\n}\n\n.claude-plus-message__sender {\n  font-size: 11px;\n  color: var(--claude-plus-color-text-faint);\n  margin-bottom: 4px;\n  font-weight: 600;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  gap: 8px;\n  margin-top: 6px;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-faint);\n  cursor: pointer;\n  font-size: 11px;\n  padding: 2px 6px;\n  border-radius: 4px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
+
+  StyleRegistry.register(stylesheet$g);
 
   /**
    * The messages of a chat session with copy and retry actions. Streaming updates re-render only
@@ -1541,7 +1917,7 @@
     #actionHandlers = new Map([
       ['retry', () => this.#session.retryLastPrompt()],
       ['copy', button => this.#copyMessageText(button)],
-      ['openImage', image => openImageViewer(image.dataset.fullSrc, image.alt)],
+      ['openImage', image => new ImageViewerDialog(image.dataset.fullSrc, image.alt).show()],
     ]);
 
     /**
@@ -1695,6 +2071,10 @@
     }
   }
 
+  var stylesheet$f = ".claude-plus-panel {\n  position: fixed;\n  z-index: var(--claude-plus-layer-panel);\n  box-sizing: border-box;\n  padding: 10px 12px;\n  overflow-y: auto;\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  font-size: 13px;\n  background: var(--claude-plus-color-background);\n}\n\n.claude-plus-panel summary {\n  cursor: pointer;\n  padding: 4px 0;\n}\n\n.claude-plus-panel select,\n.claude-plus-panel input[type=text],\n.claude-plus-panel input[type=date],\n.claude-plus-panel textarea {\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font-size: 12px;\n  font-family: inherit;\n}\n\n.claude-plus-panel__section {\n  padding: 8px 0;\n  border-bottom: 1px solid var(--claude-plus-color-hover);\n  flex-shrink: 0;\n}\n\n.claude-plus-panel__section:last-child {\n  border-bottom: none;\n}\n\n.claude-plus-spaced-above {\n  margin-top: 6px;\n}\n\n.claude-plus-hint {\n  color: var(--claude-plus-color-text-faint);\n  font-size: 11px;\n  margin-top: 4px;\n}\n\n.claude-plus-scrollable {\n  overflow-y: auto;\n}\n\n.claude-plus-fill-remaining {\n  flex: 1;\n  min-height: 0;\n}\n\n.claude-plus-pending {\n  opacity: 0.4;\n  pointer-events: none;\n}\n\n.claude-plus-primary-button {\n  padding: 8px;\n  background: var(--claude-plus-color-accent);\n  border: none;\n  border-radius: 6px;\n  color: #fff;\n  font-size: 13px;\n  cursor: pointer;\n  font-weight: 600;\n  flex-shrink: 0;\n}\n\n.claude-plus-primary-button:disabled {\n  opacity: 0.6;\n  cursor: default;\n}\n\n.claude-plus-full-width {\n  width: 100%;\n}\n\n.claude-plus-search-input {\n  flex-shrink: 0;\n  padding: 6px 8px;\n}\n";
+
+  StyleRegistry.register(stylesheet$f);
+
   /**
    * A dockable panel. Its DOM is built on first access and immediately rendered from current state,
    * so a panel opened late is never blank. Subclasses override createBodyHtml, bindEvents and
@@ -1841,6 +2221,10 @@
       this.render();
     }
   }
+
+  var stylesheet$e = ".claude-plus-panel--active-among-several {\n  box-shadow: inset 0 0 0 1px var(--claude-plus-color-active-chat);\n}\n\n.claude-plus-chat-layout {\n  display: flex;\n  gap: 8px;\n  flex: 1;\n  min-height: 0;\n}\n\n.claude-plus-chat-layout__center {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  flex: 1;\n  min-width: 0;\n}\n\n.claude-plus-chat-layout__side {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  width: 300px;\n  flex-shrink: 0;\n  min-height: 0;\n}\n\n.claude-plus-chat-layout__top {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  flex-shrink: 0;\n}\n\n.claude-plus-chat-layout__side:empty,\n.claude-plus-chat-layout__top:empty {\n  display: none;\n}\n\n.claude-plus-chat-layout__top .claude-plus-subpane {\n  height: 200px;\n  flex: none;\n}\n";
+
+  StyleRegistry.register(stylesheet$e);
 
   /**
    * A chat pane: one session's messages, plus optional sub-panes listing the conversation's files
@@ -2047,6 +2431,10 @@
    */
   const ATTACHMENT_NAME_FIELDS = Object.freeze(['file_name', 'name', 'filename', 'title']);
 
+  var stylesheet$d = ".claude-plus-code-block {\n  background: var(--claude-plus-color-code-block);\n  padding: 8px;\n  border-radius: 6px;\n  overflow-x: auto;\n  font-size: 12px;\n}\n";
+
+  StyleRegistry.register(stylesheet$d);
+
   /**
    * Minimal markdown renderer: fenced code blocks, inline code, bold, italic and http(s) links.
    * All other text is HTML-escaped.
@@ -2107,6 +2495,10 @@
         .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
     }
   }
+
+  var stylesheet$c = ".claude-plus-message--human {\n  background: var(--claude-plus-color-human-message);\n  align-self: flex-end;\n}\n\n.claude-plus-message--assistant {\n  background: transparent;\n}\n\n.claude-plus-message-text {\n  white-space: normal;\n}\n\n.claude-plus-message-text a {\n  color: var(--claude-plus-color-accent);\n}\n\n.claude-plus-message-attachment {\n  color: var(--claude-plus-color-text-muted);\n  font-size: 12px;\n  margin-bottom: 4px;\n}\n\n.claude-plus-message-image {\n  display: block;\n  max-height: 300px;\n  max-width: 100%;\n  border-radius: 8px;\n  margin-bottom: 6px;\n  cursor: zoom-in;\n}\n\n.claude-plus-tool-details {\n  margin: 6px 0;\n  background: var(--claude-plus-color-tool-details);\n  border-radius: 6px;\n  padding: 4px 8px;\n  font-size: 12px;\n}\n\n.claude-plus-tool-details pre {\n  white-space: pre-wrap;\n  overflow-wrap: break-word;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n";
+
+  StyleRegistry.register(stylesheet$c);
 
   /**
    * Reads text, uploads and renderable HTML from API messages.
@@ -2362,6 +2754,206 @@
   }
 
   /**
+   * Numbers navigations, so a response arriving for an older navigation can be recognized and dropped.
+   */
+  class NavigationCounter {
+    /**
+     * Number of the latest navigation.
+     * @type {number}
+     */
+    #latestNavigation = 0;
+
+    /**
+     * Starts a new navigation, making every earlier one outdated.
+     * @returns {number} Number identifying the new navigation.
+     */
+    begin() {
+      this.#latestNavigation += 1;
+      return this.#latestNavigation;
+    }
+
+    /**
+     * Whether a navigation is still the latest one.
+     * @param {number} navigation Number returned by begin().
+     * @returns {boolean} True if no navigation began since.
+     */
+    isLatest(navigation) {
+      return navigation === this.#latestNavigation;
+    }
+  }
+
+  /**
+   * Parent of the first message in every claude.ai conversation tree. Used when a message's parent
+   * is unknown locally.
+   * @type {string}
+   */
+  const ROOT_MESSAGE_UUID = '00000000-0000-4000-8000-000000000000';
+
+  /**
+   * Type of the synthetic first event of a completion stream, carrying the client-generated ids.
+   * @type {string}
+   */
+  const STREAM_START = 'claudeplus_stream_start';
+
+  /**
+   * Applies the events of a completion stream to a turn: the start adds the empty reply, text deltas
+   * extend it, usage windows are published and the stop completes it. Unknown event types are ignored.
+   */
+  class StreamEventApplier {
+    /**
+     * Handler per stream event type.
+     * @type {Map<string, function(Turn, object): void>}
+     */
+    #handlersByType = new Map([
+      [STREAM_START, (turn, event) => this.#onStreamStart(turn, event)],
+      ['content_block_delta', (turn, event) => this.#onContentDelta(turn, event)],
+      ['message_limit', (turn, event) => this.#onMessageLimit(event)],
+      ['message_stop', turn => this.#onMessageStop(turn)],
+    ]);
+
+    /**
+     * Adds a message to the end of the session's message list.
+     * @type {function(ChatMessage): void}
+     */
+    #appendMessage;
+
+    /**
+     * Lists a just-created conversation and makes it the open one.
+     * @type {function(string, string): void}
+     */
+    #registerNewConversation;
+
+    /**
+     * Publishes a session event.
+     * @type {function(string, *): void}
+     */
+    #publish;
+
+    /**
+     * Creates the applier.
+     * @param {object} callbacks Effects on the session.
+     * @param {function(ChatMessage): void} callbacks.appendMessage Adds a message to the end of the session's message list.
+     * @param {function(string, string): void} callbacks.registerNewConversation Lists a just-created conversation by id and first prompt, and makes it the open one.
+     * @param {function(string, *): void} callbacks.publish Publishes a session event with a payload.
+     */
+    constructor({ appendMessage, registerNewConversation, publish }) {
+      this.#appendMessage = appendMessage;
+      this.#registerNewConversation = registerNewConversation;
+      this.#publish = publish;
+    }
+
+    /**
+     * Applies one stream event.
+     * @param {Turn} turn The turn the stream belongs to.
+     * @param {StreamEvent} event The event.
+     * @returns {void}
+     */
+    apply(turn, event) {
+      const handleEvent = this.#handlersByType.get(event.type);
+      if (handleEvent) handleEvent(turn, event);
+    }
+
+    /**
+     * Marks the prompt as accepted and adds the empty reply; registers a new conversation.
+     * @param {Turn} turn The turn.
+     * @param {{humanMessageId: string, assistantMessageId: string}} event The STREAM_START event.
+     * @returns {void}
+     */
+    #onStreamStart(turn, event) {
+      turn.promptMessage.id = event.humanMessageId;
+      turn.promptMessage.isPersisted = true;
+      turn.replyMessage = new ChatMessage({ id: event.assistantMessageId, parentId: event.humanMessageId, sender: 'assistant', isStreaming: true });
+      if (turn.isNewConversation) this.#registerNewConversation(turn.conversationId, turn.prompt);
+      this.#appendMessage(turn.replyMessage);
+    }
+
+    /**
+     * Appends streamed reply text.
+     * @param {Turn} turn The turn.
+     * @param {{delta: ?{type: string, text: string}}} event A content_block_delta event.
+     * @returns {void}
+     */
+    #onContentDelta(turn, event) {
+      if (!turn.replyMessage || !StreamEventApplier.#isTextDelta(event)) return;
+      turn.replyMessage.appendText(event.delta.text);
+      this.#publish('messageContent', turn.replyMessage);
+    }
+
+    /**
+     * Whether a content_block_delta event carries text.
+     * @param {{delta: ?{type: string}}} event The event.
+     * @returns {boolean} True for text deltas.
+     */
+    static #isTextDelta(event) {
+      return Boolean(event.delta) && event.delta.type === 'text_delta';
+    }
+
+    /**
+     * Publishes the usage windows reported during the stream.
+     * @param {{message_limit: ?{windows: ?Object<string, UsageWindow>}}} event A message_limit event.
+     * @returns {void}
+     */
+    #onMessageLimit(event) {
+      const windows = event.message_limit ? event.message_limit.windows : null;
+      if (windows) this.#publish('rateLimits', { fiveHour: windows['5h'], sevenDay: windows['7d'] });
+    }
+
+    /**
+     * Marks the reply as complete.
+     * @param {Turn} turn The turn.
+     * @returns {void}
+     */
+    #onMessageStop(turn) {
+      if (!turn.replyMessage) return;
+      turn.replyMessage.isStreaming = false;
+      this.#publish('messageContent', turn.replyMessage);
+    }
+  }
+
+  /**
+   * State of one prompt/reply exchange while it is being sent.
+   */
+  class Turn {
+    /**
+     * Creates the turn.
+     * @param {object} fields Turn fields.
+     * @param {string} fields.conversationId Conversation the prompt belongs to.
+     * @param {boolean} fields.isNewConversation Whether the prompt creates the conversation.
+     * @param {string} fields.prompt Prompt text.
+     * @param {ChatMessage} fields.promptMessage The prompt's message.
+     * @param {UploadedFile[]} fields.files Files uploaded beforehand to attach.
+     * @param {AbortController} fields.abortController Aborts the request.
+     */
+    constructor({ conversationId, isNewConversation, prompt, promptMessage, files, abortController }) {
+      this.conversationId = conversationId;
+      this.isNewConversation = isNewConversation;
+      this.prompt = prompt;
+      this.promptMessage = promptMessage;
+      this.files = files;
+      this.abortController = abortController;
+      this.replyMessage = null;
+      this.hasFailed = false;
+    }
+  }
+
+  /**
+   * Creates an id for a message that exists only locally.
+   * @returns {string} A unique id prefixed with "local-".
+   */
+  function createLocalMessageId() {
+    return `local-${crypto.randomUUID()}`;
+  }
+
+  /**
+   * Creates a local, unpersisted assistant message showing an error.
+   * @param {string} errorText Error text.
+   * @returns {ChatMessage} The notice.
+   */
+  function createErrorNotice(errorText) {
+    return new ChatMessage({ id: createLocalMessageId(), sender: 'assistant', isPersisted: false, errorText });
+  }
+
+  /**
    * Selects the branch of a conversation tree that claude.ai shows.
    */
   class ConversationTree {
@@ -2406,50 +2998,12 @@
   }
 
   /**
-   * Parent of the first message in every claude.ai conversation tree. Used when a message's parent
-   * is unknown locally.
-   * @type {string}
+   * Chat messages of a conversation's current branch.
+   * @param {ApiConversation} conversation The conversation.
+   * @returns {ChatMessage[]} The messages, oldest first.
    */
-  const ROOT_MESSAGE_UUID = '00000000-0000-4000-8000-000000000000';
-
-  /**
-   * Type of the synthetic first event of a completion stream, carrying the client-generated ids.
-   * @type {string}
-   */
-  const STREAM_START = 'claudeplus_stream_start';
-
-  /**
-   * State of one prompt/reply exchange while it is being sent.
-   */
-  class Turn {
-    /**
-     * Creates the turn.
-     * @param {object} fields Turn fields.
-     * @param {string} fields.conversationId Conversation the prompt belongs to.
-     * @param {boolean} fields.isNewConversation Whether the prompt creates the conversation.
-     * @param {string} fields.prompt Prompt text.
-     * @param {ChatMessage} fields.promptMessage The prompt's message.
-     * @param {UploadedFile[]} fields.files Files uploaded beforehand to attach.
-     * @param {AbortController} fields.abortController Aborts the request.
-     */
-    constructor({ conversationId, isNewConversation, prompt, promptMessage, files, abortController }) {
-      this.conversationId = conversationId;
-      this.isNewConversation = isNewConversation;
-      this.prompt = prompt;
-      this.promptMessage = promptMessage;
-      this.files = files;
-      this.abortController = abortController;
-      this.replyMessage = null;
-      this.hasFailed = false;
-    }
-  }
-
-  /**
-   * Creates an id for a message that exists only locally.
-   * @returns {string} A unique id prefixed with "local-".
-   */
-  function createLocalMessageId() {
-    return `local-${crypto.randomUUID()}`;
+  function currentBranchMessages(conversation) {
+    return ConversationTree.currentBranch(conversation).map(apiMessage => ChatMessage.fromApi(apiMessage));
   }
 
   /**
@@ -2513,21 +3067,20 @@
     #abortController = null;
 
     /**
-     * Incremented on every navigation, so late responses for an old one are dropped.
-     * @type {number}
+     * Numbers navigations, so late responses for an old one are dropped.
+     * @type {NavigationCounter}
      */
-    #navigationCount = 0;
+    #navigations = new NavigationCounter();
 
     /**
-     * Handler per stream event type.
-     * @type {Map<string, function(Turn, object): void>}
+     * Applies completion stream events to the turn being sent.
+     * @type {StreamEventApplier}
      */
-    #streamEventHandlers = new Map([
-      [STREAM_START, (turn, event) => this.#onStreamStart(turn, event)],
-      ['content_block_delta', (turn, event) => this.#onContentDelta(turn, event)],
-      ['message_limit', (turn, event) => this.#onMessageLimit(event)],
-      ['message_stop', turn => this.#onMessageStop(turn)],
-    ]);
+    #streamEvents = new StreamEventApplier({
+      appendMessage: message => this.#setMessages([...this.#messages, message]),
+      registerNewConversation: (conversationId, prompt) => this.#registerNewConversation(conversationId, prompt),
+      publish: (eventName, payload) => this.publish(eventName, payload),
+    });
 
     /**
      * Creates an empty session showing a new chat.
@@ -2595,7 +3148,7 @@
       const navigation = this.#beginNavigation(conversationId);
       try {
         const conversation = await this.#api.getConversation(conversationId);
-        if (this.#isLatestNavigation(navigation)) this.#showConversation(conversation);
+        if (this.#navigations.isLatest(navigation)) this.#showConversation(conversation);
       } catch (error) {
         this.#showLoadError(navigation, error);
       }
@@ -2648,31 +3201,22 @@
      */
     #beginNavigation(conversationId) {
       this.stopReply();
-      this.#navigationCount += 1;
+      const navigation = this.#navigations.begin();
       this.#setOpenConversation(conversationId);
       this.#setMessages([]);
-      return this.#navigationCount;
-    }
-
-    /**
-     * Whether a navigation is still the latest one.
-     * @param {number} navigation Number returned by #beginNavigation.
-     * @returns {boolean} True if no navigation happened since.
-     */
-    #isLatestNavigation(navigation) {
-      return navigation === this.#navigationCount;
+      return navigation;
     }
 
     /**
      * Shows a conversation load failure, unless the user has navigated away since.
-     * @param {number} navigation Number of the failed navigation.
+     * @param {number} navigation Number of the failed navigation, from NavigationCounter.begin().
      * @param {Error} error The failure.
      * @returns {void}
      */
     #showLoadError(navigation, error) {
-      if (!this.#isLatestNavigation(navigation)) return;
+      if (!this.#navigations.isLatest(navigation)) return;
       console.warn(LOG_PREFIX, 'loading conversation failed', error);
-      this.#setMessages([ChatSession.#createErrorNotice(`Could not load this conversation (${error.message}).`)]);
+      this.#setMessages([createErrorNotice(`Could not load this conversation (${error.message}).`)]);
     }
 
     /**
@@ -2736,74 +3280,7 @@
         fileUuids: turn.files.map(file => file.file_uuid),
         signal: turn.abortController.signal,
       });
-      for await (const event of events) this.#handleStreamEvent(turn, event);
-    }
-
-    /**
-     * Applies one stream event; unknown types are ignored.
-     * @param {Turn} turn The turn.
-     * @param {StreamEvent} event The event.
-     * @returns {void}
-     */
-    #handleStreamEvent(turn, event) {
-      const handleEvent = this.#streamEventHandlers.get(event.type);
-      if (handleEvent) handleEvent(turn, event);
-    }
-
-    /**
-     * Marks the prompt as accepted and adds the empty reply; registers a new conversation.
-     * @param {Turn} turn The turn.
-     * @param {{humanMessageId: string, assistantMessageId: string}} event The STREAM_START event.
-     * @returns {void}
-     */
-    #onStreamStart(turn, event) {
-      turn.promptMessage.id = event.humanMessageId;
-      turn.promptMessage.isPersisted = true;
-      turn.replyMessage = new ChatMessage({ id: event.assistantMessageId, parentId: event.humanMessageId, sender: 'assistant', isStreaming: true });
-      if (turn.isNewConversation) this.#registerNewConversation(turn.conversationId, turn.prompt);
-      this.#setMessages([...this.#messages, turn.replyMessage]);
-    }
-
-    /**
-     * Appends streamed reply text.
-     * @param {Turn} turn The turn.
-     * @param {{delta: ?{type: string, text: string}}} event A content_block_delta event.
-     * @returns {void}
-     */
-    #onContentDelta(turn, event) {
-      if (!turn.replyMessage || !ChatSession.#isTextDelta(event)) return;
-      turn.replyMessage.appendText(event.delta.text);
-      this.publish('messageContent', turn.replyMessage);
-    }
-
-    /**
-     * Whether a content_block_delta event carries text.
-     * @param {{delta: ?{type: string}}} event The event.
-     * @returns {boolean} True for text deltas.
-     */
-    static #isTextDelta(event) {
-      return Boolean(event.delta) && event.delta.type === 'text_delta';
-    }
-
-    /**
-     * Publishes the usage windows reported during the stream.
-     * @param {{message_limit: ?{windows: ?Object<string, UsageWindow>}}} event A message_limit event.
-     * @returns {void}
-     */
-    #onMessageLimit(event) {
-      const windows = event.message_limit ? event.message_limit.windows : null;
-      if (windows) this.publish('rateLimits', { fiveHour: windows['5h'], sevenDay: windows['7d'] });
-    }
-
-    /**
-     * Marks the reply as complete.
-     * @param {Turn} turn The turn.
-     * @returns {void}
-     */
-    #onMessageStop(turn) {
-      if (!turn.replyMessage) return;
-      turn.replyMessage.isStreaming = false;
-      this.publish('messageContent', turn.replyMessage);
+      for await (const event of events) this.#streamEvents.apply(turn, event);
     }
 
     /**
@@ -2818,7 +3295,7 @@
       turn.hasFailed = true;
       console.warn(LOG_PREFIX, 'send failed', error);
       if (turn.replyMessage) turn.replyMessage.errorText = error.message;
-      else this.#messages.push(ChatSession.#createErrorNotice(error.message));
+      else this.#messages.push(createErrorNotice(error.message));
     }
 
     /**
@@ -2846,7 +3323,7 @@
         const conversation = await this.#api.getConversation(conversationId);
         this.#directory.updateListing(conversation);
         this.publish('conversationLoaded', conversation);
-        if (replaceMessages && this.#isOpenAndIdle(conversationId)) this.#setMessages(ChatSession.#branchMessages(conversation));
+        if (replaceMessages && this.#isOpenAndIdle(conversationId)) this.#setMessages(currentBranchMessages(conversation));
       } catch (error) {
         console.warn(LOG_PREFIX, 'refreshing conversation failed', error);
       }
@@ -2867,17 +3344,8 @@
      * @returns {void}
      */
     #showConversation(conversation) {
-      this.#setMessages(ChatSession.#branchMessages(conversation));
+      this.#setMessages(currentBranchMessages(conversation));
       this.publish('conversationLoaded', conversation);
-    }
-
-    /**
-     * Chat messages of a conversation's current branch.
-     * @param {ApiConversation} conversation The conversation.
-     * @returns {ChatMessage[]} The messages, oldest first.
-     */
-    static #branchMessages(conversation) {
-      return ConversationTree.currentBranch(conversation).map(apiMessage => ChatMessage.fromApi(apiMessage));
     }
 
     /**
@@ -2899,15 +3367,6 @@
     #lastPersistedMessageIdBefore(index) {
       const message = this.#messages.slice(0, index).findLast(candidate => candidate.isPersisted);
       return message ? message.id : null;
-    }
-
-    /**
-     * Creates a local assistant message showing an error.
-     * @param {string} errorText Error text.
-     * @returns {ChatMessage} The notice.
-     */
-    static #createErrorNotice(errorText) {
-      return new ChatMessage({ id: createLocalMessageId(), sender: 'assistant', isPersisted: false, errorText });
     }
 
     /**
@@ -3727,6 +4186,184 @@
   }
 
   /**
+   * The only thinking modes the completion endpoint accepts; 'off' is the default.
+   * @type {Readonly<{off: string, extended: string}>}
+   */
+  const THINKING_MODES = Object.freeze({ off: 'off', extended: 'extended' });
+
+  /**
+   * The composer's model, effort and extended thinking controls, kept in sync with the shared
+   * composer settings in both directions.
+   */
+  class ComposerOptionsView {
+    /**
+     * Shared model options.
+     * @type {ComposerSettings}
+     */
+    #settings;
+
+    /**
+     * Model select.
+     * @type {HTMLSelectElement}
+     */
+    #modelSelect;
+
+    /**
+     * Effort select.
+     * @type {HTMLSelectElement}
+     */
+    #effortSelect;
+
+    /**
+     * Extended thinking checkbox.
+     * @type {HTMLInputElement}
+     */
+    #thinkingCheckbox;
+
+    /**
+     * Wires the controls to the settings and shows the current settings.
+     * @param {object} controls The option controls.
+     * @param {HTMLSelectElement} controls.modelSelect Model select.
+     * @param {HTMLSelectElement} controls.effortSelect Effort select.
+     * @param {HTMLInputElement} controls.thinkingCheckbox Extended thinking checkbox.
+     * @param {ComposerSettings} settings Shared model options.
+     */
+    constructor({ modelSelect, effortSelect, thinkingCheckbox }, settings) {
+      this.#settings = settings;
+      this.#modelSelect = modelSelect;
+      this.#effortSelect = effortSelect;
+      this.#thinkingCheckbox = thinkingCheckbox;
+      modelSelect.addEventListener('change', () => { settings.model = modelSelect.value; });
+      effortSelect.addEventListener('change', () => { settings.effort = effortSelect.value; });
+      thinkingCheckbox.addEventListener('change', () => { settings.thinkingMode = thinkingCheckbox.checked ? THINKING_MODES.extended : THINKING_MODES.off; });
+      this.showSettings();
+    }
+
+    /**
+     * Shows the current shared options in the controls.
+     * @returns {void}
+     */
+    showSettings() {
+      this.#modelSelect.value = this.#settings.model;
+      this.#effortSelect.value = this.#settings.effort;
+      this.#thinkingCheckbox.checked = this.#settings.thinkingMode === THINKING_MODES.extended;
+    }
+  }
+
+  /**
+   * Selectable effort levels; the first is the default.
+   * @type {ReadonlyArray<ChoiceOption>}
+   */
+  const EFFORTS = Object.freeze([
+    { id: 'low', label: 'Low effort' },
+    { id: 'medium', label: 'Medium effort' },
+    { id: 'high', label: 'High effort' },
+  ]);
+
+  var stylesheet$b = ".claude-plus-dialog-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  max-width: 360px;\n  font-size: 13px;\n}\n\n.claude-plus-dialog__message {\n  margin: 0 0 14px;\n  line-height: 1.4;\n}\n\n.claude-plus-dialog__input {\n  width: 100%;\n  box-sizing: border-box;\n  margin: 0 0 14px;\n  padding: 6px 8px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font: inherit;\n}\n\n.claude-plus-dialog__actions {\n  display: flex;\n  justify-content: flex-end;\n  gap: 8px;\n}\n";
+
+  StyleRegistry.register(stylesheet$b);
+
+  /**
+   * A small themed dialog box with a message, an optional body and a row of action buttons. It
+   * replaces the native alert(), confirm() and prompt(), which Chrome silently disables ("prevent
+   * this page from creating additional dialogs") after repeated use, making buttons appear to do
+   * nothing. Subclasses supply the action buttons and optionally a body.
+   * @abstract
+   */
+  class ActionDialog extends Dialog {
+    /**
+     * Message shown on top.
+     * @type {string}
+     */
+    #message;
+
+    /**
+     * Creates the dialog without showing it.
+     * @param {string} message Message shown on top.
+     */
+    constructor(message) {
+      super();
+      this.#message = message;
+    }
+
+    /**
+     * CSS class of the dimmed overlay centering the box.
+     * @returns {string} The class name.
+     */
+    get overlayClassName() {
+      return 'claude-plus-dialog-overlay';
+    }
+
+    /**
+     * Builds the box with the message, the body and the actions.
+     * @returns {HTMLElement[]} The dialog box.
+     */
+    createContent() {
+      const message = createElement('p', { className: 'claude-plus-dialog__message', textContent: this.#message });
+      const actions = createElement('div', { className: 'claude-plus-dialog__actions' });
+      actions.append(...this.createActions());
+      const box = createElement('div', { className: 'claude-plus-dialog' });
+      box.append(message, ...this.createBody(), actions);
+      return [box];
+    }
+
+    /**
+     * Builds the elements between the message and the actions.
+     * @returns {HTMLElement[]} The body elements; none unless overridden.
+     */
+    createBody() {
+      return [];
+    }
+
+    /**
+     * Builds the action buttons.
+     * @abstract
+     * @returns {HTMLButtonElement[]} The buttons, left to right.
+     * @throws {Error} When a subclass does not override it.
+     */
+    createActions() {
+      throw new Error(`${this.constructor.name} must override createActions`);
+    }
+
+    /**
+     * Creates a button that closes the dialog with a result.
+     * @param {string} label Button text.
+     * @param {boolean} isPrimary Whether it is the highlighted main action.
+     * @param {function(): *} resultOnClick Returns the dialog result when the button is clicked.
+     * @returns {HTMLButtonElement} The button.
+     */
+    createClosingButton(label, isPrimary, resultOnClick) {
+      const className = isPrimary ? 'claude-plus-primary-button' : 'claude-plus-toolbar__button';
+      const button = createElement('button', { className, textContent: label });
+      button.addEventListener('click', () => this.close(resultOnClick()));
+      return button;
+    }
+  }
+
+  /**
+   * Shows a message with a single OK button; the themed replacement of alert().
+   */
+  class AlertDialog extends ActionDialog {
+    /**
+     * Shows a message and waits until it is dismissed.
+     * @param {string} message Message to show.
+     * @returns {Promise<void>} Resolves once dismissed.
+     */
+    static inform(message) {
+      return new AlertDialog(message).show();
+    }
+
+    /**
+     * Builds the OK button.
+     * @returns {HTMLButtonElement[]} The button.
+     */
+    createActions() {
+      return [this.createClosingButton('OK', true, () => undefined)];
+    }
+  }
+
+  /**
    * Display title of a conversation without a title.
    * @type {string}
    */
@@ -4039,44 +4676,6 @@
   }
 
   /**
-   * Builds the overlay and dialog box shared by confirmDialog and alertDialog.
-   * @param {string} message Message to show.
-   * @param {string} actionsHtml HTML of the action buttons.
-   * @returns {{overlay: HTMLElement, dialog: HTMLElement}} The overlay and the dialog inside it.
-   */
-  function createDialogShell(message, actionsHtml) {
-    const overlay = createElement('div', { className: 'claude-plus-themed claude-plus-dialog-overlay' });
-    const dialog = createElement('div', {
-      className: 'claude-plus-dialog',
-      innerHTML: `<p class="claude-plus-dialog__message"></p><div class="claude-plus-dialog__actions">${actionsHtml}</div>`,
-    });
-    dialog.querySelector('.claude-plus-dialog__message').textContent = message;
-    overlay.append(dialog);
-    return { overlay, dialog };
-  }
-
-  /**
-   * Shows a themed modal in place of the native alert() dialog, for the same reason as
-   * confirmDialog: repeated native dialogs can be silently disabled by the browser.
-   * @param {string} message Message to show.
-   * @returns {Promise<void>} Resolves once dismissed.
-   */
-  function alertDialog(message) {
-    return new Promise(resolve => {
-      const { overlay, dialog } = createDialogShell(message, '<button class="claude-plus-primary-button" data-name="ok">OK</button>');
-      const finish = () => {
-        overlay.remove();
-        resolve();
-      };
-      dialog.querySelector('[data-name="ok"]').addEventListener('click', finish);
-      overlay.addEventListener('mousedown', event => {
-        if (event.target === overlay) finish();
-      });
-      document.body.append(overlay);
-    });
-  }
-
-  /**
    * Lets the browser save text as a file.
    * @param {string} fileName Suggested file name.
    * @param {string} content File content.
@@ -4158,7 +4757,7 @@
         ConversationExporter.#download(conversation, ConversationExporter.FORMATS.get(formatId));
       } catch (error) {
         console.warn(LOG_PREFIX, 'export failed', error);
-        await alertDialog(`Export failed: ${error.message}`);
+        await AlertDialog.inform(`Export failed: ${error.message}`);
       }
     }
 
@@ -4174,25 +4773,9 @@
     }
   }
 
-  /**
-   * Selectable effort levels; the first is the default.
-   * @type {ReadonlyArray<ChoiceOption>}
-   */
-  const EFFORTS = Object.freeze([
-    { id: 'low', label: 'Low effort' },
-    { id: 'medium', label: 'Medium effort' },
-    { id: 'high', label: 'High effort' },
-  ]);
+  var stylesheet$a = ".claude-plus-popup-menu {\n  position: fixed;\n  z-index: var(--claude-plus-layer-popup-menu);\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  padding: 4px;\n  min-width: 140px;\n  font-size: 12px;\n}\n\n.claude-plus-popup-menu__entry {\n  padding: 6px 10px;\n  cursor: pointer;\n  border-radius: 4px;\n}\n\n.claude-plus-popup-menu__entry:hover {\n  background: var(--claude-plus-color-raised-hover);\n}\n";
 
-  /**
-   * Selectable models; the first is the default.
-   * @type {ReadonlyArray<ChoiceOption>}
-   */
-  const MODELS = Object.freeze([
-    { id: 'claude-sonnet-5', label: 'Sonnet 5' },
-    { id: 'claude-opus-5-5', label: 'Opus 5.5' },
-    { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
-  ]);
+  StyleRegistry.register(stylesheet$a);
 
   /**
    * A small menu at the pointer that closes on selection or on a press outside it.
@@ -4267,10 +4850,227 @@
   }
 
   /**
-   * The only thinking modes the completion endpoint accepts; 'off' is the default.
-   * @type {Readonly<{off: string, extended: string}>}
+   * A button opening a menu of the export formats below it; choosing one exports the active chat.
    */
-  const THINKING_MODES = Object.freeze({ off: 'off', extended: 'extended' });
+  class ExportMenuButton {
+    /**
+     * Distance in pixels between the button and the menu.
+     * @type {number}
+     */
+    static #MENU_GAP = 4;
+
+    /**
+     * The button.
+     * @type {HTMLButtonElement}
+     */
+    #button;
+
+    /**
+     * Exports the active chat.
+     * @type {ConversationExporter}
+     */
+    #exporter;
+
+    /**
+     * Menu listing the export formats.
+     * @type {PopupMenu}
+     */
+    #formatMenu = new PopupMenu();
+
+    /**
+     * Wires the button.
+     * @param {HTMLButtonElement} button The button.
+     * @param {ConversationExporter} exporter Exports the active chat.
+     */
+    constructor(button, exporter) {
+      this.#button = button;
+      this.#exporter = exporter;
+      button.addEventListener('click', () => this.#openFormatMenu());
+    }
+
+    /**
+     * Enables or disables the button; only a saved conversation can be exported.
+     * @param {boolean} isEnabled Whether exporting is possible.
+     * @returns {void}
+     */
+    setEnabled(isEnabled) {
+      this.#button.disabled = !isEnabled;
+    }
+
+    /**
+     * Closes the menu if open.
+     * @returns {void}
+     */
+    close() {
+      this.#formatMenu.close();
+    }
+
+    /**
+     * Opens the format menu below the button.
+     * @returns {void}
+     */
+    #openFormatMenu() {
+      const bounds = this.#button.getBoundingClientRect();
+      this.#formatMenu.open({
+        left: bounds.left,
+        top: bounds.bottom + ExportMenuButton.#MENU_GAP,
+        entries: [...ConversationExporter.FORMATS].map(([formatId, format]) => ({ id: formatId, label: format.label })),
+        onSelect: formatId => this.#exporter.exportOpenConversation(formatId),
+      });
+    }
+  }
+
+  /**
+   * Selectable models; the first is the default.
+   * @type {ReadonlyArray<ChoiceOption>}
+   */
+  const MODELS = Object.freeze([
+    { id: 'claude-sonnet-5', label: 'Sonnet 5' },
+    { id: 'claude-opus-5-5', label: 'Opus 5.5' },
+    { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+  ]);
+
+  var stylesheet$9 = ".claude-plus-staged-files {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  padding: 3px 4px 3px 3px;\n  font-size: 12px;\n  max-width: 200px;\n}\n\n.claude-plus-staged-file--uploading {\n  opacity: 0.6;\n}\n\n.claude-plus-staged-file__thumb {\n  width: 20px;\n  height: 20px;\n  border-radius: 4px;\n  object-fit: cover;\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file__icon {\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file__name {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-staged-file__remove {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-faint);\n  cursor: pointer;\n  padding: 0 2px;\n  border-radius: 4px;\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file__remove:hover {\n  background: var(--claude-plus-color-hover);\n  color: var(--claude-plus-color-text);\n}\n";
+
+  StyleRegistry.register(stylesheet$9);
+
+  /**
+   * The files attached to the next prompt, shown as removable chips. Each file is uploaded as soon
+   * as it is attached; a failed upload is dropped and reported rather than kept as a chip.
+   */
+  class StagedFileList {
+    /**
+     * Element showing the chips; hidden while the list is empty.
+     * @type {HTMLElement}
+     */
+    #container;
+
+    /**
+     * Uploads a file to the conversation of the next prompt.
+     * @type {function(File): Promise<UploadedFile>}
+     */
+    #uploadFile;
+
+    /**
+     * Staged files, in attachment order.
+     * @type {StagedFile[]}
+     */
+    #stagedFiles = [];
+
+    /**
+     * Creates the list and handles clicks on the chips' remove buttons.
+     * @param {HTMLElement} container Element showing the chips.
+     * @param {function(File): Promise<UploadedFile>} uploadFile Uploads a file to the conversation of the next prompt.
+     */
+    constructor(container, uploadFile) {
+      this.#container = container;
+      this.#uploadFile = uploadFile;
+      container.addEventListener('click', event => this.#onRemoveClick(event));
+    }
+
+    /**
+     * Whether any upload is still in flight.
+     * @returns {boolean} True while uploading.
+     */
+    get isUploading() {
+      return this.#stagedFiles.some(stagedFile => stagedFile.isUploading);
+    }
+
+    /**
+     * Uploads a file and shows it as a chip, updated once the upload settles.
+     * @param {File} file File to attach.
+     * @returns {Promise<void>} Resolves once uploaded, or once a failure has been reported.
+     */
+    async attach(file) {
+      const key = crypto.randomUUID();
+      this.#setStagedFiles([...this.#stagedFiles, { key, name: file.name, isUploading: true, upload: null }]);
+      try {
+        const upload = await this.#uploadFile(file);
+        this.#update(key, { isUploading: false, upload });
+      } catch (error) {
+        this.#remove(key);
+        await AlertDialog.inform(`Uploading "${file.name}" failed: ${error.message}`);
+      }
+    }
+
+    /**
+     * Returns the finished uploads and empties the list.
+     * @returns {UploadedFile[]} The uploads, in attachment order.
+     */
+    takeUploads() {
+      const uploads = this.#stagedFiles.map(stagedFile => stagedFile.upload);
+      this.#setStagedFiles([]);
+      return uploads;
+    }
+
+    /**
+     * Discards every staged file, without cancelling uploads in flight; a late upload result is
+     * ignored once its entry is gone.
+     * @returns {void}
+     */
+    clear() {
+      if (this.#stagedFiles.length) this.#setStagedFiles([]);
+    }
+
+    /**
+     * Merges changes into a staged file, unless it was removed while its upload was in flight.
+     * @param {string} key Entry key.
+     * @param {Partial<StagedFile>} changes Fields to merge in.
+     * @returns {void}
+     */
+    #update(key, changes) {
+      if (!this.#stagedFiles.some(stagedFile => stagedFile.key === key)) return;
+      this.#setStagedFiles(this.#stagedFiles.map(stagedFile => (stagedFile.key === key ? { ...stagedFile, ...changes } : stagedFile)));
+    }
+
+    /**
+     * Removes a staged file.
+     * @param {string} key Entry key.
+     * @returns {void}
+     */
+    #remove(key) {
+      this.#setStagedFiles(this.#stagedFiles.filter(stagedFile => stagedFile.key !== key));
+    }
+
+    /**
+     * Removes the staged file whose remove button was clicked.
+     * @param {MouseEvent} event Click inside the chip row.
+     * @returns {void}
+     */
+    #onRemoveClick(event) {
+      const button = event.target.closest('[data-key]');
+      if (button) this.#remove(button.dataset.key);
+    }
+
+    /**
+     * Replaces the staged files and redraws the chips, hiding the row when there are none.
+     * @param {StagedFile[]} stagedFiles New list.
+     * @returns {void}
+     */
+    #setStagedFiles(stagedFiles) {
+      this.#stagedFiles = stagedFiles;
+      this.#container.hidden = stagedFiles.length === 0;
+      this.#container.innerHTML = stagedFiles.map(stagedFile => StagedFileList.#chipHtml(stagedFile)).join('');
+    }
+
+    /**
+     * HTML of one chip: a thumbnail for an uploaded image, else a generic file icon.
+     * @param {StagedFile} stagedFile The staged file.
+     * @returns {string} The chip.
+     */
+    static #chipHtml(stagedFile) {
+      const thumbnailHtml = stagedFile.upload?.thumbnail_url
+        ? `<img class="claude-plus-staged-file__thumb" src="${escapeHtml(stagedFile.upload.thumbnail_url)}" alt="" />`
+        : '<span class="claude-plus-staged-file__icon">📎</span>';
+      const stateClass = stagedFile.isUploading ? ' claude-plus-staged-file--uploading' : '';
+      return `
+      <span class="claude-plus-staged-file${stateClass}">
+        ${thumbnailHtml}
+        <span class="claude-plus-staged-file__name">${escapeHtml(stagedFile.name)}</span>
+        <button class="claude-plus-staged-file__remove" data-key="${escapeHtml(stagedFile.key)}" title="Remove">×</button>
+      </span>`;
+    }
+  }
 
   /**
    * HTML for the options of a select element.
@@ -4282,11 +5082,16 @@
     return options.map(option => `<option value="${escapeHtml(option.id)}"${option.id === selectedId ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
   }
 
+  var stylesheet$8 = ".claude-plus-composer__options {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n  align-items: center;\n  flex-shrink: 0;\n}\n\n.claude-plus-composer__options select {\n  padding: 4px 6px;\n}\n\n.claude-plus-composer__thinking-toggle {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n}\n\n.claude-plus-panel .claude-plus-composer__input {\n  flex: 1;\n  resize: none;\n  min-height: 40px;\n  border-radius: 8px;\n  padding: 8px;\n  font-size: 14px;\n}\n\n.claude-plus-primary-button.claude-plus-composer__stop-button {\n  flex-shrink: 0;\n  background: var(--claude-plus-color-button-hover);\n}\n";
+
+  StyleRegistry.register(stylesheet$8);
+
   /**
    * The single message composer. It always targets the active chat (the focused chat pane) and can
    * be docked anywhere. Enter sends and Shift+Enter inserts a line break; there is no send button,
-   * only a Stop button while a reply streams. Its toolbar holds the model options, buttons opening
-   * the active chat's files and sources sub-panes, and the chat export.
+   * only a Stop button while a reply streams. Files pasted or dropped in are uploaded and attached
+   * to the next prompt. Its toolbar holds the model options, buttons opening the active chat's files
+   * and sources sub-panes, and the chat export.
    */
   class ComposerPanel extends Panel {
     /**
@@ -4308,24 +5113,28 @@
     #exporter;
 
     /**
-     * Menu listing the export formats.
-     * @type {PopupMenu}
+     * The model option controls; created once the body is built.
+     * @type {?ComposerOptionsView}
      */
-    #exportMenu = new PopupMenu();
+    #optionsView = null;
+
+    /**
+     * The export button; created once the body is built.
+     * @type {?ExportMenuButton}
+     */
+    #exportButton = null;
+
+    /**
+     * Files attached to the next prompt; created once the body is built.
+     * @type {?StagedFileList}
+     */
+    #stagedFiles = null;
 
     /**
      * Undoes the subscriptions to the active chat's session.
      * @type {Array<function(): void>}
      */
     #sessionUnsubscribers = [];
-
-    /**
-     * Files pasted or dropped in, attached to the next prompt. Each entry is
-     * {key: string, name: string, isUploading: boolean, upload: ?UploadedFile}; a failed upload is
-     * dropped from the list rather than kept as an entry.
-     * @type {Array<object>}
-     */
-    #stagedFiles = [];
 
     /**
      * Creates the panel.
@@ -4362,27 +5171,24 @@
     }
 
     /**
-     * Wires the controls and follows the settings and the active chat.
+     * Creates the controls' views, wires the prompt input and follows the settings and the active chat.
      * @returns {void}
      */
     bindEvents() {
-      const { modelSelect, effortSelect, thinkingCheckbox, promptInput, stopButton, filesButton, sourcesButton, exportButton, stagedFiles } = this.elements;
-      modelSelect.addEventListener('change', () => { this.#settings.model = modelSelect.value; });
-      effortSelect.addEventListener('change', () => { this.#settings.effort = effortSelect.value; });
-      thinkingCheckbox.addEventListener('change', () => { this.#settings.thinkingMode = thinkingCheckbox.checked ? THINKING_MODES.extended : THINKING_MODES.off; });
+      const { promptInput, stopButton, filesButton, sourcesButton, exportButton, stagedFiles } = this.elements;
+      this.#optionsView = new ComposerOptionsView(this.elements, this.#settings);
+      this.#exportButton = new ExportMenuButton(exportButton, this.#exporter);
+      this.#stagedFiles = new StagedFileList(stagedFiles, file => this.#paneManager.focusedSession.uploadFile(file));
       promptInput.addEventListener('keydown', event => this.#onPromptKeydown(event));
       promptInput.addEventListener('paste', event => this.#onPaste(event));
       this.element.addEventListener('dragover', event => event.preventDefault());
       this.element.addEventListener('drop', event => this.#onDrop(event));
-      stagedFiles.addEventListener('click', event => this.#onStagedFilesClick(event));
       stopButton.addEventListener('click', () => this.#paneManager.focusedSession.stopReply());
       filesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('files'));
       sourcesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('sources'));
-      exportButton.addEventListener('click', () => this.#showExportMenu());
-      this.listenTo(this.#settings, 'settings', () => this.#showSettings());
+      this.listenTo(this.#settings, 'settings', () => this.#optionsView.showSettings());
       this.listenTo(this.#paneManager, 'focus', () => this.#followActiveChat());
       this.listenTo(this.#paneManager, 'paneConversations', () => this.render());
-      this.#showSettings();
       this.#followActiveChat();
     }
 
@@ -4393,27 +5199,27 @@
     render() {
       const session = this.#paneManager.focusedSession;
       this.elements.stopButton.hidden = !session.isSending;
-      this.elements.exportButton.disabled = !session.openConversationId;
+      this.#exportButton.setEnabled(Boolean(session.openConversationId));
     }
 
     /**
-     * Ends the subscriptions, including those to the active chat.
+     * Ends the subscriptions, including those to the active chat, and closes the export menu.
      * @returns {void}
      */
     dispose() {
       this.#unsubscribeFromSession();
-      this.#exportMenu.close();
+      this.#exportButton?.close();
       super.dispose();
     }
 
     /**
-     * Subscribes to the newly active chat's sending state.
+     * Subscribes to the newly active chat's sending state and drops the files staged for the previous one.
      * @returns {void}
      */
     #followActiveChat() {
       this.#unsubscribeFromSession();
       this.#sessionUnsubscribers = [this.#paneManager.focusedSession.subscribe('sending', () => this.render())];
-      this.#clearStagedFiles();
+      this.#stagedFiles.clear();
       this.render();
     }
 
@@ -4424,30 +5230,6 @@
     #unsubscribeFromSession() {
       this.#sessionUnsubscribers.forEach(unsubscribe => unsubscribe());
       this.#sessionUnsubscribers = [];
-    }
-
-    /**
-     * Shows the current shared options.
-     * @returns {void}
-     */
-    #showSettings() {
-      this.elements.modelSelect.value = this.#settings.model;
-      this.elements.effortSelect.value = this.#settings.effort;
-      this.elements.thinkingCheckbox.checked = this.#settings.thinkingMode === THINKING_MODES.extended;
-    }
-
-    /**
-     * Opens the export format menu below the export button.
-     * @returns {void}
-     */
-    #showExportMenu() {
-      const bounds = this.elements.exportButton.getBoundingClientRect();
-      this.#exportMenu.open({
-        left: bounds.left,
-        top: bounds.bottom + 4,
-        entries: [...ConversationExporter.FORMATS].map(([formatId, format]) => ({ id: formatId, label: format.label })),
-        onSelect: formatId => this.#exporter.exportOpenConversation(formatId),
-      });
     }
 
     /**
@@ -4471,25 +5253,22 @@
     }
 
     /**
-     * Sends the typed prompt and any successfully staged files to the active chat, then clears both;
-     * ignored for blank input, while the active chat is sending, or while a file is still uploading.
+     * Sends the typed prompt and the staged files to the active chat, then clears both; ignored for
+     * blank input, while the active chat is sending, or while a file is still uploading.
      * @returns {void}
      */
     #sendTypedPrompt() {
       const { promptInput } = this.elements;
       const session = this.#paneManager.focusedSession;
-      if (!promptInput.value.trim() || session.isSending || this.#stagedFiles.some(entry => entry.isUploading)) return;
+      if (!promptInput.value.trim() || session.isSending || this.#stagedFiles.isUploading) return;
       const prompt = promptInput.value;
-      const files = this.#stagedFiles.map(entry => entry.upload);
       promptInput.value = '';
-      this.#stagedFiles = [];
-      this.#renderStagedFiles();
-      session.sendPrompt(prompt, files);
+      session.sendPrompt(prompt, this.#stagedFiles.takeUploads());
     }
 
     /**
-     * Intercepts a paste that carries one or more files, uploading each and leaving any pasted text
-     * to paste normally. A paste with no files is left alone.
+     * Attaches the files of a paste that carries any, leaving pasted text to paste normally. A paste
+     * without files is left alone.
      * @param {ClipboardEvent} event The paste.
      * @returns {void}
      */
@@ -4500,100 +5279,17 @@
         .filter(Boolean);
       if (!files.length) return;
       event.preventDefault();
-      files.forEach(file => this.#attachFile(file));
+      files.forEach(file => this.#stagedFiles.attach(file));
     }
 
     /**
-     * Uploads every file dropped onto the composer.
+     * Attaches every file dropped onto the composer.
      * @param {DragEvent} event The drop.
      * @returns {void}
      */
     #onDrop(event) {
       event.preventDefault();
-      [...(event.dataTransfer?.files ?? [])].forEach(file => this.#attachFile(file));
-    }
-
-    /**
-     * Uploads a file to the active chat's conversation and shows it as a staged attachment chip,
-     * replacing the placeholder once the upload settles.
-     * @param {File} file File to upload.
-     * @returns {Promise<void>} Resolves once uploaded or failed.
-     */
-    async #attachFile(file) {
-      const key = crypto.randomUUID();
-      this.#stagedFiles = [...this.#stagedFiles, { key, name: file.name, isUploading: true, upload: null }];
-      this.#renderStagedFiles();
-      try {
-        const upload = await this.#paneManager.focusedSession.uploadFile(file);
-        this.#updateStagedFile(key, { isUploading: false, upload });
-      } catch (error) {
-        this.#stagedFiles = this.#stagedFiles.filter(entry => entry.key !== key);
-        this.#renderStagedFiles();
-        await alertDialog(`Uploading "${file.name}" failed: ${error.message}`);
-      }
-    }
-
-    /**
-     * Merges changes into a staged file entry, unless it was removed while the upload was in flight.
-     * @param {string} key Entry key.
-     * @param {object} changes Fields to merge in.
-     * @returns {void}
-     */
-    #updateStagedFile(key, changes) {
-      if (!this.#stagedFiles.some(entry => entry.key === key)) return;
-      this.#stagedFiles = this.#stagedFiles.map(entry => (entry.key === key ? { ...entry, ...changes } : entry));
-      this.#renderStagedFiles();
-    }
-
-    /**
-     * Removes a staged file the user clicked the remove button of.
-     * @param {MouseEvent} event Click inside the staged files row.
-     * @returns {void}
-     */
-    #onStagedFilesClick(event) {
-      const button = event.target.closest('[data-key]');
-      if (!button) return;
-      this.#stagedFiles = this.#stagedFiles.filter(entry => entry.key !== button.dataset.key);
-      this.#renderStagedFiles();
-    }
-
-    /**
-     * Discards every staged file, without cancelling uploads already in flight; a late response is
-     * ignored by #updateStagedFile once its entry is gone.
-     * @returns {void}
-     */
-    #clearStagedFiles() {
-      if (!this.#stagedFiles.length) return;
-      this.#stagedFiles = [];
-      this.#renderStagedFiles();
-    }
-
-    /**
-     * Shows the staged files as removable chips, hiding the row when there are none.
-     * @returns {void}
-     */
-    #renderStagedFiles() {
-      const { stagedFiles } = this.elements;
-      stagedFiles.hidden = this.#stagedFiles.length === 0;
-      stagedFiles.innerHTML = this.#stagedFiles.map(entry => ComposerPanel.#stagedFileHtml(entry)).join('');
-    }
-
-    /**
-     * HTML of one staged file chip: a thumbnail for an uploaded image, else a generic file icon.
-     * @param {object} entry A #stagedFiles entry.
-     * @returns {string} The chip.
-     */
-    static #stagedFileHtml(entry) {
-      const thumbnailHtml = entry.upload?.thumbnail_url
-        ? `<img class="claude-plus-staged-file__thumb" src="${escapeHtml(entry.upload.thumbnail_url)}" alt="" />`
-        : '<span class="claude-plus-staged-file__icon">📎</span>';
-      const stateClass = entry.isUploading ? ' claude-plus-staged-file--uploading' : '';
-      return `
-      <span class="claude-plus-staged-file${stateClass}">
-        ${thumbnailHtml}
-        <span class="claude-plus-staged-file__name">${escapeHtml(entry.name)}</span>
-        <button class="claude-plus-staged-file__remove" data-key="${escapeHtml(entry.key)}" title="Remove">×</button>
-      </span>`;
+      [...(event.dataTransfer?.files ?? [])].forEach(file => this.#stagedFiles.attach(file));
     }
   }
 
@@ -5313,6 +6009,56 @@
   }
 
   /**
+   * The menu behind a zone's "+" button, offering a new chat or a new instance of a view panel as a
+   * tab of that zone.
+   */
+  class AddPanelMenu {
+    /**
+     * The popup showing the entries.
+     * @type {PopupMenu}
+     */
+    #popupMenu = new PopupMenu();
+
+    /**
+     * Provides the current entries.
+     * @type {function(): ChoiceOption[]}
+     */
+    #entries;
+
+    /**
+     * Called with the chosen entry id and the zone id.
+     * @type {function(string, string): void}
+     */
+    #onSelect;
+
+    /**
+     * Creates the menu.
+     * @param {object} options Menu options.
+     * @param {function(): ChoiceOption[]} options.entries Provides the current entries.
+     * @param {function(string, string): void} options.onSelect Called with the chosen entry id and the zone id.
+     */
+    constructor({ entries, onSelect }) {
+      this.#entries = entries;
+      this.#onSelect = onSelect;
+    }
+
+    /**
+     * Opens the menu at the pointer for a zone.
+     * @param {MouseEvent} event Click on the zone's "+" button.
+     * @param {string} leafId Zone id.
+     * @returns {void}
+     */
+    open(event, leafId) {
+      this.#popupMenu.open({
+        left: event.clientX,
+        top: event.clientY,
+        entries: this.#entries(),
+        onSelect: entryId => this.#onSelect(entryId, leafId),
+      });
+    }
+  }
+
+  /**
    * Positions a fixed-position element over a rectangle.
    * @param {HTMLElement} element The element.
    * @param {Rect} rect Target rectangle.
@@ -5322,11 +6068,128 @@
     Object.assign(element.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
   }
 
+  var stylesheet$7 = "html.claude-plus-resizing-horizontally,\nhtml.claude-plus-resizing-horizontally * {\n  cursor: col-resize !important;\n  user-select: none;\n}\n\nhtml.claude-plus-resizing-vertically,\nhtml.claude-plus-resizing-vertically * {\n  cursor: row-resize !important;\n  user-select: none;\n}\n\n.claude-plus-divider-layer {\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  z-index: var(--claude-plus-layer-divider);\n}\n\n.claude-plus-divider {\n  position: fixed;\n  pointer-events: auto;\n  background: transparent;\n}\n\n.claude-plus-divider--vertical {\n  cursor: col-resize;\n}\n\n.claude-plus-divider--horizontal {\n  cursor: row-resize;\n}\n\n.claude-plus-divider:hover {\n  background: var(--claude-plus-color-accent);\n}\n";
+
+  StyleRegistry.register(stylesheet$7);
+
   /**
-   * Renders the dock tree, positions the panels and handles tab dragging, divider resizing and the
-   * add-panel menu.
+   * Draws the dividers between split children on a layer above the panels, so they can be grabbed
+   * along their full length, and reports how far a dragged divider moved.
    */
-  class DockWorkspace {
+  class DividerRenderer {
+    /**
+     * Layer holding every divider.
+     * @type {HTMLElement}
+     */
+    #layer = createElement('div', { className: 'claude-plus-divider-layer' });
+
+    /**
+     * Called on every move with the split, the divider index, the sizes at the start and the moved fraction.
+     * @type {function(SplitNode, number, number[], number): void}
+     */
+    #onResize;
+
+    /**
+     * Called once a divider is released.
+     * @type {function(): void}
+     */
+    #onResizeEnd;
+
+    /**
+     * Creates the renderer.
+     * @param {object} callbacks Resize callbacks.
+     * @param {function(SplitNode, number, number[], number): void} callbacks.onResize Called on every move with the split, the divider index, the sizes at the start and the moved fraction of the split's extent.
+     * @param {function(): void} callbacks.onResizeEnd Called once a divider is released.
+     */
+    constructor({ onResize, onResizeEnd }) {
+      this.#onResize = onResize;
+      this.#onResizeEnd = onResizeEnd;
+    }
+
+    /**
+     * The layer element, to add to the page.
+     * @returns {HTMLElement} The layer.
+     */
+    get layer() {
+      return this.#layer;
+    }
+
+    /**
+     * Removes every drawn divider.
+     * @returns {void}
+     */
+    clear() {
+      this.#layer.replaceChildren();
+    }
+
+    /**
+     * Draws a divider that resizes its split when dragged.
+     * @param {DividerPlacement} placement The divider.
+     * @returns {void}
+     */
+    render(placement) {
+      const isSideBySide = placement.split.direction === 'row';
+      const className = isSideBySide ? 'claude-plus-divider claude-plus-divider--vertical' : 'claude-plus-divider claude-plus-divider--horizontal';
+      const divider = createElement('div', { className });
+      placeElement(divider, DividerRenderer.#grabArea(placement, isSideBySide));
+      divider.addEventListener('mousedown', event => this.#startDrag(event, placement, isSideBySide));
+      this.#layer.append(divider);
+    }
+
+    /**
+     * Grab area of a divider, centred on the boundary.
+     * @param {DividerPlacement} placement The divider.
+     * @param {boolean} isSideBySide Whether the split places children side by side.
+     * @returns {Rect} The area.
+     */
+    static #grabArea({ rect, position }, isSideBySide) {
+      const start = position - LAYOUT.dividerThickness / 2;
+      return isSideBySide
+        ? { left: start, top: rect.top, width: LAYOUT.dividerThickness, height: rect.height }
+        : { left: rect.left, top: start, width: rect.width, height: LAYOUT.dividerThickness };
+    }
+
+    /**
+     * Pointer coordinate along a split axis.
+     * @param {MouseEvent} event Pointer event.
+     * @param {boolean} isSideBySide True for the x coordinate, false for y.
+     * @returns {number} The coordinate.
+     */
+    static #pointerPositionAlongAxis(event, isSideBySide) {
+      return isSideBySide ? event.clientX : event.clientY;
+    }
+
+    /**
+     * Reports the moved fraction while a divider is dragged, with the resize cursor forced on the
+     * whole page, and reports the release.
+     * @param {MouseEvent} startEvent The mousedown on the divider.
+     * @param {DividerPlacement} placement The divider.
+     * @param {boolean} isSideBySide Whether the split places children side by side.
+     * @returns {void}
+     */
+    #startDrag(startEvent, { split, index, rect }, isSideBySide) {
+      startEvent.preventDefault();
+      const startSizes = [...split.sizes];
+      const startPosition = DividerRenderer.#pointerPositionAlongAxis(startEvent, isSideBySide);
+      const extent = isSideBySide ? rect.width : rect.height;
+      const resizingClass = isSideBySide ? 'claude-plus-resizing-horizontally' : 'claude-plus-resizing-vertically';
+      document.documentElement.classList.add(resizingClass);
+      new DragGesture(startEvent, {
+        threshold: 0,
+        onMove: event => this.#onResize(split, index, startSizes, (DividerRenderer.#pointerPositionAlongAxis(event, isSideBySide) - startPosition) / extent),
+        onEnd: () => {
+          document.documentElement.classList.remove(resizingClass);
+          this.#onResizeEnd();
+        },
+      });
+    }
+  }
+
+  /**
+   * Finds where a dragged panel would dock for a pointer position: an outer workspace edge when the
+   * pointer is near one, otherwise the centre or a side of the zone under the pointer.
+   */
+  class DropTargetResolver {
     /**
      * Highlight area for each outer edge drop, given the workspace bounds and the capped width and height.
      * @type {Readonly<Record<string, function(Rect, number, number): Rect>>}
@@ -5351,584 +6214,18 @@
     });
 
     /**
-     * Panels by id.
-     * @type {Map<string, Panel>}
-     */
-    #panels;
-
-    /**
-     * Layout storage.
-     * @type {Preferences}
-     */
-    #preferences;
-
-    /**
-     * Current layout.
-     * @type {DockTree}
-     */
-    #tree;
-
-    /**
-     * Zone frames and tab strips, below the panels.
-     * @type {HTMLElement}
-     */
-    #zoneChromeLayer;
-
-    /**
-     * Dividers, above the panels so they can be grabbed along their full length.
-     * @type {HTMLElement}
-     */
-    #dividerLayer;
-
-    /**
-     * Zone areas from the last layout, used to find drop targets.
-     * @type {LeafPlacement[]}
-     */
-    #leafPlacements = [];
-
-    /**
-     * Batches layouts per frame during resizing.
-     * @type {FrameScheduler}
-     */
-    #layoutScheduler = new FrameScheduler(() => this.layout());
-
-    /**
-     * The add-panel menu.
-     * @type {PopupMenu}
-     */
-    #addPanelMenu = new PopupMenu();
-
-    /**
-     * Creates the default layout.
-     * @type {function(): DockTree}
-     */
-    #createDefaultTree;
-
-    /**
-     * Ids of the panels that must always be docked.
-     * @type {function(): string[]}
-     */
-    #requiredPanelIds;
-
-    /**
-     * Docks a required panel the layout lacks.
-     * @type {function(DockTree, string): void}
-     */
-    #placeMissingPanel;
-
-    /**
-     * Entries of the zones' "+" menu and what choosing one does.
-     * @type {{entries: function(): ChoiceOption[], onSelect: function(string, string): void}}
-     */
-    #addPanelMenuOptions;
-
-    /**
-     * Called after every layout with the ids of the visible panels.
-     * @type {function(Set<string>): void}
-     */
-    #onLayout;
-
-    /**
-     * Creates the workspace from the stored layout, or the default one, and docks any required
-     * panel the layout lacks.
-     * @param {object} options Workspace options.
-     * @param {Map<string, Panel>} options.panels Panels by id; panels can be added and removed later.
-     * @param {Preferences} options.preferences Layout storage.
-     * @param {function(): DockTree} options.createDefaultTree Creates the default layout.
-     * @param {function(): string[]} options.requiredPanelIds Ids of the panels that must always be docked.
-     * @param {function(DockTree, string): void} options.placeMissingPanel Docks a required panel the layout lacks.
-     * @param {{entries: function(): ChoiceOption[], onSelect: function(string, string): void}} options.addPanelMenu Entries of the zones' "+" menu, and a callback receiving the chosen entry id and the zone id.
-     * @param {function(Set<string>): void} options.onLayout Called after every layout with the ids of the visible panels.
-     */
-    constructor({ panels, preferences, createDefaultTree, requiredPanelIds, placeMissingPanel, addPanelMenu, onLayout }) {
-      this.#panels = panels;
-      this.#preferences = preferences;
-      this.#createDefaultTree = createDefaultTree;
-      this.#requiredPanelIds = requiredPanelIds;
-      this.#placeMissingPanel = placeMissingPanel;
-      this.#addPanelMenuOptions = addPanelMenu;
-      this.#onLayout = onLayout;
-      this.#tree = DockTree.fromStored(preferences.readJson(STORAGE_KEYS.dockLayout), panels.keys()) ?? createDefaultTree();
-      this.#dockMissingRequiredPanels();
-    }
-
-    /**
-     * Adds the layers to the page, lays out and follows window resizes.
-     * @returns {void}
-     */
-    mount() {
-      this.#zoneChromeLayer = createElement('div', { className: 'claude-plus-themed claude-plus-zone-chrome-layer' });
-      this.#dividerLayer = createElement('div', { className: 'claude-plus-divider-layer' });
-      document.body.append(this.#zoneChromeLayer, this.#dividerLayer);
-      window.addEventListener('resize', () => this.#layoutScheduler.schedule());
-      this.layout();
-    }
-
-    /**
-     * Restores the default layout and forgets the stored one.
-     * @returns {void}
-     */
-    resetLayout() {
-      this.#preferences.remove(STORAGE_KEYS.dockLayout);
-      this.#tree = this.#createDefaultTree();
-      this.layout();
-    }
-
-    /**
-     * Adds a panel and docks it to the right of another one, or into the first zone.
-     * @param {string} panelId Id of the new panel.
-     * @param {Panel} panel The panel.
-     * @param {string} besidePanelId Panel to dock it next to.
-     * @returns {void}
-     */
-    addPanel(panelId, panel, besidePanelId) {
-      this.#panels.set(panelId, panel);
-      const besideLeaf = this.#tree.findLeafContaining(besidePanelId) || this.#tree.firstLeaf();
-      this.#tree.dockPanel(panelId, besideLeaf.id, 'right');
-      this.#layoutAndSave();
-    }
-
-    /**
-     * Adds a panel and docks it at a specific drop target, as chosen during a drag started with
-     * beginExternalDrag.
-     * @param {string} panelId Id of the new panel.
-     * @param {Panel} panel The panel.
-     * @param {DropTarget} dropTarget Where to dock it: an outer edge, or a region of a zone.
-     * @returns {void}
-     */
-    addPanelAt(panelId, panel, dropTarget) {
-      this.#panels.set(panelId, panel);
-      if (dropTarget.edge) this.#tree.dockPanelAtEdge(panelId, dropTarget.edge);
-      else this.#tree.dockPanel(panelId, dropTarget.leafId, dropTarget.region);
-      this.#layoutAndSave();
-    }
-
-    /**
-     * Drags a floating label for something that doesn't exist as a panel yet, highlighting the same
-     * drop targets a tab drag would, and invokes a callback with the chosen target on release. Lets
-     * other panels (e.g. the conversation list) offer "drag this to open it as a new pane docked
-     * here" without this class needing to know anything about what's being dragged.
-     * @param {MouseEvent} startEvent The mousedown that starts the drag.
-     * @param {string} label Text shown in the floating drag label.
-     * @param {function(DropTarget): void} onDrop Called with the chosen drop target when dropped on one.
-     * @returns {void}
-     */
-    beginExternalDrag(startEvent, label, onDrop) {
-      startEvent.preventDefault();
-      const dragLabel = createElement('div', { className: 'claude-plus-themed claude-plus-drag-label', textContent: label, hidden: true });
-      const dropHighlight = createElement('div', { className: 'claude-plus-drop-highlight', hidden: true });
-      document.body.append(dragLabel, dropHighlight);
-      let dropTarget = null;
-      new DragGesture(startEvent, {
-        threshold: LAYOUT.dragThreshold,
-        onMove: (event) => {
-          dropTarget = this.#dropTargetAt(event.clientX, event.clientY);
-          DockWorkspace.#showDragFeedback(dragLabel, dropHighlight, event, dropTarget);
-        },
-        onEnd: (event, wasDragged) => {
-          dragLabel.remove();
-          dropHighlight.remove();
-          if (wasDragged && dropTarget) onDrop(dropTarget);
-        },
-      });
-    }
-
-    /**
-     * Undocks a panel, disposes it and forgets it.
-     * @param {string} panelId Panel id.
-     * @returns {void}
-     */
-    removePanel(panelId) {
-      const panel = this.#panels.get(panelId);
-      if (!panel) return;
-      this.#tree.removePanel(panelId);
-      this.#panels.delete(panelId);
-      panel.dispose();
-      this.#layoutAndSave();
-    }
-
-    /**
-     * Docks every required panel missing from the layout.
-     * @returns {void}
-     */
-    #dockMissingRequiredPanels() {
-      const missing = this.#requiredPanelIds().filter(panelId => !this.#tree.findLeafContaining(panelId));
-      missing.forEach(panelId => this.#placeMissingPanel(this.#tree, panelId));
-    }
-
-    /**
-     * Adds a panel as the active tab of a zone and saves the layout.
-     * @param {string} panelId Id of the new panel.
-     * @param {Panel} panel The panel.
-     * @param {string} leafId Zone id.
-     * @returns {void}
-     */
-    addPanelToZone(panelId, panel, leafId) {
-      this.#panels.set(panelId, panel);
-      this.#tree.dockPanel(panelId, leafId, 'center');
-      this.#layoutAndSave();
-    }
-
-    /**
-     * Makes a panel known without docking it; used before applying a layout that contains it.
-     * @param {string} panelId Panel id.
-     * @param {Panel} panel The panel.
-     * @returns {void}
-     */
-    registerPanel(panelId, panel) {
-      this.#panels.set(panelId, panel);
-    }
-
-    /**
-     * Whether a panel is known.
-     * @param {string} panelId Panel id.
-     * @returns {boolean} True when it exists, docked or not.
-     */
-    hasPanel(panelId) {
-      return this.#panels.has(panelId);
-    }
-
-    /**
-     * A copy of the current arrangement.
-     * @returns {DockNode} The layout tree, detached from the live one.
-     */
-    layoutSnapshot() {
-      return JSON.parse(JSON.stringify(this.#tree));
-    }
-
-    /**
-     * Applies a stored arrangement: panels it doesn't mention are closed, required panels it lacks
-     * are docked, and the result is laid out and saved. Unusable arrangements fall back to the default.
-     * @param {*} storedTree Stored layout tree.
-     * @returns {void}
-     */
-    replaceLayout(storedTree) {
-      this.#tree = DockTree.fromStored(storedTree, this.#panels.keys()) ?? this.#createDefaultTree();
-      this.#dockMissingRequiredPanels();
-      [...this.#panels].filter(([panelId, panel]) => !this.#tree.findLeafContaining(panelId) && panel.canClose()).forEach(([, panel]) => panel.close());
-      this.#layoutAndSave();
-    }
-
-    /**
-     * The first docked panel satisfying a predicate.
-     * @param {function(Panel): boolean} predicate Test for each panel.
-     * @returns {?{panelId: string, panel: Panel}} The panel and its id, or null.
-     */
-    findDockedPanel(predicate) {
-      const entry = [...this.#panels].find(([panelId, panel]) => this.#tree.findLeafContaining(panelId) && predicate(panel));
-      return entry ? { panelId: entry[0], panel: entry[1] } : null;
-    }
-
-    /**
-     * Makes a docked panel the visible tab of its zone.
-     * @param {string} panelId Panel id.
-     * @returns {boolean} True if the panel is docked and now visible; false if it isn't docked.
-     */
-    revealPanel(panelId) {
-      const leaf = this.#tree.findLeafContaining(panelId);
-      if (leaf) this.#activateTab(leaf.id, panelId);
-      return Boolean(leaf);
-    }
-
-    /**
-     * Redraws zone frames, tab strips and dividers and positions the visible panels; other panels
-     * are hidden. Reports the visible panels through the onLayout callback.
-     * @returns {void}
-     */
-    layout() {
-      const { leaves, dividers } = this.#tree.computeLayout(this.#workspaceBounds());
-      this.#leafPlacements = leaves;
-      this.#zoneChromeLayer.replaceChildren();
-      this.#dividerLayer.replaceChildren();
-      leaves.forEach(placement => this.#renderZone(placement));
-      const visiblePanelIds = new Set(leaves.map(placement => placement.leaf.activeTab));
-      this.#hidePanelsExcept(visiblePanelIds);
-      dividers.forEach(placement => this.#renderDivider(placement));
-      this.#onLayout(visiblePanelIds);
-    }
-
-    /**
-     * Lays out and saves the layout.
-     * @returns {void}
-     */
-    #layoutAndSave() {
-      this.layout();
-      this.#preferences.writeJson(STORAGE_KEYS.dockLayout, this.#tree);
-    }
-
-    /**
-     * Area available to the dock, below the toolbar.
-     * @returns {Rect} The area.
-     */
-    #workspaceBounds() {
-      return { left: 0, top: LAYOUT.toolbarHeight, width: window.innerWidth, height: window.innerHeight - LAYOUT.toolbarHeight };
-    }
-
-    /**
-     * Draws a zone and shows its active panel below the tab strip.
-     * @param {LeafPlacement} placement The zone and its area.
-     * @returns {void}
-     */
-    #renderZone({ leaf, rect }) {
-      this.#renderZoneChrome(leaf, rect);
-      if (leaf.activeTab) this.#showPanel(leaf.activeTab, { ...rect, top: rect.top + LAYOUT.tabStripHeight, height: rect.height - LAYOUT.tabStripHeight });
-    }
-
-    /**
-     * Hides every built panel that isn't visible.
-     * @param {Set<string>} visiblePanelIds Ids of the visible panels.
-     * @returns {void}
-     */
-    #hidePanelsExcept(visiblePanelIds) {
-      for (const [panelId, panel] of this.#panels) {
-        if (!visiblePanelIds.has(panelId) && panel.isBuilt) panel.element.style.visibility = 'hidden';
-      }
-    }
-
-    /**
-     * Positions and shows a panel, adding it to the page on first use.
-     * @param {string} panelId Panel id.
-     * @param {Rect} contentRect Area below the tab strip.
-     * @returns {void}
-     */
-    #showPanel(panelId, contentRect) {
-      const panel = this.#panels.get(panelId);
-      if (!panel) return;
-      const { element } = panel;
-      if (!element.isConnected) document.body.append(element);
-      placeElement(element, contentRect);
-      element.style.visibility = 'visible';
-    }
-
-    /**
-     * Title of a panel.
-     * @param {string} panelId Panel id.
-     * @returns {string} Its title, or the id for an unknown panel.
-     */
-    #panelTitle(panelId) {
-      const panel = this.#panels.get(panelId);
-      return panel ? panel.title : panelId;
-    }
-
-    /**
-     * Draws a zone's frame and tab strip.
-     * @param {LeafNode} leaf The zone.
-     * @param {Rect} rect Its area.
-     * @returns {void}
-     */
-    #renderZoneChrome(leaf, rect) {
-      const frame = createElement('div', { className: 'claude-plus-zone-frame' });
-      const tabStrip = createElement('div', { className: 'claude-plus-tab-strip' });
-      placeElement(frame, rect);
-      placeElement(tabStrip, { ...rect, height: LAYOUT.tabStripHeight });
-      tabStrip.append(...leaf.tabs.map(panelId => this.#createTab(leaf, panelId)), this.#createAddPanelButton(leaf.id));
-      this.#zoneChromeLayer.append(frame, tabStrip);
-    }
-
-    /**
-     * Creates a tab that activates its panel on click and starts a drag on press.
-     * @param {LeafNode} leaf Zone of the tab.
-     * @param {string} panelId Panel id.
-     * @returns {HTMLElement} The tab.
-     */
-    #createTab(leaf, panelId) {
-      const className = panelId === leaf.activeTab ? 'claude-plus-tab claude-plus-tab--active' : 'claude-plus-tab';
-      const tab = createElement('div', { className, title: this.#panelTitle(panelId) });
-      tab.append(createElement('span', { className: 'claude-plus-tab__label', textContent: this.#panelTitle(panelId) }));
-      tab.addEventListener('mousedown', event => this.#onTabPress(event, panelId));
-      tab.addEventListener('click', () => this.#activateTab(leaf.id, panelId));
-      if (this.#canClosePanel(panelId)) tab.append(this.#createCloseButton(panelId));
-      return tab;
-    }
-
-    /**
-     * Whether a panel's tab offers a close button.
-     * @param {string} panelId Panel id.
-     * @returns {boolean} True when the panel exists and allows closing.
-     */
-    #canClosePanel(panelId) {
-      const panel = this.#panels.get(panelId);
-      return Boolean(panel) && panel.canClose();
-    }
-
-    /**
-     * Creates a tab's close button; pressing it neither activates nor drags the tab.
-     * @param {string} panelId Panel id.
-     * @returns {HTMLElement} The button.
-     */
-    #createCloseButton(panelId) {
-      const button = createElement('span', { className: 'claude-plus-tab__close-button', textContent: '×', title: 'Close' });
-      button.addEventListener('mousedown', event => event.stopPropagation());
-      button.addEventListener('click', (event) => {
-        event.stopPropagation();
-        this.#panels.get(panelId).close();
-      });
-      return button;
-    }
-
-    /**
-     * Shows a tab's panel and saves the layout.
-     * @param {string} leafId Zone id.
-     * @param {string} panelId Panel id.
-     * @returns {void}
-     */
-    #activateTab(leafId, panelId) {
-      this.#tree.activateTab(leafId, panelId);
-      this.#layoutAndSave();
-    }
-
-    /**
-     * Creates the "+" button that offers undocked panels for a zone.
-     * @param {string} leafId Zone id.
-     * @returns {HTMLElement} The button.
-     */
-    #createAddPanelButton(leafId) {
-      const button = createElement('div', { className: 'claude-plus-tab-strip__add-button', textContent: '+', title: 'Add a chat or panel to this zone' });
-      button.addEventListener('click', event => this.#showAddPanelMenu(event, leafId));
-      return button;
-    }
-
-    /**
-     * Starts a tab drag on a primary-button press.
-     * @param {MouseEvent} event The mousedown on a tab.
-     * @param {string} panelId Panel of the tab.
-     * @returns {void}
-     */
-    #onTabPress(event, panelId) {
-      if (event.button === 0) this.#startTabDrag(event, panelId);
-    }
-
-    /**
-     * Draws a divider that resizes its split when dragged.
-     * @param {DividerPlacement} placement The divider.
-     * @returns {void}
-     */
-    #renderDivider(placement) {
-      const isSideBySide = placement.split.direction === 'row';
-      const className = isSideBySide ? 'claude-plus-divider claude-plus-divider--vertical' : 'claude-plus-divider claude-plus-divider--horizontal';
-      const divider = createElement('div', { className });
-      placeElement(divider, DockWorkspace.#dividerGrabArea(placement, isSideBySide));
-      divider.addEventListener('mousedown', event => this.#startDividerDrag(event, placement, isSideBySide));
-      this.#dividerLayer.append(divider);
-    }
-
-    /**
-     * Grab area of a divider, centred on the boundary.
-     * @param {DividerPlacement} placement The divider.
-     * @param {boolean} isSideBySide Whether the split places children side by side.
-     * @returns {Rect} The area.
-     */
-    static #dividerGrabArea({ rect, position }, isSideBySide) {
-      const start = position - LAYOUT.dividerThickness / 2;
-      return isSideBySide
-        ? { left: start, top: rect.top, width: LAYOUT.dividerThickness, height: rect.height }
-        : { left: rect.left, top: start, width: rect.width, height: LAYOUT.dividerThickness };
-    }
-
-    /**
-     * Pointer coordinate along a split axis.
-     * @param {MouseEvent} event Pointer event.
-     * @param {boolean} isSideBySide True for the x coordinate, false for y.
-     * @returns {number} The coordinate.
-     */
-    static #pointerPositionAlongAxis(event, isSideBySide) {
-      return isSideBySide ? event.clientX : event.clientY;
-    }
-
-    /**
-     * Resizes a split while its divider is dragged, laying out once per frame and saving on release.
-     * @param {MouseEvent} startEvent The mousedown on the divider.
-     * @param {DividerPlacement} placement The divider.
-     * @param {boolean} isSideBySide Whether the split places children side by side.
-     * @returns {void}
-     */
-    #startDividerDrag(startEvent, { split, index, rect }, isSideBySide) {
-      startEvent.preventDefault();
-      const startSizes = [...split.sizes];
-      const startPosition = DockWorkspace.#pointerPositionAlongAxis(startEvent, isSideBySide);
-      const extent = isSideBySide ? rect.width : rect.height;
-      const resizingClass = isSideBySide ? 'claude-plus-resizing-horizontally' : 'claude-plus-resizing-vertically';
-      document.documentElement.classList.add(resizingClass);
-      new DragGesture(startEvent, {
-        threshold: 0,
-        onMove: (event) => {
-          this.#tree.resizeSplit(split, index, startSizes, (DockWorkspace.#pointerPositionAlongAxis(event, isSideBySide) - startPosition) / extent);
-          this.#layoutScheduler.schedule();
-        },
-        onEnd: () => {
-          document.documentElement.classList.remove(resizingClass);
-          this.#layoutScheduler.cancel();
-          this.#layoutAndSave();
-        },
-      });
-    }
-
-    /**
-     * Drags a tab with a floating label, highlights the drop target and docks the panel on release.
-     * @param {MouseEvent} startEvent The mousedown on the tab.
-     * @param {string} panelId Panel of the tab.
-     * @returns {void}
-     */
-    #startTabDrag(startEvent, panelId) {
-      startEvent.preventDefault();
-      const dragLabel = createElement('div', { className: 'claude-plus-themed claude-plus-drag-label', textContent: this.#panelTitle(panelId), hidden: true });
-      const dropHighlight = createElement('div', { className: 'claude-plus-drop-highlight', hidden: true });
-      document.body.append(dragLabel, dropHighlight);
-      let dropTarget = null;
-      new DragGesture(startEvent, {
-        threshold: LAYOUT.dragThreshold,
-        onMove: (event) => {
-          dropTarget = this.#dropTargetAt(event.clientX, event.clientY);
-          DockWorkspace.#showDragFeedback(dragLabel, dropHighlight, event, dropTarget);
-        },
-        onEnd: (event, wasDragged) => {
-          dragLabel.remove();
-          dropHighlight.remove();
-          if (wasDragged && dropTarget) this.#dropPanel(panelId, dropTarget);
-        },
-      });
-    }
-
-    /**
-     * Moves the drag label to the pointer and highlights the drop target.
-     * @param {HTMLElement} dragLabel The floating label.
-     * @param {HTMLElement} dropHighlight The drop highlight.
-     * @param {MouseEvent} event Current pointer event.
-     * @param {?DropTarget} dropTarget Target under the pointer, or null.
-     * @returns {void}
-     */
-    static #showDragFeedback(dragLabel, dropHighlight, event, dropTarget) {
-      dragLabel.hidden = false;
-      Object.assign(dragLabel.style, { left: `${event.clientX + LAYOUT.dragLabelOffset}px`, top: `${event.clientY + LAYOUT.dragLabelOffset}px` });
-      dropHighlight.hidden = !dropTarget;
-      if (dropTarget) placeElement(dropHighlight, dropTarget.rect);
-    }
-
-    /**
-     * Docks a panel at a drop target and saves the layout.
-     * @param {string} panelId Panel id.
-     * @param {DropTarget} dropTarget Where it was dropped.
-     * @returns {void}
-     */
-    #dropPanel(panelId, dropTarget) {
-      if (dropTarget.edge) this.#tree.dockPanelAtEdge(panelId, dropTarget.edge);
-      else this.#tree.dockPanel(panelId, dropTarget.leafId, dropTarget.region);
-      this.#layoutAndSave();
-    }
-
-    /**
-     * The drop target under the pointer: an outer workspace edge when near one, otherwise the centre
-     * or a side of the zone under the pointer.
+     * The drop target under the pointer.
      * @param {number} pointerX Pointer x.
      * @param {number} pointerY Pointer y.
+     * @param {Rect} bounds Workspace area.
+     * @param {LeafPlacement[]} leafPlacements Zone areas of the current layout.
      * @returns {?DropTarget} The target, or null outside every zone.
      */
-    #dropTargetAt(pointerX, pointerY) {
-      const bounds = this.#workspaceBounds();
-      const edge = DockWorkspace.#outerEdgeNear(pointerX, pointerY, bounds);
-      if (edge) return { edge, leafId: null, region: null, rect: DockWorkspace.#edgeHighlight(edge, bounds) };
-      const hoveredZone = this.#leafPlacements.find(({ rect }) => DockWorkspace.#containsPoint(rect, pointerX, pointerY));
-      return hoveredZone ? DockWorkspace.#zoneDropTarget(hoveredZone, pointerX, pointerY) : null;
+    static resolve(pointerX, pointerY, bounds, leafPlacements) {
+      const edge = DropTargetResolver.#outerEdgeNear(pointerX, pointerY, bounds);
+      if (edge) return { edge, leafId: null, region: null, rect: DropTargetResolver.#edgeHighlight(edge, bounds) };
+      const hoveredZone = leafPlacements.find(({ rect }) => DropTargetResolver.#containsPoint(rect, pointerX, pointerY));
+      return hoveredZone ? DropTargetResolver.#zoneDropTarget(hoveredZone, pointerX, pointerY) : null;
     }
 
     /**
@@ -5939,8 +6236,8 @@
      * @returns {DropTarget} The target.
      */
     static #zoneDropTarget({ leaf, rect }, pointerX, pointerY) {
-      const region = DockWorkspace.#regionAt((pointerX - rect.left) / rect.width, (pointerY - rect.top) / rect.height);
-      return { edge: null, leafId: leaf.id, region, rect: DockWorkspace.#REGION_HIGHLIGHTS[region](rect) };
+      const region = DropTargetResolver.#regionAt((pointerX - rect.left) / rect.width, (pointerY - rect.top) / rect.height);
+      return { edge: null, leafId: leaf.id, region, rect: DropTargetResolver.#REGION_HIGHLIGHTS[region](rect) };
     }
 
     /**
@@ -5980,7 +6277,7 @@
     static #edgeHighlight(edge, bounds) {
       const width = Math.min(bounds.width * LAYOUT.edgeDockFraction, LAYOUT.edgeHighlightMaxWidth);
       const height = Math.min(bounds.height * LAYOUT.edgeDockFraction, LAYOUT.edgeHighlightMaxHeight);
-      return DockWorkspace.#EDGE_HIGHLIGHTS[edge](bounds, width, height);
+      return DropTargetResolver.#EDGE_HIGHLIGHTS[edge](bounds, width, height);
     }
 
     /**
@@ -6001,21 +6298,702 @@
       const match = candidates.find(([, isHit]) => isHit);
       return match ? match[0] : 'center';
     }
+  }
+
+  var stylesheet$6 = ".claude-plus-drop-highlight[hidden] {\n  display: none !important;\n}\n\n.claude-plus-drag-label {\n  position: fixed;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n  padding: 4px 10px;\n  border-radius: 6px;\n  font-size: 12px;\n  pointer-events: none;\n}\n\n.claude-plus-drop-highlight {\n  position: fixed;\n  z-index: var(--claude-plus-layer-drop-highlight);\n  background: var(--claude-plus-color-accent-overlay);\n  border: 2px solid var(--claude-plus-color-accent);\n  pointer-events: none;\n  box-sizing: border-box;\n}\n";
+
+  StyleRegistry.register(stylesheet$6);
+
+  /**
+   * One drag of something to dock, a tab or a not yet existing panel: a floating label follows the
+   * pointer, the drop target under it is highlighted, and on release the chosen target is reported.
+   */
+  class PanelDropDrag {
+    /**
+     * Floating label following the pointer.
+     * @type {HTMLElement}
+     */
+    #dragLabel;
 
     /**
-     * Opens a zone's "+" menu: adding a chat or a new instance of a view panel as a tab of the zone.
-     * @param {MouseEvent} event Click on the zone's "+" button.
+     * Highlight of the drop target under the pointer.
+     * @type {HTMLElement}
+     */
+    #dropHighlight;
+
+    /**
+     * Finds the drop target for a pointer position.
+     * @type {function(number, number): ?DropTarget}
+     */
+    #findDropTarget;
+
+    /**
+     * Called with the chosen target when released over one.
+     * @type {function(DropTarget): void}
+     */
+    #onDrop;
+
+    /**
+     * Target under the pointer at the last move, or null.
+     * @type {?DropTarget}
+     */
+    #dropTarget = null;
+
+    /**
+     * Starts the drag from a mousedown.
+     * @param {MouseEvent} startEvent The mousedown that starts the drag.
+     * @param {object} options Drag options.
+     * @param {string} options.label Text of the floating label.
+     * @param {function(number, number): ?DropTarget} options.findDropTarget Finds the drop target for a pointer position.
+     * @param {function(DropTarget): void} options.onDrop Called with the chosen target when released over one.
+     */
+    constructor(startEvent, { label, findDropTarget, onDrop }) {
+      startEvent.preventDefault();
+      this.#findDropTarget = findDropTarget;
+      this.#onDrop = onDrop;
+      this.#dragLabel = createElement('div', { className: 'claude-plus-themed claude-plus-drag-label', textContent: label, hidden: true });
+      this.#dropHighlight = createElement('div', { className: 'claude-plus-drop-highlight', hidden: true });
+      document.body.append(this.#dragLabel, this.#dropHighlight);
+      new DragGesture(startEvent, {
+        threshold: LAYOUT.dragThreshold,
+        onMove: event => this.#followPointer(event),
+        onEnd: (event, wasDragged) => this.#finish(wasDragged),
+      });
+    }
+
+    /**
+     * Moves the label to the pointer and highlights the drop target under it.
+     * @param {MouseEvent} event Current pointer event.
+     * @returns {void}
+     */
+    #followPointer(event) {
+      this.#dropTarget = this.#findDropTarget(event.clientX, event.clientY);
+      this.#dragLabel.hidden = false;
+      Object.assign(this.#dragLabel.style, { left: `${event.clientX + LAYOUT.dragLabelOffset}px`, top: `${event.clientY + LAYOUT.dragLabelOffset}px` });
+      this.#dropHighlight.hidden = !this.#dropTarget;
+      if (this.#dropTarget) placeElement(this.#dropHighlight, this.#dropTarget.rect);
+    }
+
+    /**
+     * Removes the label and highlight and reports the target when a drag ended over one.
+     * @param {boolean} wasDragged Whether the pointer moved past the drag threshold.
+     * @returns {void}
+     */
+    #finish(wasDragged) {
+      this.#dragLabel.remove();
+      this.#dropHighlight.remove();
+      if (wasDragged && this.#dropTarget) this.#onDrop(this.#dropTarget);
+    }
+  }
+
+  /**
+   * The panels known to the workspace, by id, docked or not. Adds a panel's element to the page on
+   * first show, positions it, and hides the ones not visible in the current layout.
+   */
+  class PanelHost {
+    /**
+     * Panels by id.
+     * @type {Map<string, Panel>}
+     */
+    #panelsById;
+
+    /**
+     * Creates the host.
+     * @param {Map<string, Panel>} panelsById Initial panels by id; the map is taken over, not copied.
+     */
+    constructor(panelsById) {
+      this.#panelsById = panelsById;
+    }
+
+    /**
+     * Ids of all known panels.
+     * @returns {string[]} The ids.
+     */
+    get panelIds() {
+      return [...this.#panelsById.keys()];
+    }
+
+    /**
+     * All known panels with their ids.
+     * @returns {Array<[string, Panel]>} Id and panel pairs.
+     */
+    get entries() {
+      return [...this.#panelsById];
+    }
+
+    /**
+     * Makes a panel known, replacing one with the same id.
+     * @param {string} panelId Panel id.
+     * @param {Panel} panel The panel.
+     * @returns {void}
+     */
+    add(panelId, panel) {
+      this.#panelsById.set(panelId, panel);
+    }
+
+    /**
+     * Whether a panel is known.
+     * @param {string} panelId Panel id.
+     * @returns {boolean} True when it is known.
+     */
+    has(panelId) {
+      return this.#panelsById.has(panelId);
+    }
+
+    /**
+     * Forgets a panel and disposes it.
+     * @param {string} panelId Panel id.
+     * @returns {boolean} True when the panel was known.
+     */
+    remove(panelId) {
+      const panel = this.#panelsById.get(panelId);
+      if (!panel) return false;
+      this.#panelsById.delete(panelId);
+      panel.dispose();
+      return true;
+    }
+
+    /**
+     * Title of a panel.
+     * @param {string} panelId Panel id.
+     * @returns {string} Its title, or the id for an unknown panel.
+     */
+    titleOf(panelId) {
+      const panel = this.#panelsById.get(panelId);
+      return panel ? panel.title : panelId;
+    }
+
+    /**
+     * Whether a panel may be closed by the user.
+     * @param {string} panelId Panel id.
+     * @returns {boolean} True when the panel is known and allows closing.
+     */
+    canClose(panelId) {
+      const panel = this.#panelsById.get(panelId);
+      return Boolean(panel) && panel.canClose();
+    }
+
+    /**
+     * Asks a panel to close itself.
+     * @param {string} panelId Panel id.
+     * @returns {void}
+     */
+    close(panelId) {
+      this.#panelsById.get(panelId)?.close();
+    }
+
+    /**
+     * Positions and shows a panel, adding it to the page on first use. Unknown ids are ignored.
+     * @param {string} panelId Panel id.
+     * @param {Rect} contentRect Area the panel fills.
+     * @returns {void}
+     */
+    show(panelId, contentRect) {
+      const panel = this.#panelsById.get(panelId);
+      if (!panel) return;
+      const { element } = panel;
+      if (!element.isConnected) document.body.append(element);
+      placeElement(element, contentRect);
+      element.style.visibility = 'visible';
+    }
+
+    /**
+     * Hides every built panel that isn't visible.
+     * @param {Set<string>} visiblePanelIds Ids of the visible panels.
+     * @returns {void}
+     */
+    hideAllExcept(visiblePanelIds) {
+      for (const [panelId, panel] of this.#panelsById) {
+        if (!visiblePanelIds.has(panelId) && panel.isBuilt) panel.element.style.visibility = 'hidden';
+      }
+    }
+  }
+
+  var stylesheet$5 = ".claude-plus-zone-chrome-layer {\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  z-index: var(--claude-plus-layer-zone-chrome);\n}\n\n.claude-plus-zone-frame {\n  position: fixed;\n  background: var(--claude-plus-color-background);\n  border: 1px solid var(--claude-plus-color-border);\n  box-sizing: border-box;\n}\n\n.claude-plus-tab-strip {\n  position: fixed;\n  display: flex;\n  align-items: center;\n  background: var(--claude-plus-color-bar);\n  border-bottom: 1px solid var(--claude-plus-color-border);\n  overflow-x: auto;\n  box-sizing: border-box;\n  pointer-events: auto;\n}\n\n.claude-plus-tab {\n  padding: 5px 12px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  white-space: nowrap;\n  border-right: 1px solid var(--claude-plus-color-border-faint);\n  user-select: none;\n}\n\n.claude-plus-tab--active {\n  color: var(--claude-plus-color-text);\n  border-bottom: 2px solid var(--claude-plus-color-accent);\n}\n\n.claude-plus-tab {\n  display: flex;\n  align-items: center;\n  min-width: 0;\n  max-width: 220px;\n}\n\n.claude-plus-tab__label {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-tab__close-button {\n  flex-shrink: 0;\n  margin-left: 8px;\n  padding: 0 3px;\n  border-radius: 3px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-tab__close-button:hover {\n  background: var(--claude-plus-color-hover);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-tab-strip__add-button {\n  padding: 5px 10px;\n  cursor: pointer;\n  color: var(--claude-plus-color-text-faint);\n  user-select: none;\n}\n\n.claude-plus-tab-strip__add-button:hover {\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-table-host {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  flex: 1;\n  min-height: 0;\n}\n";
+
+  StyleRegistry.register(stylesheet$5);
+
+  /**
+   * Draws each zone's frame and tab strip on a layer below the panels. A tab shows its panel's
+   * title and an optional close button; the strip ends with a "+" button. What pressing, clicking
+   * and closing do is left to the callbacks.
+   */
+  class ZoneChromeRenderer {
+    /**
+     * Layer holding every frame and tab strip.
+     * @type {HTMLElement}
+     */
+    #layer = createElement('div', { className: 'claude-plus-themed claude-plus-zone-chrome-layer' });
+
+    /**
+     * Callbacks answering questions about panels and handling tab interaction.
+     * @type {ZoneChromeCallbacks}
+     */
+    #callbacks;
+
+    /**
+     * Creates the renderer.
+     * @param {ZoneChromeCallbacks} callbacks Callbacks answering questions about panels and handling tab interaction.
+     */
+    constructor(callbacks) {
+      this.#callbacks = callbacks;
+    }
+
+    /**
+     * The layer element, to add to the page.
+     * @returns {HTMLElement} The layer.
+     */
+    get layer() {
+      return this.#layer;
+    }
+
+    /**
+     * Removes every drawn zone.
+     * @returns {void}
+     */
+    clear() {
+      this.#layer.replaceChildren();
+    }
+
+    /**
+     * Draws a zone's frame and tab strip.
+     * @param {LeafPlacement} placement The zone and its area.
+     * @returns {void}
+     */
+    render({ leaf, rect }) {
+      const frame = createElement('div', { className: 'claude-plus-zone-frame' });
+      const tabStrip = createElement('div', { className: 'claude-plus-tab-strip' });
+      placeElement(frame, rect);
+      placeElement(tabStrip, { ...rect, height: LAYOUT.tabStripHeight });
+      tabStrip.append(...leaf.tabs.map(panelId => this.#createTab(leaf, panelId)), this.#createAddPanelButton(leaf.id));
+      this.#layer.append(frame, tabStrip);
+    }
+
+    /**
+     * Creates a tab that reports presses and clicks.
+     * @param {LeafNode} leaf Zone of the tab.
+     * @param {string} panelId Panel id.
+     * @returns {HTMLElement} The tab.
+     */
+    #createTab(leaf, panelId) {
+      const title = this.#callbacks.titleOf(panelId);
+      const className = panelId === leaf.activeTab ? 'claude-plus-tab claude-plus-tab--active' : 'claude-plus-tab';
+      const tab = createElement('div', { className, title });
+      tab.append(createElement('span', { className: 'claude-plus-tab__label', textContent: title }));
+      tab.addEventListener('mousedown', event => this.#callbacks.onTabPress(event, panelId));
+      tab.addEventListener('click', () => this.#callbacks.onTabActivate(leaf.id, panelId));
+      if (this.#callbacks.canClose(panelId)) tab.append(this.#createCloseButton(panelId));
+      return tab;
+    }
+
+    /**
+     * Creates a tab's close button; pressing it neither activates nor drags the tab.
+     * @param {string} panelId Panel id.
+     * @returns {HTMLElement} The button.
+     */
+    #createCloseButton(panelId) {
+      const button = createElement('span', { className: 'claude-plus-tab__close-button', textContent: '×', title: 'Close' });
+      button.addEventListener('mousedown', event => event.stopPropagation());
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        this.#callbacks.onTabClose(panelId);
+      });
+      return button;
+    }
+
+    /**
+     * Creates the "+" button that offers panels to add to a zone.
+     * @param {string} leafId Zone id.
+     * @returns {HTMLElement} The button.
+     */
+    #createAddPanelButton(leafId) {
+      const button = createElement('div', { className: 'claude-plus-tab-strip__add-button', textContent: '+', title: 'Add a chat or panel to this zone' });
+      button.addEventListener('click', event => this.#callbacks.onAddClick(event, leafId));
+      return button;
+    }
+  }
+
+  /**
+   * The docking workspace below the toolbar: keeps the layout tree, lays out zones, tabs, dividers
+   * and panels, saves the layout on every change, and docks panels dropped by tab drags.
+   */
+  class DockWorkspace {
+    /**
+     * The known panels.
+     * @type {PanelHost}
+     */
+    #panels;
+
+    /**
+     * Layout storage.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * Current layout.
+     * @type {DockTree}
+     */
+    #tree;
+
+    /**
+     * Draws zone frames and tab strips.
+     * @type {ZoneChromeRenderer}
+     */
+    #zoneChrome;
+
+    /**
+     * Draws the dividers.
+     * @type {DividerRenderer}
+     */
+    #dividers;
+
+    /**
+     * Zone areas from the last layout, used to find drop targets.
+     * @type {LeafPlacement[]}
+     */
+    #leafPlacements = [];
+
+    /**
+     * Batches layouts per frame during resizing.
+     * @type {FrameScheduler}
+     */
+    #layoutScheduler = new FrameScheduler(() => this.layout());
+
+    /**
+     * The zones' "+" menu.
+     * @type {AddPanelMenu}
+     */
+    #addPanelMenu;
+
+    /**
+     * Creates the default layout.
+     * @type {function(): DockTree}
+     */
+    #createDefaultTree;
+
+    /**
+     * Ids of the panels that must always be docked.
+     * @type {function(): string[]}
+     */
+    #requiredPanelIds;
+
+    /**
+     * Docks a required panel the layout lacks.
+     * @type {function(DockTree, string): void}
+     */
+    #placeMissingPanel;
+
+    /**
+     * Called after every layout with the ids of the visible panels.
+     * @type {function(Set<string>): void}
+     */
+    #onLayout;
+
+    /**
+     * Creates the workspace from the stored layout, or the default one, and docks any required
+     * panel the layout lacks.
+     * @param {object} options Workspace options.
+     * @param {Map<string, Panel>} options.panels Panels by id; panels can be added and removed later.
+     * @param {Preferences} options.preferences Layout storage.
+     * @param {function(): DockTree} options.createDefaultTree Creates the default layout.
+     * @param {function(): string[]} options.requiredPanelIds Ids of the panels that must always be docked.
+     * @param {function(DockTree, string): void} options.placeMissingPanel Docks a required panel the layout lacks.
+     * @param {{entries: function(): ChoiceOption[], onSelect: function(string, string): void}} options.addPanelMenu Entries of the zones' "+" menu, and a callback receiving the chosen entry id and the zone id.
+     * @param {function(Set<string>): void} options.onLayout Called after every layout with the ids of the visible panels.
+     */
+    constructor({ panels, preferences, createDefaultTree, requiredPanelIds, placeMissingPanel, addPanelMenu, onLayout }) {
+      this.#panels = new PanelHost(panels);
+      this.#preferences = preferences;
+      this.#createDefaultTree = createDefaultTree;
+      this.#requiredPanelIds = requiredPanelIds;
+      this.#placeMissingPanel = placeMissingPanel;
+      this.#addPanelMenu = new AddPanelMenu(addPanelMenu);
+      this.#onLayout = onLayout;
+      this.#zoneChrome = this.#createZoneChromeRenderer();
+      this.#dividers = this.#createDividerRenderer();
+      this.#tree = DockTree.fromStored(preferences.readJson(STORAGE_KEYS.dockLayout), this.#panels.panelIds) ?? createDefaultTree();
+      this.#dockMissingRequiredPanels();
+    }
+
+    /**
+     * Adds the layers to the page, lays out and follows window resizes.
+     * @returns {void}
+     */
+    mount() {
+      document.body.append(this.#zoneChrome.layer, this.#dividers.layer);
+      window.addEventListener('resize', () => this.#layoutScheduler.schedule());
+      this.layout();
+    }
+
+    /**
+     * Restores the default layout and forgets the stored one.
+     * @returns {void}
+     */
+    resetLayout() {
+      this.#preferences.remove(STORAGE_KEYS.dockLayout);
+      this.#tree = this.#createDefaultTree();
+      this.layout();
+    }
+
+    /**
+     * Adds a panel and docks it to the right of another one, or into the first zone.
+     * @param {string} panelId Id of the new panel.
+     * @param {Panel} panel The panel.
+     * @param {string} besidePanelId Panel to dock it next to.
+     * @returns {void}
+     */
+    addPanel(panelId, panel, besidePanelId) {
+      this.#panels.add(panelId, panel);
+      const besideLeaf = this.#tree.findLeafContaining(besidePanelId) || this.#tree.firstLeaf();
+      this.#tree.dockPanel(panelId, besideLeaf.id, 'right');
+      this.#layoutAndSave();
+    }
+
+    /**
+     * Adds a panel and docks it at a specific drop target, as chosen during a drag started with
+     * beginExternalDrag.
+     * @param {string} panelId Id of the new panel.
+     * @param {Panel} panel The panel.
+     * @param {DropTarget} dropTarget Where to dock it: an outer edge, or a region of a zone.
+     * @returns {void}
+     */
+    addPanelAt(panelId, panel, dropTarget) {
+      this.#panels.add(panelId, panel);
+      this.#dockAt(panelId, dropTarget);
+    }
+
+    /**
+     * Drags a floating label for something that doesn't exist as a panel yet, highlighting the same
+     * drop targets a tab drag would, and invokes a callback with the chosen target on release. Lets
+     * other panels (e.g. the conversation list) offer "drag this to open it as a new pane docked
+     * here" without this class needing to know anything about what's being dragged.
+     * @param {MouseEvent} startEvent The mousedown that starts the drag.
+     * @param {string} label Text shown in the floating drag label.
+     * @param {function(DropTarget): void} onDrop Called with the chosen drop target when dropped on one.
+     * @returns {void}
+     */
+    beginExternalDrag(startEvent, label, onDrop) {
+      new PanelDropDrag(startEvent, { label, findDropTarget: this.#dropTargetAt, onDrop });
+    }
+
+    /**
+     * Undocks a panel, disposes it and forgets it.
+     * @param {string} panelId Panel id.
+     * @returns {void}
+     */
+    removePanel(panelId) {
+      if (!this.#panels.has(panelId)) return;
+      this.#tree.removePanel(panelId);
+      this.#panels.remove(panelId);
+      this.#layoutAndSave();
+    }
+
+    /**
+     * Adds a panel as the active tab of a zone and saves the layout.
+     * @param {string} panelId Id of the new panel.
+     * @param {Panel} panel The panel.
      * @param {string} leafId Zone id.
      * @returns {void}
      */
-    #showAddPanelMenu(event, leafId) {
-      this.#addPanelMenu.open({
-        left: event.clientX,
-        top: event.clientY,
-        entries: this.#addPanelMenuOptions.entries(),
-        onSelect: entryId => this.#addPanelMenuOptions.onSelect(entryId, leafId),
+    addPanelToZone(panelId, panel, leafId) {
+      this.#panels.add(panelId, panel);
+      this.#tree.dockPanel(panelId, leafId, 'center');
+      this.#layoutAndSave();
+    }
+
+    /**
+     * Makes a panel known without docking it; used before applying a layout that contains it.
+     * @param {string} panelId Panel id.
+     * @param {Panel} panel The panel.
+     * @returns {void}
+     */
+    registerPanel(panelId, panel) {
+      this.#panels.add(panelId, panel);
+    }
+
+    /**
+     * Whether a panel is known.
+     * @param {string} panelId Panel id.
+     * @returns {boolean} True when it exists, docked or not.
+     */
+    hasPanel(panelId) {
+      return this.#panels.has(panelId);
+    }
+
+    /**
+     * A copy of the current arrangement.
+     * @returns {DockNode} The layout tree, detached from the live one.
+     */
+    layoutSnapshot() {
+      return JSON.parse(JSON.stringify(this.#tree));
+    }
+
+    /**
+     * Applies a stored arrangement: panels it doesn't mention are closed, required panels it lacks
+     * are docked, and the result is laid out and saved. Unusable arrangements fall back to the default.
+     * @param {*} storedTree Stored layout tree.
+     * @returns {void}
+     */
+    replaceLayout(storedTree) {
+      this.#tree = DockTree.fromStored(storedTree, this.#panels.panelIds) ?? this.#createDefaultTree();
+      this.#dockMissingRequiredPanels();
+      this.#panels.panelIds.filter(panelId => !this.#tree.findLeafContaining(panelId) && this.#panels.canClose(panelId)).forEach(panelId => this.#panels.close(panelId));
+      this.#layoutAndSave();
+    }
+
+    /**
+     * The first docked panel satisfying a predicate.
+     * @param {function(Panel): boolean} predicate Test for each panel.
+     * @returns {?{panelId: string, panel: Panel}} The panel and its id, or null.
+     */
+    findDockedPanel(predicate) {
+      const entry = this.#panels.entries.find(([panelId, panel]) => this.#tree.findLeafContaining(panelId) && predicate(panel));
+      return entry ? { panelId: entry[0], panel: entry[1] } : null;
+    }
+
+    /**
+     * Makes a docked panel the visible tab of its zone.
+     * @param {string} panelId Panel id.
+     * @returns {boolean} True if the panel is docked and now visible; false if it isn't docked.
+     */
+    revealPanel(panelId) {
+      const leaf = this.#tree.findLeafContaining(panelId);
+      if (leaf) this.#activateTab(leaf.id, panelId);
+      return Boolean(leaf);
+    }
+
+    /**
+     * Redraws zone frames, tab strips and dividers and positions the visible panels; other panels
+     * are hidden. Reports the visible panels through the onLayout callback.
+     * @returns {void}
+     */
+    layout() {
+      const { leaves, dividers } = this.#tree.computeLayout(DockWorkspace.#workspaceBounds());
+      this.#leafPlacements = leaves;
+      this.#zoneChrome.clear();
+      this.#dividers.clear();
+      leaves.forEach(placement => this.#renderZone(placement));
+      const visiblePanelIds = new Set(leaves.map(placement => placement.leaf.activeTab));
+      this.#panels.hideAllExcept(visiblePanelIds);
+      dividers.forEach(placement => this.#dividers.render(placement));
+      this.#onLayout(visiblePanelIds);
+    }
+
+    /**
+     * Area available to the dock, below the toolbar.
+     * @returns {Rect} The area.
+     */
+    static #workspaceBounds() {
+      return { left: 0, top: LAYOUT.toolbarHeight, width: window.innerWidth, height: window.innerHeight - LAYOUT.toolbarHeight };
+    }
+
+    /**
+     * Creates the zone chrome renderer, wired to the panels and the tab actions.
+     * @returns {ZoneChromeRenderer} The renderer.
+     */
+    #createZoneChromeRenderer() {
+      return new ZoneChromeRenderer({
+        titleOf: panelId => this.#panels.titleOf(panelId),
+        canClose: panelId => this.#panels.canClose(panelId),
+        onTabPress: (event, panelId) => this.#onTabPress(event, panelId),
+        onTabActivate: (leafId, panelId) => this.#activateTab(leafId, panelId),
+        onTabClose: panelId => this.#panels.close(panelId),
+        onAddClick: (event, leafId) => this.#addPanelMenu.open(event, leafId),
       });
     }
+
+    /**
+     * Creates the divider renderer, resizing splits once per frame while dragging and saving on release.
+     * @returns {DividerRenderer} The renderer.
+     */
+    #createDividerRenderer() {
+      return new DividerRenderer({
+        onResize: (split, index, startSizes, movedFraction) => {
+          this.#tree.resizeSplit(split, index, startSizes, movedFraction);
+          this.#layoutScheduler.schedule();
+        },
+        onResizeEnd: () => {
+          this.#layoutScheduler.cancel();
+          this.#layoutAndSave();
+        },
+      });
+    }
+
+    /**
+     * Docks every required panel missing from the layout.
+     * @returns {void}
+     */
+    #dockMissingRequiredPanels() {
+      const missing = this.#requiredPanelIds().filter(panelId => !this.#tree.findLeafContaining(panelId));
+      missing.forEach(panelId => this.#placeMissingPanel(this.#tree, panelId));
+    }
+
+    /**
+     * Lays out and saves the layout.
+     * @returns {void}
+     */
+    #layoutAndSave() {
+      this.layout();
+      this.#preferences.writeJson(STORAGE_KEYS.dockLayout, this.#tree);
+    }
+
+    /**
+     * Draws a zone and shows its active panel below the tab strip.
+     * @param {LeafPlacement} placement The zone and its area.
+     * @returns {void}
+     */
+    #renderZone(placement) {
+      const { leaf, rect } = placement;
+      this.#zoneChrome.render(placement);
+      if (leaf.activeTab) this.#panels.show(leaf.activeTab, { ...rect, top: rect.top + LAYOUT.tabStripHeight, height: rect.height - LAYOUT.tabStripHeight });
+    }
+
+    /**
+     * Shows a tab's panel and saves the layout.
+     * @param {string} leafId Zone id.
+     * @param {string} panelId Panel id.
+     * @returns {void}
+     */
+    #activateTab(leafId, panelId) {
+      this.#tree.activateTab(leafId, panelId);
+      this.#layoutAndSave();
+    }
+
+    /**
+     * Starts dragging a tab to another place on a primary-button press.
+     * @param {MouseEvent} event The mousedown on a tab.
+     * @param {string} panelId Panel of the tab.
+     * @returns {void}
+     */
+    #onTabPress(event, panelId) {
+      if (event.button !== 0) return;
+      new PanelDropDrag(event, {
+        label: this.#panels.titleOf(panelId),
+        findDropTarget: this.#dropTargetAt,
+        onDrop: dropTarget => this.#dockAt(panelId, dropTarget),
+      });
+    }
+
+    /**
+     * Docks a known panel at a drop target and saves the layout.
+     * @param {string} panelId Panel id.
+     * @param {DropTarget} dropTarget Where to dock it.
+     * @returns {void}
+     */
+    #dockAt(panelId, dropTarget) {
+      if (dropTarget.edge) this.#tree.dockPanelAtEdge(panelId, dropTarget.edge);
+      else this.#tree.dockPanel(panelId, dropTarget.leafId, dropTarget.region);
+      this.#layoutAndSave();
+    }
+
+    /**
+     * The drop target under the pointer in the current layout.
+     * @param {number} pointerX Pointer x.
+     * @param {number} pointerY Pointer y.
+     * @returns {?DropTarget} The target, or null outside every zone.
+     */
+    #dropTargetAt = (pointerX, pointerY) => DropTargetResolver.resolve(pointerX, pointerY, DockWorkspace.#workspaceBounds(), this.#leafPlacements);
   }
 
   /**
@@ -6168,29 +7146,53 @@
   }
 
   /**
-   * Shows a themed modal in place of the native confirm() dialog, which Chrome silently disables
-   * ("prevent this page from creating additional dialogs") after repeated use on the same page,
-   * making a delete button appear to do nothing with no feedback.
-   * @param {string} message Question to show.
-   * @param {string} [confirmLabel] Label of the confirming button.
-   * @returns {Promise<boolean>} Resolves true if confirmed, false if cancelled.
+   * Asks a yes/no question with Cancel and a confirming button; the themed replacement of confirm().
    */
-  function confirmDialog(message, confirmLabel = 'Confirm') {
-    return new Promise(resolve => {
-      const { overlay, dialog } = createDialogShell(message, `
-      <button class="claude-plus-toolbar__button" data-name="cancel">Cancel</button>
-      <button class="claude-plus-primary-button" data-name="confirm">${escapeHtml(confirmLabel)}</button>`);
-      const finish = result => {
-        overlay.remove();
-        resolve(result);
-      };
-      dialog.querySelector('[data-name="cancel"]').addEventListener('click', () => finish(false));
-      dialog.querySelector('[data-name="confirm"]').addEventListener('click', () => finish(true));
-      overlay.addEventListener('mousedown', event => {
-        if (event.target === overlay) finish(false);
-      });
-      document.body.append(overlay);
-    });
+  class ConfirmDialog extends ActionDialog {
+    /**
+     * Label of the confirming button.
+     * @type {string}
+     */
+    #confirmLabel;
+
+    /**
+     * Creates the dialog without showing it.
+     * @param {string} message Question to show.
+     * @param {string} confirmLabel Label of the confirming button.
+     */
+    constructor(message, confirmLabel) {
+      super(message);
+      this.#confirmLabel = confirmLabel;
+    }
+
+    /**
+     * Asks a question and waits for the answer.
+     * @param {string} message Question to show.
+     * @param {string} [confirmLabel] Label of the confirming button.
+     * @returns {Promise<boolean>} Resolves true if confirmed, false if cancelled.
+     */
+    static ask(message, confirmLabel = 'Confirm') {
+      return new ConfirmDialog(message, confirmLabel).show();
+    }
+
+    /**
+     * A dismissed question counts as not confirmed.
+     * @returns {boolean} Always false.
+     */
+    get cancelValue() {
+      return false;
+    }
+
+    /**
+     * Builds the Cancel and confirming buttons.
+     * @returns {HTMLButtonElement[]} The buttons.
+     */
+    createActions() {
+      return [
+        this.createClosingButton('Cancel', false, () => false),
+        this.createClosingButton(this.#confirmLabel, true, () => true),
+      ];
+    }
   }
 
   /**
@@ -6202,6 +7204,10 @@
     const epochMs = toEpochMs(isoDate);
     return epochMs ? new Date(epochMs).toLocaleDateString() : '';
   }
+
+  var stylesheet$4 = ".claude-plus-conversation:hover .claude-plus-conversation__action-button {\n  visibility: visible;\n}\n\n.claude-plus-conversation {\n  cursor: pointer;\n}\n\n.claude-plus-conversation:hover > td {\n  background: var(--claude-plus-color-hover);\n}\n\n.claude-plus-conversation--active > td {\n  background: var(--claude-plus-color-accent-soft);\n}\n\n.claude-plus-conversation--open-elsewhere > td:first-child {\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);\n}\n\n.claude-plus-conversation__actions {\n  display: inline-flex;\n  white-space: nowrap;\n}\n\n.claude-plus-conversation__action-button {\n  visibility: hidden;\n  background: none;\n  border: none;\n  cursor: pointer;\n  font-size: 12px;\n  padding: 4px;\n  border-radius: 4px;\n  flex-shrink: 0;\n}\n\n.claude-plus-conversation__action-button:hover {\n  background: rgba(255, 255, 255, 0.1);\n}\n";
+
+  StyleRegistry.register(stylesheet$4);
 
   /**
    * Conversation list as a column table, with a quick title search, open in a new pane, delete, and
@@ -6457,7 +7463,7 @@
      */
     async #confirmAndDelete(row) {
       const conversationId = row.dataset.conversationId;
-      const isConfirmed = await confirmDialog(`Delete "${this.#directory.titleOf(conversationId)}"? This cannot be undone.`, 'Delete');
+      const isConfirmed = await ConfirmDialog.ask(`Delete "${this.#directory.titleOf(conversationId)}"? This cannot be undone.`, 'Delete');
       if (!isConfirmed) return;
       row.classList.add('claude-plus-pending');
       try {
@@ -6638,12 +7644,9 @@
     }
   }
 
-  /**
-   * Hides claude.ai's two top-level mount points, the only change made to the native app; nothing
-   * inside them is ever queried or touched. Applied only once the UI has mounted successfully.
-   * @type {string}
-   */
-  const NATIVE_APP_HIDING_STYLES = '#root, #portal-root { display: none !important; }';
+  var stylesheet$3 = ".claude-plus-folder {\n  cursor: pointer;\n}\n\n.claude-plus-folder:hover > td {\n  background: var(--claude-plus-color-hover);\n}\n\n.claude-plus-breadcrumb {\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  margin-bottom: 6px;\n  flex-shrink: 0;\n}\n\n.claude-plus-breadcrumb__back-link {\n  color: var(--claude-plus-color-accent);\n  cursor: pointer;\n}\n";
+
+  StyleRegistry.register(stylesheet$3);
 
   /**
    * Uploaded and produced files: a table of conversations with files, and per conversation a table
@@ -6720,7 +7723,7 @@
       this.#fileTable = new ColumnTable({
         container: this.elements.fileTableHost,
         tableId: 'files',
-        columns: TableColumns.files(false),
+        columns: createFileColumns(false),
         preferences: this.#preferences,
         defaultSort: { column: 'date', direction: -1 },
         rowAttributes: () => '',
@@ -7070,6 +8073,10 @@
     }
   }
 
+  var stylesheet$2 = ".claude-plus-search-result {\n  cursor: pointer;\n}\n\n.claude-plus-search-result:hover > td {\n  background: var(--claude-plus-color-hover);\n}\n";
+
+  StyleRegistry.register(stylesheet$2);
+
   /**
    * Structured search over chats, files, web sources and tool uses, e.g. `file:*.pdf`,
    * `outlet:*nbc*`, `tool:web_search`, `chat:budget`, `after:2026-01-01`. Results show what matched,
@@ -7254,6 +8261,10 @@
     if (!usageWindow) return '–';
     return `${Math.round((usageWindow.utilization || 0) * 100) / 100}%`;
   }
+
+  var stylesheet$1 = ".claude-plus-value-row {\n  display: flex;\n  justify-content: space-between;\n  padding: 2px 0;\n  gap: 8px;\n}\n\n.claude-plus-value-row span {\n  color: var(--claude-plus-color-text-muted);\n}\n";
+
+  StyleRegistry.register(stylesheet$1);
 
   /**
    * HTML for a label/value row.
@@ -7477,7 +8488,7 @@
       this.#table = new ColumnTable({
         container: this.elements.tableHost,
         tableId: 'webSources',
-        columns: TableColumns.sources(true),
+        columns: createSourceColumns(true),
         preferences: this.#preferences,
         defaultSort: { column: 'date', direction: -1 },
         rowAttributes: () => '',
@@ -7893,192 +8904,6 @@
   }
 
   /**
-   * Stylesheet of the whole UI.
-   * @type {string}
-   */
-  const STYLES = `
-  :root {
-    --claude-plus-color-background: #1a1918;
-    --claude-plus-color-bar: #1c1b1a;
-    --claude-plus-color-raised: #262523;
-    --claude-plus-color-raised-hover: #3a3937;
-    --claude-plus-color-human-message: #2a2927;
-    --claude-plus-color-tool-details: #232221;
-    --claude-plus-color-code-block: #101010;
-    --claude-plus-color-button: #333;
-    --claude-plus-color-button-hover: #444;
-    --claude-plus-color-text: #ececec;
-    --claude-plus-color-text-muted: #b8b6b3;
-    --claude-plus-color-text-faint: #8a8886;
-    --claude-plus-color-accent: #d97757;
-    --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);
-    --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);
-    --claude-plus-color-error: #e57373;
-    --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);
-    --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);
-    --claude-plus-color-border: rgba(255, 255, 255, 0.08);
-    --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);
-    --claude-plus-color-hover: rgba(255, 255, 255, 0.06);
-    --claude-plus-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    --claude-plus-layer-zone-chrome: 2147480000;
-    --claude-plus-layer-panel: 2147480500;
-    --claude-plus-layer-divider: 2147480600;
-    --claude-plus-layer-toolbar: 2147483000;
-    --claude-plus-layer-popup-menu: 2147483001;
-    --claude-plus-layer-drop-highlight: 2147483646;
-    --claude-plus-layer-drag-label: 2147483647;
-  }
-  .claude-plus-themed { font-family: var(--claude-plus-font-family); color: var(--claude-plus-color-text); color-scheme: dark; }
-  .claude-plus-themed [hidden], .claude-plus-themed[hidden], .claude-plus-drop-highlight[hidden] { display: none !important; }
-  html.claude-plus-resizing-horizontally, html.claude-plus-resizing-horizontally * { cursor: col-resize !important; user-select: none; }
-  html.claude-plus-resizing-vertically, html.claude-plus-resizing-vertically * { cursor: row-resize !important; user-select: none; }
-
-  .claude-plus-toolbar { position: fixed; top: 0; left: 0; right: 0; height: ${LAYOUT.toolbarHeight}px; z-index: var(--claude-plus-layer-toolbar); background: var(--claude-plus-color-bar); border-bottom: 1px solid var(--claude-plus-color-border-strong); display: flex; align-items: center; gap: 14px; padding: 0 10px; font-size: 12px; box-sizing: border-box; }
-  .claude-plus-toolbar__title { font-weight: 600; }
-  .claude-plus-toolbar__button { background: var(--claude-plus-color-button); border: none; color: var(--claude-plus-color-text); padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-  .claude-plus-toolbar__button:hover { background: var(--claude-plus-color-button-hover); }
-  .claude-plus-toolbar__button:disabled { opacity: 0.5; cursor: default; }
-  .claude-plus-toolbar__font-size { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-  .claude-plus-toolbar__font-size input[type=range] { width: 100px; }
-
-  .claude-plus-zone-chrome-layer { position: fixed; inset: 0; pointer-events: none; z-index: var(--claude-plus-layer-zone-chrome); }
-  .claude-plus-zone-frame { position: fixed; background: var(--claude-plus-color-background); border: 1px solid var(--claude-plus-color-border); box-sizing: border-box; }
-  .claude-plus-tab-strip { position: fixed; display: flex; align-items: center; background: var(--claude-plus-color-bar); border-bottom: 1px solid var(--claude-plus-color-border); overflow-x: auto; box-sizing: border-box; pointer-events: auto; }
-  .claude-plus-tab { padding: 5px 12px; font-size: 12px; color: var(--claude-plus-color-text-muted); cursor: pointer; white-space: nowrap; border-right: 1px solid var(--claude-plus-color-border-faint); user-select: none; }
-  .claude-plus-tab--active { color: var(--claude-plus-color-text); border-bottom: 2px solid var(--claude-plus-color-accent); }
-  .claude-plus-tab { display: flex; align-items: center; min-width: 0; max-width: 220px; }
-  .claude-plus-tab__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .claude-plus-tab__close-button { flex-shrink: 0; margin-left: 8px; padding: 0 3px; border-radius: 3px; color: var(--claude-plus-color-text-faint); }
-  .claude-plus-tab__close-button:hover { background: var(--claude-plus-color-hover); color: var(--claude-plus-color-text); }
-  .claude-plus-tab-strip__add-button { padding: 5px 10px; cursor: pointer; color: var(--claude-plus-color-text-faint); user-select: none; }
-  .claude-plus-tab-strip__add-button:hover { color: var(--claude-plus-color-text); }
-  .claude-plus-divider-layer { position: fixed; inset: 0; pointer-events: none; z-index: var(--claude-plus-layer-divider); }
-  .claude-plus-divider { position: fixed; pointer-events: auto; background: transparent; }
-  .claude-plus-divider--vertical { cursor: col-resize; }
-  .claude-plus-divider--horizontal { cursor: row-resize; }
-  .claude-plus-divider:hover { background: var(--claude-plus-color-accent); }
-  .claude-plus-drag-label { position: fixed; z-index: var(--claude-plus-layer-drag-label); background: var(--claude-plus-color-accent); color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 12px; pointer-events: none; }
-  .claude-plus-drop-highlight { position: fixed; z-index: var(--claude-plus-layer-drop-highlight); background: var(--claude-plus-color-accent-overlay); border: 2px solid var(--claude-plus-color-accent); pointer-events: none; box-sizing: border-box; }
-  .claude-plus-popup-menu { position: fixed; z-index: var(--claude-plus-layer-popup-menu); background: var(--claude-plus-color-raised); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; padding: 4px; min-width: 140px; font-size: 12px; }
-  .claude-plus-popup-menu__entry { padding: 6px 10px; cursor: pointer; border-radius: 4px; }
-  .claude-plus-popup-menu__entry:hover { background: var(--claude-plus-color-raised-hover); }
-
-  .claude-plus-dialog-overlay { position: fixed; inset: 0; z-index: var(--claude-plus-layer-drag-label); background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; }
-  .claude-plus-dialog { background: var(--claude-plus-color-raised); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 8px; padding: 16px; max-width: 360px; font-size: 13px; }
-  .claude-plus-dialog__message { margin: 0 0 14px; line-height: 1.4; }
-  .claude-plus-dialog__input { width: 100%; box-sizing: border-box; margin: 0 0 14px; padding: 6px 8px; background: var(--claude-plus-color-bar); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; color: var(--claude-plus-color-text); font: inherit; }
-  .claude-plus-dialog__actions { display: flex; justify-content: flex-end; gap: 8px; }
-
-  .claude-plus-image-viewer-overlay { position: fixed; inset: 0; z-index: var(--claude-plus-layer-drag-label); background: rgba(0, 0, 0, 0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
-  .claude-plus-image-viewer__frame { max-width: 90vw; max-height: 90vh; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-  .claude-plus-image-viewer__image { max-width: 90vw; max-height: 90vh; width: auto; height: auto; cursor: grab; user-select: none; }
-  .claude-plus-image-viewer__open-button { flex-shrink: 0; }
-
-  .claude-plus-panel { position: fixed; z-index: var(--claude-plus-layer-panel); box-sizing: border-box; padding: 10px 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; font-size: 13px; background: var(--claude-plus-color-background); }
-  .claude-plus-panel summary { cursor: pointer; padding: 4px 0; }
-  .claude-plus-panel--active-among-several { box-shadow: inset 0 0 0 1px var(--claude-plus-color-active-chat); }
-  .claude-plus-panel select, .claude-plus-panel input[type=text], .claude-plus-panel input[type=date], .claude-plus-panel textarea { background: var(--claude-plus-color-bar); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; color: var(--claude-plus-color-text); font-size: 12px; font-family: inherit; }
-  .claude-plus-panel__section { padding: 8px 0; border-bottom: 1px solid var(--claude-plus-color-hover); flex-shrink: 0; }
-  .claude-plus-panel__section:last-child { border-bottom: none; }
-  .claude-plus-value-row { display: flex; justify-content: space-between; padding: 2px 0; gap: 8px; }
-  .claude-plus-value-row span { color: var(--claude-plus-color-text-muted); }
-  .claude-plus-spaced-above { margin-top: 6px; }
-  .claude-plus-hint { color: var(--claude-plus-color-text-faint); font-size: 11px; margin-top: 4px; }
-  .claude-plus-scrollable { overflow-y: auto; }
-  .claude-plus-fill-remaining { flex: 1; min-height: 0; }
-  .claude-plus-empty-state { color: var(--claude-plus-color-text-faint); font-style: italic; padding: 6px 0; }
-  .claude-plus-empty-state--padded { padding: 24px; }
-  .claude-plus-pending { opacity: 0.4; pointer-events: none; }
-  .claude-plus-primary-button { padding: 8px; background: var(--claude-plus-color-accent); border: none; border-radius: 6px; color: #fff; font-size: 13px; cursor: pointer; font-weight: 600; flex-shrink: 0; }
-  .claude-plus-primary-button:disabled { opacity: 0.6; cursor: default; }
-  .claude-plus-full-width { width: 100%; }
-
-  .claude-plus-search-input { flex-shrink: 0; padding: 6px 8px; }
-  .claude-plus-conversation:hover .claude-plus-conversation__action-button { visibility: visible; }
-  .claude-plus-conversation { cursor: pointer; }
-  .claude-plus-conversation:hover > td { background: var(--claude-plus-color-hover); }
-  .claude-plus-conversation--active > td { background: var(--claude-plus-color-accent-soft); }
-  .claude-plus-conversation--open-elsewhere > td:first-child { box-shadow: inset 2px 0 0 var(--claude-plus-color-accent); }
-  .claude-plus-conversation__actions { display: inline-flex; white-space: nowrap; }
-  .claude-plus-search-result, .claude-plus-folder { cursor: pointer; }
-  .claude-plus-search-result:hover > td, .claude-plus-folder:hover > td { background: var(--claude-plus-color-hover); }
-  .claude-plus-conversation__action-button { visibility: hidden; background: none; border: none; cursor: pointer; font-size: 12px; padding: 4px; border-radius: 4px; flex-shrink: 0; }
-  .claude-plus-conversation__action-button:hover { background: rgba(255, 255, 255, 0.1); }
-
-  .claude-plus-message-list { display: flex; flex-direction: column; gap: 14px; }
-  .claude-plus-message { padding: 10px 12px; border-radius: 8px; max-width: 100%; }
-  .claude-plus-message--human { background: var(--claude-plus-color-human-message); align-self: flex-end; }
-  .claude-plus-message--assistant { background: transparent; }
-  .claude-plus-message__sender { font-size: 11px; color: var(--claude-plus-color-text-faint); margin-bottom: 4px; font-weight: 600; }
-  .claude-plus-message__body { font-size: var(--claude-plus-message-font-size, 14px); line-height: 1.5; overflow-wrap: break-word; }
-  .claude-plus-message__actions { display: flex; gap: 8px; margin-top: 6px; }
-  .claude-plus-message__action-button { background: none; border: none; color: var(--claude-plus-color-text-faint); cursor: pointer; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
-  .claude-plus-message__action-button:hover { background: var(--claude-plus-color-border); color: var(--claude-plus-color-text); }
-  .claude-plus-message-text { white-space: normal; }
-  .claude-plus-message-text a { color: var(--claude-plus-color-accent); }
-  .claude-plus-message-attachment { color: var(--claude-plus-color-text-muted); font-size: 12px; margin-bottom: 4px; }
-  .claude-plus-message-image { display: block; max-height: 300px; max-width: 100%; border-radius: 8px; margin-bottom: 6px; cursor: zoom-in; }
-  .claude-plus-message-error { color: var(--claude-plus-color-error); margin-top: 6px; }
-  .claude-plus-tool-details { margin: 6px 0; background: var(--claude-plus-color-tool-details); border-radius: 6px; padding: 4px 8px; font-size: 12px; }
-  .claude-plus-tool-details pre { white-space: pre-wrap; overflow-wrap: break-word; font-size: 11px; color: var(--claude-plus-color-text-muted); }
-  .claude-plus-code-block { background: var(--claude-plus-color-code-block); padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
-  .claude-plus-streaming-cursor { animation: claude-plus-blink 1s step-start infinite; }
-  @keyframes claude-plus-blink { 50% { opacity: 0; } }
-
-  .claude-plus-composer__options { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex-shrink: 0; }
-  .claude-plus-composer__options select { padding: 4px 6px; }
-  .claude-plus-composer__thinking-toggle { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--claude-plus-color-text-muted); cursor: pointer; }
-  .claude-plus-panel .claude-plus-composer__input { flex: 1; resize: none; min-height: 40px; border-radius: 8px; padding: 8px; font-size: 14px; }
-
-  .claude-plus-staged-files { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
-  .claude-plus-staged-file { display: inline-flex; align-items: center; gap: 4px; background: var(--claude-plus-color-bar); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; padding: 3px 4px 3px 3px; font-size: 12px; max-width: 200px; }
-  .claude-plus-staged-file--uploading { opacity: 0.6; }
-  .claude-plus-staged-file__thumb { width: 20px; height: 20px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
-  .claude-plus-staged-file__icon { flex-shrink: 0; }
-  .claude-plus-staged-file__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .claude-plus-staged-file__remove { background: none; border: none; color: var(--claude-plus-color-text-faint); cursor: pointer; padding: 0 2px; border-radius: 4px; flex-shrink: 0; }
-  .claude-plus-staged-file__remove:hover { background: var(--claude-plus-color-hover); color: var(--claude-plus-color-text); }
-
-
-  .claude-plus-table-host { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; }
-  .claude-plus-column-table__column-picker { flex-shrink: 0; font-size: 11px; color: var(--claude-plus-color-text-muted); }
-  .claude-plus-column-table__column-picker summary { padding: 0; }
-  .claude-plus-column-table__column-toggle { display: inline-flex; align-items: center; gap: 4px; margin: 2px 10px 2px 0; cursor: pointer; }
-  .claude-plus-column-table__table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .claude-plus-column-table__table th { text-align: left; padding: 4px 6px; color: var(--claude-plus-color-text-muted); background: var(--claude-plus-color-raised); position: sticky; z-index: 1; white-space: nowrap; font-weight: 600; }
-  .claude-plus-column-table__table thead tr:first-child th { top: 0; }
-  .claude-plus-column-table__filter-row th { top: 24px; padding-top: 0; border-bottom: 1px solid var(--claude-plus-color-border-strong); font-weight: normal; }
-  .claude-plus-column-table__sortable { cursor: pointer; user-select: none; }
-  .claude-plus-column-table__sortable:hover { color: var(--claude-plus-color-text); }
-  .claude-plus-panel .claude-plus-column-table__filter-input { display: block; width: 100%; min-width: 40px; box-sizing: border-box; padding: 2px 4px; font-size: 11px; }
-  .claude-plus-panel input[type=date].claude-plus-column-table__filter-input { min-width: 0; max-width: 112px; padding: 1px 2px; font-size: 10px; }
-  .claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] { margin-top: 2px; }
-  .claude-plus-column-table__cell { padding: 4px 6px; border-bottom: 1px solid var(--claude-plus-color-border-faint); vertical-align: top; }
-  .claude-plus-column-table__cell--name, .claude-plus-column-table__cell--title, .claude-plus-column-table__cell--match { width: 100%; max-width: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .claude-plus-column-table__cell a { color: var(--claude-plus-color-accent); text-decoration: none; }
-  .claude-plus-column-table__cell a:hover { text-decoration: underline; }
-  .claude-plus-value-combobox { position: fixed; z-index: var(--claude-plus-layer-popup-menu); max-height: 240px; overflow-y: auto; background: var(--claude-plus-color-raised); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; padding: 4px; font-size: 12px; }
-  .claude-plus-value-combobox__entry { padding: 4px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
-  .claude-plus-value-combobox__entry:hover { background: var(--claude-plus-color-raised-hover); }
-
-  .claude-plus-chat-layout { display: flex; gap: 8px; flex: 1; min-height: 0; }
-  .claude-plus-chat-layout__center { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
-  .claude-plus-chat-layout__side { display: flex; flex-direction: column; gap: 8px; width: 300px; flex-shrink: 0; min-height: 0; }
-  .claude-plus-chat-layout__top { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
-  .claude-plus-chat-layout__side:empty, .claude-plus-chat-layout__top:empty { display: none; }
-  .claude-plus-subpane { display: flex; flex-direction: column; gap: 4px; min-height: 0; flex: 1; padding: 6px; border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; background: var(--claude-plus-color-bar); }
-  .claude-plus-chat-layout__top .claude-plus-subpane { height: 200px; flex: none; }
-  .claude-plus-subpane__header { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
-  .claude-plus-subpane__title { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .claude-plus-subpane__button { background: none; border: none; color: var(--claude-plus-color-text-faint); cursor: pointer; padding: 2px 5px; border-radius: 4px; }
-  .claude-plus-subpane__button:hover { background: var(--claude-plus-color-hover); color: var(--claude-plus-color-text); }
-  .claude-plus-composer__stop-button { flex-shrink: 0; background: var(--claude-plus-color-button-hover); }
-
-  .claude-plus-breadcrumb { font-size: 12px; color: var(--claude-plus-color-text-muted); margin-bottom: 6px; flex-shrink: 0; }
-  .claude-plus-breadcrumb__back-link { color: var(--claude-plus-color-accent); cursor: pointer; }
-`;
-
-  /**
    * Prefix shared by every localStorage key of this script; settings export and import cover
    * exactly the keys with this prefix.
    * @type {string}
@@ -8141,11 +8966,11 @@
       if (!file) return;
       try {
         const settings = SettingsTransfer.#parseSettings(await file.text());
-        if (!(await confirmDialog('Replace all ClaudePlus settings with the imported ones? The page reloads afterwards.', 'Import'))) return;
+        if (!(await ConfirmDialog.ask('Replace all ClaudePlus settings with the imported ones? The page reloads afterwards.', 'Import'))) return;
         this.#preferences.replaceEntriesWithPrefix(STORAGE_KEY_PREFIX, settings);
         location.reload();
       } catch (error) {
-        await alertDialog(`Import failed: ${error.message}`);
+        await AlertDialog.inform(`Import failed: ${error.message}`);
       }
     }
 
@@ -8745,30 +9570,86 @@
   }
 
   /**
-   * Shows a themed modal asking for a line of text, for the same reason as confirmDialog.
-   * @param {string} message Question to show.
-   * @param {string} initialValue Text the input starts with.
-   * @param {string} confirmLabel Label of the confirming button.
-   * @returns {Promise<?string>} Resolves with the entered text, or null if cancelled.
+   * Asks for a line of text; the themed replacement of prompt(). Enter confirms.
    */
-  function promptDialog(message, initialValue, confirmLabel) {
-    return new Promise((resolve) => {
-      const { overlay, dialog } = createDialogShell(message, `
-      <button class="claude-plus-toolbar__button" data-name="cancel">Cancel</button>
-      <button class="claude-plus-primary-button" data-name="confirm">${escapeHtml(confirmLabel)}</button>`);
-      const input = createElement('input', { type: 'text', className: 'claude-plus-dialog__input', value: initialValue });
-      dialog.querySelector('.claude-plus-dialog__message').after(input);
-      const finish = (result) => {
-        overlay.remove();
-        resolve(result);
-      };
-      dialog.querySelector('[data-name="cancel"]').addEventListener('click', () => finish(null));
-      dialog.querySelector('[data-name="confirm"]').addEventListener('click', () => finish(input.value));
-      input.addEventListener('keydown', (event) => { if (event.key === 'Enter') finish(input.value); });
-      document.body.append(overlay);
-      input.focus();
-    });
+  class PromptDialog extends ActionDialog {
+    /**
+     * Label of the confirming button.
+     * @type {string}
+     */
+    #confirmLabel;
+
+    /**
+     * The text input.
+     * @type {HTMLInputElement}
+     */
+    #input;
+
+    /**
+     * Creates the dialog without showing it.
+     * @param {string} message Question to show.
+     * @param {string} initialValue Text the input starts with.
+     * @param {string} confirmLabel Label of the confirming button.
+     */
+    constructor(message, initialValue, confirmLabel) {
+      super(message);
+      this.#confirmLabel = confirmLabel;
+      this.#input = createElement('input', { type: 'text', className: 'claude-plus-dialog__input', value: initialValue });
+      this.#input.addEventListener('keydown', event => {
+        if (event.key === 'Enter') this.close(this.#input.value);
+      });
+    }
+
+    /**
+     * Asks for a line of text and waits for the answer.
+     * @param {string} message Question to show.
+     * @param {string} initialValue Text the input starts with.
+     * @param {string} confirmLabel Label of the confirming button.
+     * @returns {Promise<?string>} Resolves with the entered text, or null if cancelled.
+     */
+    static ask(message, initialValue, confirmLabel) {
+      return new PromptDialog(message, initialValue, confirmLabel).show();
+    }
+
+    /**
+     * A dismissed prompt yields no text.
+     * @returns {null} Always null.
+     */
+    get cancelValue() {
+      return null;
+    }
+
+    /**
+     * Places the text input below the message.
+     * @returns {HTMLElement[]} The input.
+     */
+    createBody() {
+      return [this.#input];
+    }
+
+    /**
+     * Builds the Cancel and confirming buttons.
+     * @returns {HTMLButtonElement[]} The buttons.
+     */
+    createActions() {
+      return [
+        this.createClosingButton('Cancel', false, () => null),
+        this.createClosingButton(this.#confirmLabel, true, () => this.#input.value),
+      ];
+    }
+
+    /**
+     * Focuses the input so typing starts right away.
+     * @returns {void}
+     */
+    afterShow() {
+      this.#input.focus();
+    }
   }
+
+  var stylesheet = ".claude-plus-toolbar {\n  position: fixed;\n  top: 0;\n  left: 0;\n  right: 0;\n  height: var(--claude-plus-toolbar-height);\n  z-index: var(--claude-plus-layer-toolbar);\n  background: var(--claude-plus-color-bar);\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\n  display: flex;\n  align-items: center;\n  gap: 14px;\n  padding: 0 10px;\n  font-size: 12px;\n  box-sizing: border-box;\n}\n\n.claude-plus-toolbar__title {\n  font-weight: 600;\n}\n\n.claude-plus-toolbar__button {\n  background: var(--claude-plus-color-button);\n  border: none;\n  color: var(--claude-plus-color-text);\n  padding: 5px 10px;\n  border-radius: 6px;\n  cursor: pointer;\n  font-size: 12px;\n}\n\n.claude-plus-toolbar__button:hover {\n  background: var(--claude-plus-color-button-hover);\n}\n\n.claude-plus-toolbar__button:disabled {\n  opacity: 0.5;\n  cursor: default;\n}\n\n.claude-plus-toolbar__font-size {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex-shrink: 0;\n}\n\n.claude-plus-toolbar__font-size input[type=range] {\n  width: 100px;\n}\n";
+
+  StyleRegistry.register(stylesheet);
 
   /**
    * Top bar with the title, the message font size slider, the layout menu, the settings menu and
@@ -8900,7 +9781,7 @@
      * @returns {Promise<void>} Resolves once saved or cancelled.
      */
     async #askNameAndSave() {
-      const name = await promptDialog('Name of this layout:', '', 'Save');
+      const name = await PromptDialog.ask('Name of this layout:', '', 'Save');
       if (name && name.trim()) this.#layoutLibrary.save(name.trim());
     }
 
@@ -8955,6 +9836,10 @@
     }
   }
 
+  var nativeAppHidingStylesheet = "#root,\n#portal-root {\n  display: none !important;\n}\n";
+
+  var themeStylesheet = ":root {\n  --claude-plus-color-background: #1a1918;\n  --claude-plus-color-bar: #1c1b1a;\n  --claude-plus-color-raised: #262523;\n  --claude-plus-color-raised-hover: #3a3937;\n  --claude-plus-color-human-message: #2a2927;\n  --claude-plus-color-tool-details: #232221;\n  --claude-plus-color-code-block: #101010;\n  --claude-plus-color-button: #333;\n  --claude-plus-color-button-hover: #444;\n  --claude-plus-color-text: #ececec;\n  --claude-plus-color-text-muted: #b8b6b3;\n  --claude-plus-color-text-faint: #8a8886;\n  --claude-plus-color-accent: #d97757;\n  --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);\n  --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);\n  --claude-plus-color-error: #e57373;\n  --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);\n  --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);\n  --claude-plus-color-border: rgba(255, 255, 255, 0.08);\n  --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);\n  --claude-plus-color-hover: rgba(255, 255, 255, 0.06);\n  --claude-plus-font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n  --claude-plus-layer-zone-chrome: 2147480000;\n  --claude-plus-layer-panel: 2147480500;\n  --claude-plus-layer-divider: 2147480600;\n  --claude-plus-layer-toolbar: 2147483000;\n  --claude-plus-layer-popup-menu: 2147483001;\n  --claude-plus-layer-drop-highlight: 2147483646;\n  --claude-plus-layer-drag-label: 2147483647;\n}\n\n.claude-plus-themed {\n  font-family: var(--claude-plus-font-family);\n  color: var(--claude-plus-color-text);\n  color-scheme: dark;\n}\n\n.claude-plus-themed [hidden],\n.claude-plus-themed[hidden] {\n  display: none !important;\n}\n";
+
   /**
    * Composes every part of the UI and starts it.
    */
@@ -8968,6 +9853,16 @@
       for (const [storeKey, storeName] of Object.entries(DATABASE.stores)) {
         if (!database.objectStoreNames.contains(storeName)) database.createObjectStore(storeName, { keyPath: DATABASE.keyPaths[storeKey] });
       }
+    }
+
+    /**
+     * The stylesheet of the whole UI: the theme variables, the toolbar height from the layout
+     * configuration, then the stylesheets every component registered.
+     * @returns {string} The stylesheet text.
+     */
+    static #interfaceStylesheet() {
+      const layoutVariables = `:root { --claude-plus-toolbar-height: ${LAYOUT.toolbarHeight}px; }`;
+      return [themeStylesheet, layoutVariables, StyleRegistry.combinedCss].join('\n');
     }
 
     /**
@@ -8987,7 +9882,7 @@
     static #mountOrRestore() {
       try {
         const services = ClaudePlusApp.#mountInterface();
-        document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: NATIVE_APP_HIDING_STYLES }));
+        document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: nativeAppHidingStylesheet }));
         return services;
       } catch (error) {
         ClaudePlusApp.#removeInterface();
@@ -9002,7 +9897,7 @@
      * @throws {Error} When any part fails to build or mount.
      */
     static #mountInterface() {
-      document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: STYLES }));
+      document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: ClaudePlusApp.#interfaceStylesheet() }));
       const preferences = new Preferences();
       const api = new ClaudeApi();
       const database = new IndexedDbStore({ name: DATABASE.name, version: DATABASE.version, upgrade: ClaudePlusApp.#createMissingStores });

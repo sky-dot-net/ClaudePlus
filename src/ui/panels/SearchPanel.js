@@ -3,9 +3,13 @@ import { LIMITS } from '../../config/LIMITS.js';
 import { Panel } from './Panel.js';
 import { SearchEngine } from '../../search/SearchEngine.js';
 import { SearchQuery } from '../../search/SearchQuery.js';
+import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { escapeHtml } from '../../text/escapeHtml.js';
 import { formatTimestamp } from '../../time/formatTimestamp.js';
 import { toEpochMs } from '../../time/toEpochMs.js';
+import stylesheet from './SearchPanel.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * Structured search over chats, files, web sources and tool uses, e.g. `file:*.pdf`,

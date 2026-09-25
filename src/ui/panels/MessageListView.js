@@ -1,8 +1,12 @@
 import { FrameScheduler } from '../../dom/FrameScheduler.js';
+import { ImageViewerDialog } from '../dialogs/ImageViewerDialog.js';
 import { LIMITS } from '../../config/LIMITS.js';
+import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { TIMING } from '../../config/TIMING.js';
 import { escapeHtml } from '../../text/escapeHtml.js';
-import { openImageViewer } from '../dialogs/openImageViewer.js';
+import stylesheet from './MessageListView.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * The messages of a chat session with copy and retry actions. Streaming updates re-render only
@@ -40,7 +44,7 @@ export class MessageListView {
   #actionHandlers = new Map([
     ['retry', () => this.#session.retryLastPrompt()],
     ['copy', button => this.#copyMessageText(button)],
-    ['openImage', image => openImageViewer(image.dataset.fullSrc, image.alt)],
+    ['openImage', image => new ImageViewerDialog(image.dataset.fullSrc, image.alt).show()],
   ]);
 
   /**

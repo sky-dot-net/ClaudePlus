@@ -1,0 +1,60 @@
+.claude-plus-message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.claude-plus-message {
+  padding: 10px 12px;
+  border-radius: 8px;
+  max-width: 100%;
+}
+
+.claude-plus-message__sender {
+  font-size: 11px;
+  color: var(--claude-plus-color-text-faint);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.claude-plus-message__body {
+  font-size: var(--claude-plus-message-font-size, 14px);
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
+.claude-plus-message__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.claude-plus-message__action-button {
+  background: none;
+  border: none;
+  color: var(--claude-plus-color-text-faint);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.claude-plus-message__action-button:hover {
+  background: var(--claude-plus-color-border);
+  color: var(--claude-plus-color-text);
+}
+
+.claude-plus-message-error {
+  color: var(--claude-plus-color-error);
+  margin-top: 6px;
+}
+
+.claude-plus-streaming-cursor {
+  animation: claude-plus-blink 1s step-start infinite;
+}
+
+@keyframes claude-plus-blink {
+  50% {
+    opacity: 0;
+  }
+}

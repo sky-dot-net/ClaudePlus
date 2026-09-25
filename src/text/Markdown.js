@@ -1,4 +1,8 @@
+import { StyleRegistry } from '../styles/StyleRegistry.js';
 import { escapeHtml } from './escapeHtml.js';
+import stylesheet from './Markdown.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * Minimal markdown renderer: fenced code blocks, inline code, bold, italic and http(s) links.

@@ -1,5 +1,9 @@
+import { StyleRegistry } from '../styles/StyleRegistry.js';
 import { createElement } from '../dom/createElement.js';
 import { escapeHtml } from '../text/escapeHtml.js';
+import stylesheet from './PopupMenu.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * A small menu at the pointer that closes on selection or on a press outside it.

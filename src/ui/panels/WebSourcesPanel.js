@@ -1,7 +1,7 @@
 import { ColumnTable } from '../tables/ColumnTable.js';
 import { LIMITS } from '../../config/LIMITS.js';
 import { Panel } from './Panel.js';
-import { TableColumns } from '../tables/TableColumns.js';
+import { createSourceColumns } from '../tables/createSourceColumns.js';
 import { emptyStateHtml } from '../html/emptyStateHtml.js';
 import { entriesByDescendingCount } from '../../math/entriesByDescendingCount.js';
 import { valueRowHtml } from '../html/valueRowHtml.js';
@@ -59,7 +59,7 @@ export class WebSourcesPanel extends Panel {
     this.#table = new ColumnTable({
       container: this.elements.tableHost,
       tableId: 'webSources',
-      columns: TableColumns.sources(true),
+      columns: createSourceColumns(true),
       preferences: this.#preferences,
       defaultSort: { column: 'date', direction: -1 },
       rowAttributes: () => '',

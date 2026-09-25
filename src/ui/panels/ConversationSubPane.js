@@ -1,7 +1,12 @@
 import { ColumnTable } from '../tables/ColumnTable.js';
-import { TableColumns } from '../tables/TableColumns.js';
+import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { createElement } from '../../dom/createElement.js';
+import { createFileColumns } from '../tables/createFileColumns.js';
+import { createSourceColumns } from '../tables/createSourceColumns.js';
 import { escapeHtml } from '../../text/escapeHtml.js';
+import stylesheet from './ConversationSubPane.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * A sub-pane inside a chat pane listing the web sources or files of that pane's conversation.
@@ -16,13 +21,13 @@ export class ConversationSubPane {
     sources: {
       title: '🌐 Sources in this chat',
       tableId: 'conversationSources',
-      columns: () => TableColumns.sources(false),
+      columns: () => createSourceColumns(false),
       rowsOf: (aggregate, conversationId) => aggregate.sources.filter(source => source.conversationId === conversationId),
     },
     files: {
       title: '📁 Files in this chat',
       tableId: 'conversationFiles',
-      columns: () => TableColumns.files(false),
+      columns: () => createFileColumns(false),
       rowsOf: (aggregate, conversationId) => ConversationSubPane.#folderFiles(aggregate, conversationId),
     },
   });

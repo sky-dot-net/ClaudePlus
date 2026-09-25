@@ -1,6 +1,6 @@
+import { AlertDialog } from '../ui/dialogs/AlertDialog.js';
+import { ConfirmDialog } from '../ui/dialogs/ConfirmDialog.js';
 import { STORAGE_KEY_PREFIX } from '../config/STORAGE_KEY_PREFIX.js';
-import { alertDialog } from '../ui/dialogs/alertDialog.js';
-import { confirmDialog } from '../ui/dialogs/confirmDialog.js';
 import { createElement } from '../dom/createElement.js';
 import { downloadTextFile } from '../browser/downloadTextFile.js';
 
@@ -60,11 +60,11 @@ export class SettingsTransfer {
     if (!file) return;
     try {
       const settings = SettingsTransfer.#parseSettings(await file.text());
-      if (!(await confirmDialog('Replace all ClaudePlus settings with the imported ones? The page reloads afterwards.', 'Import'))) return;
+      if (!(await ConfirmDialog.ask('Replace all ClaudePlus settings with the imported ones? The page reloads afterwards.', 'Import'))) return;
       this.#preferences.replaceEntriesWithPrefix(STORAGE_KEY_PREFIX, settings);
       location.reload();
     } catch (error) {
-      await alertDialog(`Import failed: ${error.message}`);
+      await AlertDialog.inform(`Import failed: ${error.message}`);
     }
   }
 

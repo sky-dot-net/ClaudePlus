@@ -1,4 +1,8 @@
+import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { escapeHtml } from '../../text/escapeHtml.js';
+import stylesheet from './emptyStateHtml.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * HTML for an empty-state message.

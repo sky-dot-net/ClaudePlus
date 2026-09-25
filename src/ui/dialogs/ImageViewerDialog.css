@@ -1,0 +1,33 @@
+.claude-plus-image-viewer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--claude-plus-layer-drag-label);
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.claude-plus-image-viewer__frame {
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.claude-plus-image-viewer__image {
+  max-width: 90vw;
+  max-height: 90vh;
+  width: auto;
+  height: auto;
+  cursor: grab;
+  user-select: none;
+}
+
+.claude-plus-image-viewer__open-button {
+  flex-shrink: 0;
+}

@@ -1,0 +1,7 @@
+.claude-plus-code-block {
+  background: var(--claude-plus-color-code-block);
+  padding: 8px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 12px;
+}

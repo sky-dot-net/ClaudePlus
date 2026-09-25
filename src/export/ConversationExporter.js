@@ -1,9 +1,9 @@
+import { AlertDialog } from '../ui/dialogs/AlertDialog.js';
 import { ConversationExportBuilder } from './ConversationExportBuilder.js';
 import { JsonConversationFormat } from './formats/JsonConversationFormat.js';
 import { LOG_PREFIX } from '../config/LOG_PREFIX.js';
 import { MarkdownConversationFormat } from './formats/MarkdownConversationFormat.js';
 import { XmlConversationFormat } from './formats/XmlConversationFormat.js';
-import { alertDialog } from '../ui/dialogs/alertDialog.js';
 import { downloadTextFile } from '../browser/downloadTextFile.js';
 import { fileNameFromTitle } from '../text/fileNameFromTitle.js';
 
@@ -57,7 +57,7 @@ export class ConversationExporter {
       ConversationExporter.#download(conversation, ConversationExporter.FORMATS.get(formatId));
     } catch (error) {
       console.warn(LOG_PREFIX, 'export failed', error);
-      await alertDialog(`Export failed: ${error.message}`);
+      await AlertDialog.inform(`Export failed: ${error.message}`);
     }
   }
 

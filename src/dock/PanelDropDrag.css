@@ -1,0 +1,23 @@
+.claude-plus-drop-highlight[hidden] {
+  display: none !important;
+}
+
+.claude-plus-drag-label {
+  position: fixed;
+  z-index: var(--claude-plus-layer-drag-label);
+  background: var(--claude-plus-color-accent);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.claude-plus-drop-highlight {
+  position: fixed;
+  z-index: var(--claude-plus-layer-drop-highlight);
+  background: var(--claude-plus-color-accent-overlay);
+  border: 2px solid var(--claude-plus-color-accent);
+  pointer-events: none;
+  box-sizing: border-box;
+}

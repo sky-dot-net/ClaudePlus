@@ -1,0 +1,41 @@
+.claude-plus-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--claude-plus-layer-drag-label);
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.claude-plus-dialog {
+  background: var(--claude-plus-color-raised);
+  border: 1px solid var(--claude-plus-color-border-strong);
+  border-radius: 8px;
+  padding: 16px;
+  max-width: 360px;
+  font-size: 13px;
+}
+
+.claude-plus-dialog__message {
+  margin: 0 0 14px;
+  line-height: 1.4;
+}
+
+.claude-plus-dialog__input {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 14px;
+  padding: 6px 8px;
+  background: var(--claude-plus-color-bar);
+  border: 1px solid var(--claude-plus-color-border-strong);
+  border-radius: 6px;
+  color: var(--claude-plus-color-text);
+  font: inherit;
+}
+
+.claude-plus-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

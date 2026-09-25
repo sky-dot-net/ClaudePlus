@@ -1,8 +1,12 @@
 import { LIMITS } from '../../config/LIMITS.js';
+import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { WildcardPattern } from '../../text/WildcardPattern.js';
 import { createElement } from '../../dom/createElement.js';
 import { emptyStateHtml } from '../html/emptyStateHtml.js';
 import { escapeHtml } from '../../text/escapeHtml.js';
+import stylesheet from './ValueCombobox.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * A text input that shows the distinct values it can filter by in a list below it while focused.

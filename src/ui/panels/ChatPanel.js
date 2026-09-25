@@ -1,6 +1,10 @@
 import { ConversationSubPane } from './ConversationSubPane.js';
 import { MessageListView } from './MessageListView.js';
 import { Panel } from './Panel.js';
+import { StyleRegistry } from '../../styles/StyleRegistry.js';
+import stylesheet from './ChatPanel.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * A chat pane: one session's messages, plus optional sub-panes listing the conversation's files

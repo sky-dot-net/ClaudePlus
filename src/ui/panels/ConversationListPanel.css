@@ -1,0 +1,39 @@
+.claude-plus-conversation:hover .claude-plus-conversation__action-button {
+  visibility: visible;
+}
+
+.claude-plus-conversation {
+  cursor: pointer;
+}
+
+.claude-plus-conversation:hover > td {
+  background: var(--claude-plus-color-hover);
+}
+
+.claude-plus-conversation--active > td {
+  background: var(--claude-plus-color-accent-soft);
+}
+
+.claude-plus-conversation--open-elsewhere > td:first-child {
+  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);
+}
+
+.claude-plus-conversation__actions {
+  display: inline-flex;
+  white-space: nowrap;
+}
+
+.claude-plus-conversation__action-button {
+  visibility: hidden;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.claude-plus-conversation__action-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}

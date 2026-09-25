@@ -1,43 +1,22 @@
+import { AddPanelMenu } from './AddPanelMenu.js';
+import { DividerRenderer } from './DividerRenderer.js';
 import { DockTree } from './DockTree.js';
-import { DragGesture } from '../dom/DragGesture.js';
+import { DropTargetResolver } from './DropTargetResolver.js';
 import { FrameScheduler } from '../dom/FrameScheduler.js';
 import { LAYOUT } from '../config/LAYOUT.js';
-import { PopupMenu } from '../ui/PopupMenu.js';
+import { PanelDropDrag } from './PanelDropDrag.js';
+import { PanelHost } from './PanelHost.js';
 import { STORAGE_KEYS } from '../config/STORAGE_KEYS.js';
-import { createElement } from '../dom/createElement.js';
-import { placeElement } from '../dom/placeElement.js';
+import { ZoneChromeRenderer } from './ZoneChromeRenderer.js';
 
 /**
- * Renders the dock tree, positions the panels and handles tab dragging, divider resizing and the
- * add-panel menu.
+ * The docking workspace below the toolbar: keeps the layout tree, lays out zones, tabs, dividers
+ * and panels, saves the layout on every change, and docks panels dropped by tab drags.
  */
 export class DockWorkspace {
   /**
-   * Highlight area for each outer edge drop, given the workspace bounds and the capped width and height.
-   * @type {Readonly<Record<string, function(Rect, number, number): Rect>>}
-   */
-  static #EDGE_HIGHLIGHTS = Object.freeze({
-    left: (bounds, width) => ({ ...bounds, width }),
-    right: (bounds, width) => ({ ...bounds, left: bounds.left + bounds.width - width, width }),
-    top: (bounds, width, height) => ({ ...bounds, height }),
-    bottom: (bounds, width, height) => ({ ...bounds, top: bounds.top + bounds.height - height, height }),
-  });
-
-  /**
-   * Highlight area for each zone drop region, given the zone's area.
-   * @type {Readonly<Record<string, function(Rect): Rect>>}
-   */
-  static #REGION_HIGHLIGHTS = Object.freeze({
-    center: rect => rect,
-    top: rect => ({ ...rect, height: rect.height / 2 }),
-    bottom: rect => ({ ...rect, top: rect.top + rect.height / 2, height: rect.height / 2 }),
-    left: rect => ({ ...rect, width: rect.width / 2 }),
-    right: rect => ({ ...rect, left: rect.left + rect.width / 2, width: rect.width / 2 }),
-  });
-
-  /**
-   * Panels by id.
-   * @type {Map<string, Panel>}
+   * The known panels.
+   * @type {PanelHost}
    */
   #panels;
 
@@ -54,16 +33,16 @@ export class DockWorkspace {
   #tree;
 
   /**
-   * Zone frames and tab strips, below the panels.
-   * @type {HTMLElement}
+   * Draws zone frames and tab strips.
+   * @type {ZoneChromeRenderer}
    */
-  #zoneChromeLayer;
+  #zoneChrome;
 
   /**
-   * Dividers, above the panels so they can be grabbed along their full length.
-   * @type {HTMLElement}
+   * Draws the dividers.
+   * @type {DividerRenderer}
    */
-  #dividerLayer;
+  #dividers;
 
   /**
    * Zone areas from the last layout, used to find drop targets.
@@ -78,10 +57,10 @@ export class DockWorkspace {
   #layoutScheduler = new FrameScheduler(() => this.layout());
 
   /**
-   * The add-panel menu.
-   * @type {PopupMenu}
+   * The zones' "+" menu.
+   * @type {AddPanelMenu}
    */
-  #addPanelMenu = new PopupMenu();
+  #addPanelMenu;
 
   /**
    * Creates the default layout.
@@ -102,12 +81,6 @@ export class DockWorkspace {
   #placeMissingPanel;
 
   /**
-   * Entries of the zones' "+" menu and what choosing one does.
-   * @type {{entries: function(): ChoiceOption[], onSelect: function(string, string): void}}
-   */
-  #addPanelMenuOptions;
-
-  /**
    * Called after every layout with the ids of the visible panels.
    * @type {function(Set<string>): void}
    */
@@ -126,14 +99,16 @@ export class DockWorkspace {
    * @param {function(Set<string>): void} options.onLayout Called after every layout with the ids of the visible panels.
    */
   constructor({ panels, preferences, createDefaultTree, requiredPanelIds, placeMissingPanel, addPanelMenu, onLayout }) {
-    this.#panels = panels;
+    this.#panels = new PanelHost(panels);
     this.#preferences = preferences;
     this.#createDefaultTree = createDefaultTree;
     this.#requiredPanelIds = requiredPanelIds;
     this.#placeMissingPanel = placeMissingPanel;
-    this.#addPanelMenuOptions = addPanelMenu;
+    this.#addPanelMenu = new AddPanelMenu(addPanelMenu);
     this.#onLayout = onLayout;
-    this.#tree = DockTree.fromStored(preferences.readJson(STORAGE_KEYS.dockLayout), panels.keys()) ?? createDefaultTree();
+    this.#zoneChrome = this.#createZoneChromeRenderer();
+    this.#dividers = this.#createDividerRenderer();
+    this.#tree = DockTree.fromStored(preferences.readJson(STORAGE_KEYS.dockLayout), this.#panels.panelIds) ?? createDefaultTree();
     this.#dockMissingRequiredPanels();
   }
 
@@ -142,9 +117,7 @@ export class DockWorkspace {
    * @returns {void}
    */
   mount() {
-    this.#zoneChromeLayer = createElement('div', { className: 'claude-plus-themed claude-plus-zone-chrome-layer' });
-    this.#dividerLayer = createElement('div', { className: 'claude-plus-divider-layer' });
-    document.body.append(this.#zoneChromeLayer, this.#dividerLayer);
+    document.body.append(this.#zoneChrome.layer, this.#dividers.layer);
     window.addEventListener('resize', () => this.#layoutScheduler.schedule());
     this.layout();
   }
@@ -167,7 +140,7 @@ export class DockWorkspace {
    * @returns {void}
    */
   addPanel(panelId, panel, besidePanelId) {
-    this.#panels.set(panelId, panel);
+    this.#panels.add(panelId, panel);
     const besideLeaf = this.#tree.findLeafContaining(besidePanelId) || this.#tree.firstLeaf();
     this.#tree.dockPanel(panelId, besideLeaf.id, 'right');
     this.#layoutAndSave();
@@ -182,10 +155,8 @@ export class DockWorkspace {
    * @returns {void}
    */
   addPanelAt(panelId, panel, dropTarget) {
-    this.#panels.set(panelId, panel);
-    if (dropTarget.edge) this.#tree.dockPanelAtEdge(panelId, dropTarget.edge);
-    else this.#tree.dockPanel(panelId, dropTarget.leafId, dropTarget.region);
-    this.#layoutAndSave();
+    this.#panels.add(panelId, panel);
+    this.#dockAt(panelId, dropTarget);
   }
 
   /**
@@ -199,23 +170,7 @@ export class DockWorkspace {
    * @returns {void}
    */
   beginExternalDrag(startEvent, label, onDrop) {
-    startEvent.preventDefault();
-    const dragLabel = createElement('div', { className: 'claude-plus-themed claude-plus-drag-label', textContent: label, hidden: true });
-    const dropHighlight = createElement('div', { className: 'claude-plus-drop-highlight', hidden: true });
-    document.body.append(dragLabel, dropHighlight);
-    let dropTarget = null;
-    new DragGesture(startEvent, {
-      threshold: LAYOUT.dragThreshold,
-      onMove: (event) => {
-        dropTarget = this.#dropTargetAt(event.clientX, event.clientY);
-        DockWorkspace.#showDragFeedback(dragLabel, dropHighlight, event, dropTarget);
-      },
-      onEnd: (event, wasDragged) => {
-        dragLabel.remove();
-        dropHighlight.remove();
-        if (wasDragged && dropTarget) onDrop(dropTarget);
-      },
-    });
+    new PanelDropDrag(startEvent, { label, findDropTarget: this.#dropTargetAt, onDrop });
   }
 
   /**
@@ -224,21 +179,10 @@ export class DockWorkspace {
    * @returns {void}
    */
   removePanel(panelId) {
-    const panel = this.#panels.get(panelId);
-    if (!panel) return;
+    if (!this.#panels.has(panelId)) return;
     this.#tree.removePanel(panelId);
-    this.#panels.delete(panelId);
-    panel.dispose();
+    this.#panels.remove(panelId);
     this.#layoutAndSave();
-  }
-
-  /**
-   * Docks every required panel missing from the layout.
-   * @returns {void}
-   */
-  #dockMissingRequiredPanels() {
-    const missing = this.#requiredPanelIds().filter(panelId => !this.#tree.findLeafContaining(panelId));
-    missing.forEach(panelId => this.#placeMissingPanel(this.#tree, panelId));
   }
 
   /**
@@ -249,7 +193,7 @@ export class DockWorkspace {
    * @returns {void}
    */
   addPanelToZone(panelId, panel, leafId) {
-    this.#panels.set(panelId, panel);
+    this.#panels.add(panelId, panel);
     this.#tree.dockPanel(panelId, leafId, 'center');
     this.#layoutAndSave();
   }
@@ -261,7 +205,7 @@ export class DockWorkspace {
    * @returns {void}
    */
   registerPanel(panelId, panel) {
-    this.#panels.set(panelId, panel);
+    this.#panels.add(panelId, panel);
   }
 
   /**
@@ -288,9 +232,9 @@ export class DockWorkspace {
    * @returns {void}
    */
   replaceLayout(storedTree) {
-    this.#tree = DockTree.fromStored(storedTree, this.#panels.keys()) ?? this.#createDefaultTree();
+    this.#tree = DockTree.fromStored(storedTree, this.#panels.panelIds) ?? this.#createDefaultTree();
     this.#dockMissingRequiredPanels();
-    [...this.#panels].filter(([panelId, panel]) => !this.#tree.findLeafContaining(panelId) && panel.canClose()).forEach(([, panel]) => panel.close());
+    this.#panels.panelIds.filter(panelId => !this.#tree.findLeafContaining(panelId) && this.#panels.canClose(panelId)).forEach(panelId => this.#panels.close(panelId));
     this.#layoutAndSave();
   }
 
@@ -300,7 +244,7 @@ export class DockWorkspace {
    * @returns {?{panelId: string, panel: Panel}} The panel and its id, or null.
    */
   findDockedPanel(predicate) {
-    const entry = [...this.#panels].find(([panelId, panel]) => this.#tree.findLeafContaining(panelId) && predicate(panel));
+    const entry = this.#panels.entries.find(([panelId, panel]) => this.#tree.findLeafContaining(panelId) && predicate(panel));
     return entry ? { panelId: entry[0], panel: entry[1] } : null;
   }
 
@@ -321,15 +265,64 @@ export class DockWorkspace {
    * @returns {void}
    */
   layout() {
-    const { leaves, dividers } = this.#tree.computeLayout(this.#workspaceBounds());
+    const { leaves, dividers } = this.#tree.computeLayout(DockWorkspace.#workspaceBounds());
     this.#leafPlacements = leaves;
-    this.#zoneChromeLayer.replaceChildren();
-    this.#dividerLayer.replaceChildren();
+    this.#zoneChrome.clear();
+    this.#dividers.clear();
     leaves.forEach(placement => this.#renderZone(placement));
     const visiblePanelIds = new Set(leaves.map(placement => placement.leaf.activeTab));
-    this.#hidePanelsExcept(visiblePanelIds);
-    dividers.forEach(placement => this.#renderDivider(placement));
+    this.#panels.hideAllExcept(visiblePanelIds);
+    dividers.forEach(placement => this.#dividers.render(placement));
     this.#onLayout(visiblePanelIds);
+  }
+
+  /**
+   * Area available to the dock, below the toolbar.
+   * @returns {Rect} The area.
+   */
+  static #workspaceBounds() {
+    return { left: 0, top: LAYOUT.toolbarHeight, width: window.innerWidth, height: window.innerHeight - LAYOUT.toolbarHeight };
+  }
+
+  /**
+   * Creates the zone chrome renderer, wired to the panels and the tab actions.
+   * @returns {ZoneChromeRenderer} The renderer.
+   */
+  #createZoneChromeRenderer() {
+    return new ZoneChromeRenderer({
+      titleOf: panelId => this.#panels.titleOf(panelId),
+      canClose: panelId => this.#panels.canClose(panelId),
+      onTabPress: (event, panelId) => this.#onTabPress(event, panelId),
+      onTabActivate: (leafId, panelId) => this.#activateTab(leafId, panelId),
+      onTabClose: panelId => this.#panels.close(panelId),
+      onAddClick: (event, leafId) => this.#addPanelMenu.open(event, leafId),
+    });
+  }
+
+  /**
+   * Creates the divider renderer, resizing splits once per frame while dragging and saving on release.
+   * @returns {DividerRenderer} The renderer.
+   */
+  #createDividerRenderer() {
+    return new DividerRenderer({
+      onResize: (split, index, startSizes, movedFraction) => {
+        this.#tree.resizeSplit(split, index, startSizes, movedFraction);
+        this.#layoutScheduler.schedule();
+      },
+      onResizeEnd: () => {
+        this.#layoutScheduler.cancel();
+        this.#layoutAndSave();
+      },
+    });
+  }
+
+  /**
+   * Docks every required panel missing from the layout.
+   * @returns {void}
+   */
+  #dockMissingRequiredPanels() {
+    const missing = this.#requiredPanelIds().filter(panelId => !this.#tree.findLeafContaining(panelId));
+    missing.forEach(panelId => this.#placeMissingPanel(this.#tree, panelId));
   }
 
   /**
@@ -342,113 +335,14 @@ export class DockWorkspace {
   }
 
   /**
-   * Area available to the dock, below the toolbar.
-   * @returns {Rect} The area.
-   */
-  #workspaceBounds() {
-    return { left: 0, top: LAYOUT.toolbarHeight, width: window.innerWidth, height: window.innerHeight - LAYOUT.toolbarHeight };
-  }
-
-  /**
    * Draws a zone and shows its active panel below the tab strip.
    * @param {LeafPlacement} placement The zone and its area.
    * @returns {void}
    */
-  #renderZone({ leaf, rect }) {
-    this.#renderZoneChrome(leaf, rect);
-    if (leaf.activeTab) this.#showPanel(leaf.activeTab, { ...rect, top: rect.top + LAYOUT.tabStripHeight, height: rect.height - LAYOUT.tabStripHeight });
-  }
-
-  /**
-   * Hides every built panel that isn't visible.
-   * @param {Set<string>} visiblePanelIds Ids of the visible panels.
-   * @returns {void}
-   */
-  #hidePanelsExcept(visiblePanelIds) {
-    for (const [panelId, panel] of this.#panels) {
-      if (!visiblePanelIds.has(panelId) && panel.isBuilt) panel.element.style.visibility = 'hidden';
-    }
-  }
-
-  /**
-   * Positions and shows a panel, adding it to the page on first use.
-   * @param {string} panelId Panel id.
-   * @param {Rect} contentRect Area below the tab strip.
-   * @returns {void}
-   */
-  #showPanel(panelId, contentRect) {
-    const panel = this.#panels.get(panelId);
-    if (!panel) return;
-    const { element } = panel;
-    if (!element.isConnected) document.body.append(element);
-    placeElement(element, contentRect);
-    element.style.visibility = 'visible';
-  }
-
-  /**
-   * Title of a panel.
-   * @param {string} panelId Panel id.
-   * @returns {string} Its title, or the id for an unknown panel.
-   */
-  #panelTitle(panelId) {
-    const panel = this.#panels.get(panelId);
-    return panel ? panel.title : panelId;
-  }
-
-  /**
-   * Draws a zone's frame and tab strip.
-   * @param {LeafNode} leaf The zone.
-   * @param {Rect} rect Its area.
-   * @returns {void}
-   */
-  #renderZoneChrome(leaf, rect) {
-    const frame = createElement('div', { className: 'claude-plus-zone-frame' });
-    const tabStrip = createElement('div', { className: 'claude-plus-tab-strip' });
-    placeElement(frame, rect);
-    placeElement(tabStrip, { ...rect, height: LAYOUT.tabStripHeight });
-    tabStrip.append(...leaf.tabs.map(panelId => this.#createTab(leaf, panelId)), this.#createAddPanelButton(leaf.id));
-    this.#zoneChromeLayer.append(frame, tabStrip);
-  }
-
-  /**
-   * Creates a tab that activates its panel on click and starts a drag on press.
-   * @param {LeafNode} leaf Zone of the tab.
-   * @param {string} panelId Panel id.
-   * @returns {HTMLElement} The tab.
-   */
-  #createTab(leaf, panelId) {
-    const className = panelId === leaf.activeTab ? 'claude-plus-tab claude-plus-tab--active' : 'claude-plus-tab';
-    const tab = createElement('div', { className, title: this.#panelTitle(panelId) });
-    tab.append(createElement('span', { className: 'claude-plus-tab__label', textContent: this.#panelTitle(panelId) }));
-    tab.addEventListener('mousedown', event => this.#onTabPress(event, panelId));
-    tab.addEventListener('click', () => this.#activateTab(leaf.id, panelId));
-    if (this.#canClosePanel(panelId)) tab.append(this.#createCloseButton(panelId));
-    return tab;
-  }
-
-  /**
-   * Whether a panel's tab offers a close button.
-   * @param {string} panelId Panel id.
-   * @returns {boolean} True when the panel exists and allows closing.
-   */
-  #canClosePanel(panelId) {
-    const panel = this.#panels.get(panelId);
-    return Boolean(panel) && panel.canClose();
-  }
-
-  /**
-   * Creates a tab's close button; pressing it neither activates nor drags the tab.
-   * @param {string} panelId Panel id.
-   * @returns {HTMLElement} The button.
-   */
-  #createCloseButton(panelId) {
-    const button = createElement('span', { className: 'claude-plus-tab__close-button', textContent: '×', title: 'Close' });
-    button.addEventListener('mousedown', event => event.stopPropagation());
-    button.addEventListener('click', (event) => {
-      event.stopPropagation();
-      this.#panels.get(panelId).close();
-    });
-    return button;
+  #renderZone(placement) {
+    const { leaf, rect } = placement;
+    this.#zoneChrome.render(placement);
+    if (leaf.activeTab) this.#panels.show(leaf.activeTab, { ...rect, top: rect.top + LAYOUT.tabStripHeight, height: rect.height - LAYOUT.tabStripHeight });
   }
 
   /**
@@ -463,242 +357,37 @@ export class DockWorkspace {
   }
 
   /**
-   * Creates the "+" button that offers undocked panels for a zone.
-   * @param {string} leafId Zone id.
-   * @returns {HTMLElement} The button.
-   */
-  #createAddPanelButton(leafId) {
-    const button = createElement('div', { className: 'claude-plus-tab-strip__add-button', textContent: '+', title: 'Add a chat or panel to this zone' });
-    button.addEventListener('click', event => this.#showAddPanelMenu(event, leafId));
-    return button;
-  }
-
-  /**
-   * Starts a tab drag on a primary-button press.
+   * Starts dragging a tab to another place on a primary-button press.
    * @param {MouseEvent} event The mousedown on a tab.
    * @param {string} panelId Panel of the tab.
    * @returns {void}
    */
   #onTabPress(event, panelId) {
-    if (event.button === 0) this.#startTabDrag(event, panelId);
-  }
-
-  /**
-   * Draws a divider that resizes its split when dragged.
-   * @param {DividerPlacement} placement The divider.
-   * @returns {void}
-   */
-  #renderDivider(placement) {
-    const isSideBySide = placement.split.direction === 'row';
-    const className = isSideBySide ? 'claude-plus-divider claude-plus-divider--vertical' : 'claude-plus-divider claude-plus-divider--horizontal';
-    const divider = createElement('div', { className });
-    placeElement(divider, DockWorkspace.#dividerGrabArea(placement, isSideBySide));
-    divider.addEventListener('mousedown', event => this.#startDividerDrag(event, placement, isSideBySide));
-    this.#dividerLayer.append(divider);
-  }
-
-  /**
-   * Grab area of a divider, centred on the boundary.
-   * @param {DividerPlacement} placement The divider.
-   * @param {boolean} isSideBySide Whether the split places children side by side.
-   * @returns {Rect} The area.
-   */
-  static #dividerGrabArea({ rect, position }, isSideBySide) {
-    const start = position - LAYOUT.dividerThickness / 2;
-    return isSideBySide
-      ? { left: start, top: rect.top, width: LAYOUT.dividerThickness, height: rect.height }
-      : { left: rect.left, top: start, width: rect.width, height: LAYOUT.dividerThickness };
-  }
-
-  /**
-   * Pointer coordinate along a split axis.
-   * @param {MouseEvent} event Pointer event.
-   * @param {boolean} isSideBySide True for the x coordinate, false for y.
-   * @returns {number} The coordinate.
-   */
-  static #pointerPositionAlongAxis(event, isSideBySide) {
-    return isSideBySide ? event.clientX : event.clientY;
-  }
-
-  /**
-   * Resizes a split while its divider is dragged, laying out once per frame and saving on release.
-   * @param {MouseEvent} startEvent The mousedown on the divider.
-   * @param {DividerPlacement} placement The divider.
-   * @param {boolean} isSideBySide Whether the split places children side by side.
-   * @returns {void}
-   */
-  #startDividerDrag(startEvent, { split, index, rect }, isSideBySide) {
-    startEvent.preventDefault();
-    const startSizes = [...split.sizes];
-    const startPosition = DockWorkspace.#pointerPositionAlongAxis(startEvent, isSideBySide);
-    const extent = isSideBySide ? rect.width : rect.height;
-    const resizingClass = isSideBySide ? 'claude-plus-resizing-horizontally' : 'claude-plus-resizing-vertically';
-    document.documentElement.classList.add(resizingClass);
-    new DragGesture(startEvent, {
-      threshold: 0,
-      onMove: (event) => {
-        this.#tree.resizeSplit(split, index, startSizes, (DockWorkspace.#pointerPositionAlongAxis(event, isSideBySide) - startPosition) / extent);
-        this.#layoutScheduler.schedule();
-      },
-      onEnd: () => {
-        document.documentElement.classList.remove(resizingClass);
-        this.#layoutScheduler.cancel();
-        this.#layoutAndSave();
-      },
+    if (event.button !== 0) return;
+    new PanelDropDrag(event, {
+      label: this.#panels.titleOf(panelId),
+      findDropTarget: this.#dropTargetAt,
+      onDrop: dropTarget => this.#dockAt(panelId, dropTarget),
     });
   }
 
   /**
-   * Drags a tab with a floating label, highlights the drop target and docks the panel on release.
-   * @param {MouseEvent} startEvent The mousedown on the tab.
-   * @param {string} panelId Panel of the tab.
-   * @returns {void}
-   */
-  #startTabDrag(startEvent, panelId) {
-    startEvent.preventDefault();
-    const dragLabel = createElement('div', { className: 'claude-plus-themed claude-plus-drag-label', textContent: this.#panelTitle(panelId), hidden: true });
-    const dropHighlight = createElement('div', { className: 'claude-plus-drop-highlight', hidden: true });
-    document.body.append(dragLabel, dropHighlight);
-    let dropTarget = null;
-    new DragGesture(startEvent, {
-      threshold: LAYOUT.dragThreshold,
-      onMove: (event) => {
-        dropTarget = this.#dropTargetAt(event.clientX, event.clientY);
-        DockWorkspace.#showDragFeedback(dragLabel, dropHighlight, event, dropTarget);
-      },
-      onEnd: (event, wasDragged) => {
-        dragLabel.remove();
-        dropHighlight.remove();
-        if (wasDragged && dropTarget) this.#dropPanel(panelId, dropTarget);
-      },
-    });
-  }
-
-  /**
-   * Moves the drag label to the pointer and highlights the drop target.
-   * @param {HTMLElement} dragLabel The floating label.
-   * @param {HTMLElement} dropHighlight The drop highlight.
-   * @param {MouseEvent} event Current pointer event.
-   * @param {?DropTarget} dropTarget Target under the pointer, or null.
-   * @returns {void}
-   */
-  static #showDragFeedback(dragLabel, dropHighlight, event, dropTarget) {
-    dragLabel.hidden = false;
-    Object.assign(dragLabel.style, { left: `${event.clientX + LAYOUT.dragLabelOffset}px`, top: `${event.clientY + LAYOUT.dragLabelOffset}px` });
-    dropHighlight.hidden = !dropTarget;
-    if (dropTarget) placeElement(dropHighlight, dropTarget.rect);
-  }
-
-  /**
-   * Docks a panel at a drop target and saves the layout.
+   * Docks a known panel at a drop target and saves the layout.
    * @param {string} panelId Panel id.
-   * @param {DropTarget} dropTarget Where it was dropped.
+   * @param {DropTarget} dropTarget Where to dock it.
    * @returns {void}
    */
-  #dropPanel(panelId, dropTarget) {
+  #dockAt(panelId, dropTarget) {
     if (dropTarget.edge) this.#tree.dockPanelAtEdge(panelId, dropTarget.edge);
     else this.#tree.dockPanel(panelId, dropTarget.leafId, dropTarget.region);
     this.#layoutAndSave();
   }
 
   /**
-   * The drop target under the pointer: an outer workspace edge when near one, otherwise the centre
-   * or a side of the zone under the pointer.
+   * The drop target under the pointer in the current layout.
    * @param {number} pointerX Pointer x.
    * @param {number} pointerY Pointer y.
    * @returns {?DropTarget} The target, or null outside every zone.
    */
-  #dropTargetAt(pointerX, pointerY) {
-    const bounds = this.#workspaceBounds();
-    const edge = DockWorkspace.#outerEdgeNear(pointerX, pointerY, bounds);
-    if (edge) return { edge, leafId: null, region: null, rect: DockWorkspace.#edgeHighlight(edge, bounds) };
-    const hoveredZone = this.#leafPlacements.find(({ rect }) => DockWorkspace.#containsPoint(rect, pointerX, pointerY));
-    return hoveredZone ? DockWorkspace.#zoneDropTarget(hoveredZone, pointerX, pointerY) : null;
-  }
-
-  /**
-   * Drop target within a zone.
-   * @param {LeafPlacement} placement The zone under the pointer.
-   * @param {number} pointerX Pointer x.
-   * @param {number} pointerY Pointer y.
-   * @returns {DropTarget} The target.
-   */
-  static #zoneDropTarget({ leaf, rect }, pointerX, pointerY) {
-    const region = DockWorkspace.#regionAt((pointerX - rect.left) / rect.width, (pointerY - rect.top) / rect.height);
-    return { edge: null, leafId: leaf.id, region, rect: DockWorkspace.#REGION_HIGHLIGHTS[region](rect) };
-  }
-
-  /**
-   * Whether a point lies inside a rectangle, edges included.
-   * @param {Rect} rect The rectangle.
-   * @param {number} pointX Point x.
-   * @param {number} pointY Point y.
-   * @returns {boolean} True when inside.
-   */
-  static #containsPoint(rect, pointX, pointY) {
-    return pointX >= rect.left && pointX <= rect.left + rect.width && pointY >= rect.top && pointY <= rect.top + rect.height;
-  }
-
-  /**
-   * The outer workspace edge within LAYOUT.edgeDropMargin of a point, checked left, right, top, bottom.
-   * @param {number} pointX Point x.
-   * @param {number} pointY Point y.
-   * @param {Rect} bounds Workspace area.
-   * @returns {?string} 'left', 'right', 'top' or 'bottom', or null when no edge is near.
-   */
-  static #outerEdgeNear(pointX, pointY, bounds) {
-    const distanceByEdge = {
-      left: pointX - bounds.left,
-      right: bounds.left + bounds.width - pointX,
-      top: pointY - bounds.top,
-      bottom: bounds.top + bounds.height - pointY,
-    };
-    return Object.keys(distanceByEdge).find(edge => distanceByEdge[edge] < LAYOUT.edgeDropMargin) ?? null;
-  }
-
-  /**
-   * Highlight area for an outer edge drop, capped in size.
-   * @param {string} edge 'left', 'right', 'top' or 'bottom'.
-   * @param {Rect} bounds Workspace area.
-   * @returns {Rect} The area.
-   */
-  static #edgeHighlight(edge, bounds) {
-    const width = Math.min(bounds.width * LAYOUT.edgeDockFraction, LAYOUT.edgeHighlightMaxWidth);
-    const height = Math.min(bounds.height * LAYOUT.edgeDockFraction, LAYOUT.edgeHighlightMaxHeight);
-    return DockWorkspace.#EDGE_HIGHLIGHTS[edge](bounds, width, height);
-  }
-
-  /**
-   * Drop region for a position within a zone: a side when within LAYOUT.sideDropFraction of it
-   * (top and bottom first), otherwise the centre.
-   * @param {number} fractionAcross Position across the zone, 0 to 1.
-   * @param {number} fractionDown Position down the zone, 0 to 1.
-   * @returns {string} 'top', 'bottom', 'left', 'right' or 'center'.
-   */
-  static #regionAt(fractionAcross, fractionDown) {
-    const sideShare = LAYOUT.sideDropFraction;
-    const candidates = [
-      ['top', fractionDown < sideShare],
-      ['bottom', fractionDown > 1 - sideShare],
-      ['left', fractionAcross < sideShare],
-      ['right', fractionAcross > 1 - sideShare],
-    ];
-    const match = candidates.find(([, isHit]) => isHit);
-    return match ? match[0] : 'center';
-  }
-
-  /**
-   * Opens a zone's "+" menu: adding a chat or a new instance of a view panel as a tab of the zone.
-   * @param {MouseEvent} event Click on the zone's "+" button.
-   * @param {string} leafId Zone id.
-   * @returns {void}
-   */
-  #showAddPanelMenu(event, leafId) {
-    this.#addPanelMenu.open({
-      left: event.clientX,
-      top: event.clientY,
-      entries: this.#addPanelMenuOptions.entries(),
-      onSelect: entryId => this.#addPanelMenuOptions.onSelect(entryId, leafId),
-    });
-  }
+  #dropTargetAt = (pointerX, pointerY) => DropTargetResolver.resolve(pointerX, pointerY, DockWorkspace.#workspaceBounds(), this.#leafPlacements);
 }

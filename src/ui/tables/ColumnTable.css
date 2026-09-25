@@ -1,0 +1,99 @@
+.claude-plus-column-table__column-picker {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--claude-plus-color-text-muted);
+}
+
+details.claude-plus-column-table__column-picker summary {
+  padding: 0;
+}
+
+.claude-plus-column-table__column-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 10px 2px 0;
+  cursor: pointer;
+}
+
+.claude-plus-column-table__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.claude-plus-column-table__table th {
+  text-align: left;
+  padding: 4px 6px;
+  color: var(--claude-plus-color-text-muted);
+  background: var(--claude-plus-color-raised);
+  position: sticky;
+  z-index: 1;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.claude-plus-column-table__table thead tr:first-child th {
+  top: 0;
+}
+
+.claude-plus-column-table__filter-row th {
+  top: 24px;
+  padding-top: 0;
+  border-bottom: 1px solid var(--claude-plus-color-border-strong);
+  font-weight: normal;
+}
+
+.claude-plus-column-table__sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.claude-plus-column-table__sortable:hover {
+  color: var(--claude-plus-color-text);
+}
+
+.claude-plus-panel .claude-plus-column-table__filter-input {
+  display: block;
+  width: 100%;
+  min-width: 40px;
+  box-sizing: border-box;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {
+  min-width: 0;
+  max-width: 112px;
+  padding: 1px 2px;
+  font-size: 10px;
+}
+
+.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {
+  margin-top: 2px;
+}
+
+.claude-plus-column-table__cell {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--claude-plus-color-border-faint);
+  vertical-align: top;
+}
+
+.claude-plus-column-table__cell--name,
+.claude-plus-column-table__cell--title,
+.claude-plus-column-table__cell--match {
+  width: 100%;
+  max-width: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claude-plus-column-table__cell a {
+  color: var(--claude-plus-color-accent);
+  text-decoration: none;
+}
+
+.claude-plus-column-table__cell a:hover {
+  text-decoration: underline;
+}

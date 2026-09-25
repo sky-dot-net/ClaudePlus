@@ -1,0 +1,42 @@
+:root {
+  --claude-plus-color-background: #1a1918;
+  --claude-plus-color-bar: #1c1b1a;
+  --claude-plus-color-raised: #262523;
+  --claude-plus-color-raised-hover: #3a3937;
+  --claude-plus-color-human-message: #2a2927;
+  --claude-plus-color-tool-details: #232221;
+  --claude-plus-color-code-block: #101010;
+  --claude-plus-color-button: #333;
+  --claude-plus-color-button-hover: #444;
+  --claude-plus-color-text: #ececec;
+  --claude-plus-color-text-muted: #b8b6b3;
+  --claude-plus-color-text-faint: #8a8886;
+  --claude-plus-color-accent: #d97757;
+  --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);
+  --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);
+  --claude-plus-color-error: #e57373;
+  --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);
+  --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);
+  --claude-plus-color-border: rgba(255, 255, 255, 0.08);
+  --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);
+  --claude-plus-color-hover: rgba(255, 255, 255, 0.06);
+  --claude-plus-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --claude-plus-layer-zone-chrome: 2147480000;
+  --claude-plus-layer-panel: 2147480500;
+  --claude-plus-layer-divider: 2147480600;
+  --claude-plus-layer-toolbar: 2147483000;
+  --claude-plus-layer-popup-menu: 2147483001;
+  --claude-plus-layer-drop-highlight: 2147483646;
+  --claude-plus-layer-drag-label: 2147483647;
+}
+
+.claude-plus-themed {
+  font-family: var(--claude-plus-font-family);
+  color: var(--claude-plus-color-text);
+  color-scheme: dark;
+}
+
+.claude-plus-themed [hidden],
+.claude-plus-themed[hidden] {
+  display: none !important;
+}

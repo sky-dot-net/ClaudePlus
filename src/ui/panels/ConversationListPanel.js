@@ -1,11 +1,15 @@
 import { ColumnTable } from '../tables/ColumnTable.js';
+import { ConfirmDialog } from '../dialogs/ConfirmDialog.js';
 import { LOG_PREFIX } from '../../config/LOG_PREFIX.js';
 import { Panel } from './Panel.js';
+import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { UNTITLED } from '../../config/UNTITLED.js';
-import { confirmDialog } from '../dialogs/confirmDialog.js';
 import { escapeHtml } from '../../text/escapeHtml.js';
 import { formatDay } from '../../time/formatDay.js';
 import { toEpochMs } from '../../time/toEpochMs.js';
+import stylesheet from './ConversationListPanel.css';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * Conversation list as a column table, with a quick title search, open in a new pane, delete, and
@@ -261,7 +265,7 @@ export class ConversationListPanel extends Panel {
    */
   async #confirmAndDelete(row) {
     const conversationId = row.dataset.conversationId;
-    const isConfirmed = await confirmDialog(`Delete "${this.#directory.titleOf(conversationId)}"? This cannot be undone.`, 'Delete');
+    const isConfirmed = await ConfirmDialog.ask(`Delete "${this.#directory.titleOf(conversationId)}"? This cannot be undone.`, 'Delete');
     if (!isConfirmed) return;
     row.classList.add('claude-plus-pending');
     try {

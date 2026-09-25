@@ -1,0 +1,55 @@
+.claude-plus-staged-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.claude-plus-staged-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--claude-plus-color-bar);
+  border: 1px solid var(--claude-plus-color-border-strong);
+  border-radius: 6px;
+  padding: 3px 4px 3px 3px;
+  font-size: 12px;
+  max-width: 200px;
+}
+
+.claude-plus-staged-file--uploading {
+  opacity: 0.6;
+}
+
+.claude-plus-staged-file__thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.claude-plus-staged-file__icon {
+  flex-shrink: 0;
+}
+
+.claude-plus-staged-file__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claude-plus-staged-file__remove {
+  background: none;
+  border: none;
+  color: var(--claude-plus-color-text-faint);
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.claude-plus-staged-file__remove:hover {
+  background: var(--claude-plus-color-hover);
+  color: var(--claude-plus-color-text);
+}

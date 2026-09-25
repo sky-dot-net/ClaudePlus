@@ -1,0 +1,46 @@
+.claude-plus-message--human {
+  background: var(--claude-plus-color-human-message);
+  align-self: flex-end;
+}
+
+.claude-plus-message--assistant {
+  background: transparent;
+}
+
+.claude-plus-message-text {
+  white-space: normal;
+}
+
+.claude-plus-message-text a {
+  color: var(--claude-plus-color-accent);
+}
+
+.claude-plus-message-attachment {
+  color: var(--claude-plus-color-text-muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.claude-plus-message-image {
+  display: block;
+  max-height: 300px;
+  max-width: 100%;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  cursor: zoom-in;
+}
+
+.claude-plus-tool-details {
+  margin: 6px 0;
+  background: var(--claude-plus-color-tool-details);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.claude-plus-tool-details pre {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  font-size: 11px;
+  color: var(--claude-plus-color-text-muted);
+}

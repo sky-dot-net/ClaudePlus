@@ -1,0 +1,9 @@
+.claude-plus-empty-state {
+  color: var(--claude-plus-color-text-faint);
+  font-style: italic;
+  padding: 6px 0;
+}
+
+.claude-plus-empty-state--padded {
+  padding: 24px;
+}

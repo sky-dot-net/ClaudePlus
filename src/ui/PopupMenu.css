@@ -1,0 +1,20 @@
+.claude-plus-popup-menu {
+  position: fixed;
+  z-index: var(--claude-plus-layer-popup-menu);
+  background: var(--claude-plus-color-raised);
+  border: 1px solid var(--claude-plus-color-border-strong);
+  border-radius: 6px;
+  padding: 4px;
+  min-width: 140px;
+  font-size: 12px;
+}
+
+.claude-plus-popup-menu__entry {
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.claude-plus-popup-menu__entry:hover {
+  background: var(--claude-plus-color-raised-hover);
+}
