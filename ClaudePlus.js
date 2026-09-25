@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ClaudePlus
 // @namespace    skydotnet.claudeplus
-// @version      1.1.0
+// @version      1.2.0
 // @description  Replaces claude.ai's UI with a VS Code-style dockable, resizable, tabbed workspace: conversation list, chat, composer, plus Stats / Web Sources / Files panels, all driven by claude.ai's internal REST/completion API.
 // @match        https://claude.ai/*
 // @run-at       document-idle
@@ -309,7 +309,8 @@
    * the first prompt used as a new conversation's title. backfillRefreshInterval: conversations
    * stored between aggregate refreshes during a backfill. followOutputDistance: distance from the
    * bottom, in pixels, within which the chat keeps following new output. exportFileNameLength:
-   * characters of the conversation title used in an export file name.
+   * characters of the conversation title used in an export file name. comboboxEntries: values listed
+   * by a filter typeahead. searchResults: results shown by the search panel.
    * @type {Readonly<Record<string, number>>}
    */
   const LIMITS = Object.freeze({
@@ -322,6 +323,8 @@
     backfillRefreshInterval: 10,
     followOutputDistance: 40,
     exportFileNameLength: 80,
+    comboboxEntries: 200,
+    searchResults: 300,
   });
 
   /**
@@ -335,9 +338,16 @@
     thinkingMode: 'claudePlus.thinkingMode',
     messageFontSize: 'claudePlus.messageFontSize',
     chatPanes: 'claudePlus.chatPanes',
-    conversationListColumns: 'claudePlus.conversationListColumns',
-    conversationListSort: 'claudePlus.conversationListSort',
+    savedLayouts: 'claudePlus.savedLayouts',
+    tablePrefix: 'claudePlus.table.',
   });
+
+  /**
+   * Prefix shared by every localStorage key of this script; settings export and import cover
+   * exactly the keys with this prefix.
+   * @type {string}
+   */
+  const STORAGE_KEY_PREFIX = 'claudePlus.';
 
   /**
    * IndexedDB database: conversation summaries keyed by conversation id, and active time keyed by day.
@@ -525,6 +535,38 @@
   function formatUtilization(usageWindow) {
     if (!usageWindow) return '–';
     return `${Math.round((usageWindow.utilization || 0) * 100) / 100}%`;
+  }
+
+  /**
+   * Calendar day of a timestamp in local time.
+   * @param {?string} isoDate ISO timestamp.
+   * @returns {string} The day as YYYY-MM-DD, or an empty string when missing or invalid.
+   */
+  function localDateKey(isoDate) {
+    const epochMs = toEpochMs(isoDate);
+    if (!epochMs) return '';
+    const date = new Date(epochMs);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  /**
+   * A timestamp as local date and time.
+   * @param {?string} isoDate ISO timestamp.
+   * @returns {string} The formatted date and time, or an empty string when missing or invalid.
+   */
+  function formatTimestamp(isoDate) {
+    const epochMs = toEpochMs(isoDate);
+    return epochMs ? new Date(epochMs).toLocaleString() : '';
+  }
+
+  /**
+   * A timestamp as local date.
+   * @param {?string} isoDate ISO timestamp.
+   * @returns {string} The formatted date, or an empty string when missing or invalid.
+   */
+  function formatDay(isoDate) {
+    const epochMs = toEpochMs(isoDate);
+    return epochMs ? new Date(epochMs).toLocaleDateString() : '';
   }
 
   /**
@@ -762,6 +804,32 @@
         if (event.target === overlay) finish();
       });
       document.body.append(overlay);
+    });
+  }
+
+  /**
+   * Shows a themed modal asking for a line of text, for the same reason as confirmDialog.
+   * @param {string} message Question to show.
+   * @param {string} initialValue Text the input starts with.
+   * @param {string} confirmLabel Label of the confirming button.
+   * @returns {Promise<?string>} Resolves with the entered text, or null if cancelled.
+   */
+  function promptDialog(message, initialValue, confirmLabel) {
+    return new Promise((resolve) => {
+      const { overlay, dialog } = createDialogShell(message, `
+        <button class="claude-plus-toolbar__button" data-name="cancel">Cancel</button>
+        <button class="claude-plus-primary-button" data-name="confirm">${escapeHtml(confirmLabel)}</button>`);
+      const input = createElement('input', { type: 'text', className: 'claude-plus-dialog__input', value: initialValue });
+      dialog.querySelector('.claude-plus-dialog__message').after(input);
+      const finish = (result) => {
+        overlay.remove();
+        resolve(result);
+      };
+      dialog.querySelector('[data-name="cancel"]').addEventListener('click', () => finish(null));
+      dialog.querySelector('[data-name="confirm"]').addEventListener('click', () => finish(input.value));
+      input.addEventListener('keydown', (event) => { if (event.key === 'Enter') finish(input.value); });
+      document.body.append(overlay);
+      input.focus();
     });
   }
 
@@ -1069,6 +1137,39 @@
      */
     writeJson(key, value) {
       this.write(key, JSON.stringify(value));
+    }
+
+    /**
+     * Every stored entry whose key starts with a prefix.
+     * @param {string} prefix Key prefix.
+     * @returns {Object<string, string>} Raw stored values by key; empty when storage is unavailable.
+     */
+    entriesWithPrefix(prefix) {
+      return Object.fromEntries(this.#keysWithPrefix(prefix).map(key => [key, this.read(key)]));
+    }
+
+    /**
+     * Removes every stored entry whose key starts with a prefix, then stores the given entries.
+     * @param {string} prefix Key prefix.
+     * @param {Object<string, string>} entries Raw values by key.
+     * @returns {void}
+     */
+    replaceEntriesWithPrefix(prefix, entries) {
+      this.#keysWithPrefix(prefix).forEach(key => this.remove(key));
+      Object.entries(entries).forEach(([key, value]) => this.write(key, value));
+    }
+
+    /**
+     * Stored keys starting with a prefix.
+     * @param {string} prefix Key prefix.
+     * @returns {string[]} The keys; empty when storage is unavailable.
+     */
+    #keysWithPrefix(prefix) {
+      try {
+        return Object.keys(localStorage).filter(key => key.startsWith(prefix));
+      } catch {
+        return [];
+      }
     }
   }
 
@@ -2525,6 +2626,7 @@
    * @fires ChatPaneManager#paneConversations A pane opened another conversation; payload is the pane id.
    * @fires ChatPaneManager#conversationLoaded A pane fetched a conversation; payload is the ApiConversation.
    * @fires ChatPaneManager#rateLimits A pane received usage windows; payload is RateLimits.
+   * @fires ChatPaneManager#visiblePanes Whether more than one chat pane is visible changed.
    */
   class ChatPaneManager extends EventEmitter {
     /**
@@ -2550,6 +2652,18 @@
      * @type {Preferences}
      */
     #preferences;
+
+    /**
+     * Conversation statistics, for the panes' sub-panes.
+     * @type {StatsIndex}
+     */
+    #stats;
+
+    /**
+     * Whether more than one chat pane is visible at the moment.
+     * @type {boolean}
+     */
+    #hasSeveralVisiblePanes = false;
 
     /**
      * Session and panel of every pane, by pane id, in creation order.
@@ -2581,14 +2695,16 @@
      * @param {ClaudeApi} services.api API client.
      * @param {ComposerSettings} services.settings Shared model options.
      * @param {ConversationDirectory} services.directory Shared conversation list.
-     * @param {Preferences} services.preferences Storage for the open panes.
+     * @param {Preferences} services.preferences Storage for the open panes and table settings.
+     * @param {StatsIndex} services.stats Conversation statistics, for the panes' sub-panes.
      */
-    constructor({ api, settings, directory, preferences }) {
+    constructor({ api, settings, directory, preferences, stats }) {
       super();
       this.#api = api;
       this.#settings = settings;
       this.#directory = directory;
       this.#preferences = preferences;
+      this.#stats = stats;
       directory.subscribe('conversationDeleted', conversationId => this.#closeDeletedConversation(conversationId));
     }
 
@@ -2622,6 +2738,78 @@
      */
     get focusedSession() {
       return this.#panes.get(this.#focusedPaneId).session;
+    }
+
+    /**
+     * Panel of the focused pane.
+     * @returns {ChatPanel} The panel.
+     */
+    get focusedPanel() {
+      return this.#panes.get(this.#focusedPaneId).panel;
+    }
+
+    /**
+     * Whether more than one chat pane is visible at the moment.
+     * @returns {boolean} True with two or more visible chat panes.
+     */
+    get hasSeveralVisiblePanes() {
+      return this.#hasSeveralVisiblePanes;
+    }
+
+    /**
+     * Whether an id belongs to a chat pane.
+     * @param {string} panelId Panel id.
+     * @returns {boolean} True for ids starting with "chat-".
+     */
+    static isPaneId(panelId) {
+      return String(panelId).startsWith('chat-');
+    }
+
+    /**
+     * Records which panels are visible after a layout and announces when the "several chat panes
+     * visible" state changes.
+     * @param {Set<string>} visiblePanelIds Ids of the visible panels.
+     * @returns {void}
+     */
+    updateVisiblePanels(visiblePanelIds) {
+      const hasSeveral = this.paneIds.filter(paneId => visiblePanelIds.has(paneId)).length > 1;
+      if (hasSeveral === this.#hasSeveralVisiblePanes) return;
+      this.#hasSeveralVisiblePanes = hasSeveral;
+      this.publish('visiblePanes');
+    }
+
+    /**
+     * Opens a new, empty chat as a tab of a zone and focuses it.
+     * @param {string} leafId Zone id.
+     * @returns {void}
+     */
+    openPaneInZone(leafId) {
+      const paneId = ChatPaneManager.#createPaneId();
+      const pane = this.#createPane(paneId);
+      this.#workspace.addPanelToZone(paneId, pane.panel, leafId);
+      this.focusPane(paneId);
+      this.#savePanes();
+    }
+
+    /**
+     * Creates a pane with a given id for a saved layout, without docking it, and opens its conversation.
+     * @param {string} paneId Pane id from the layout.
+     * @param {?string} conversationId Conversation to show, or null for a new chat.
+     * @returns {ChatPanel} The pane's panel.
+     */
+    createPaneForLayout(paneId, conversationId) {
+      const pane = this.#createPane(paneId);
+      if (conversationId) pane.session.openConversation(conversationId);
+      this.#savePanes();
+      return pane.panel;
+    }
+
+    /**
+     * Every pane with its conversation, as stored.
+     * @returns {Array<{paneId: string, conversationId: ?string}>} The panes in creation order.
+     */
+    storedPanes() {
+      return [...this.#panes].map(([paneId, pane]) => ({ paneId, conversationId: pane.session.openConversationId }));
     }
 
     /**
@@ -2777,7 +2965,7 @@
      */
     #createPane(paneId) {
       const session = new ChatSession(this.#api, this.#settings, this.#directory);
-      const panel = new ChatPanel({ paneId, session, settings: this.#settings, directory: this.#directory, paneManager: this });
+      const panel = new ChatPanel({ paneId, session, directory: this.#directory, paneManager: this, stats: this.#stats, preferences: this.#preferences });
       session.subscribe('openConversation', () => this.#onPaneConversationChanged(paneId));
       session.subscribe('conversationLoaded', conversation => this.publish('conversationLoaded', conversation));
       session.subscribe('rateLimits', limits => this.publish('rateLimits', limits));
@@ -2812,8 +3000,7 @@
      * @returns {void}
      */
     #savePanes() {
-      const storedPanes = [...this.#panes].map(([paneId, pane]) => ({ paneId, conversationId: pane.session.openConversationId }));
-      this.#preferences.writeJson(STORAGE_KEYS.chatPanes, storedPanes);
+      this.#preferences.writeJson(STORAGE_KEYS.chatPanes, this.storedPanes());
     }
 
     /**
@@ -3100,9 +3287,15 @@
        * Prompt and file counts by conversation id, for showing them as sidebar columns without
        * needing a separate lookup structure. Only conversations that have been indexed (opened, or
        * pulled in by a backfill) appear here.
-       * @type {Map<string, {promptCount: number, fileCount: number}>}
+       * @type {Map<string, {title: string, updatedAt: string, promptCount: number, fileCount: number, toolNames: string[]}>}
        */
       this.perConversation = new Map();
+
+      /**
+       * Stored records skipped because they didn't look valid.
+       * @type {number}
+       */
+      this.skippedRecordCount = 0;
     }
 
     /**
@@ -3133,7 +3326,13 @@
       this.#addToolCallCounts(summary.toolCallCounts);
       this.#addSources(summary.sources, origin);
       this.#addFolder(summary.files, origin);
-      this.perConversation.set(summary.conversationId, { promptCount: summary.promptCount, fileCount: summary.files.length });
+      this.perConversation.set(summary.conversationId, {
+        title: summary.title,
+        updatedAt: summary.updatedAt,
+        promptCount: summary.promptCount,
+        fileCount: summary.files.length,
+        toolNames: Object.keys(summary.toolCallCounts),
+      });
     }
 
     /**
@@ -3169,6 +3368,57 @@
       if (files.length === 0) return;
       const entries = files.map(file => ({ ...file, ...origin, extension: fileExtension(file.title || file.path) }));
       this.folders.push({ ...origin, files: entries, newestFileTime: Math.max(...entries.map(entry => toEpochMs(entry.timestamp))) });
+    }
+  }
+
+  /**
+   * Checks that a record read from the stats cache has the shape this script writes, so a stale or
+   * damaged record is skipped (and re-indexed later) instead of breaking the panels.
+   */
+  class SummaryValidator {
+    /**
+     * Check per required field.
+     * @type {Readonly<Record<string, function(*): boolean>>}
+     */
+    static #FIELD_CHECKS = Object.freeze({
+      conversationId: value => typeof value === 'string',
+      title: value => typeof value === 'string',
+      updatedAt: value => typeof value === 'string',
+      promptCount: Number.isFinite,
+      estimatedTokensIn: Number.isFinite,
+      estimatedTokensOut: Number.isFinite,
+      toolCallCounts: value => Boolean(value) && typeof value === 'object',
+      sources: Array.isArray,
+      files: Array.isArray,
+      responseTimesMs: Array.isArray,
+    });
+
+    /**
+     * Whether a record is a well-formed ConversationSummary.
+     * @param {*} record Record read from IndexedDB.
+     * @returns {boolean} True when every field and every source and file entry is well formed.
+     */
+    static isValid(record) {
+      return Boolean(record) && Object.entries(SummaryValidator.#FIELD_CHECKS).every(([field, check]) => check(record[field]))
+        && record.sources.every(SummaryValidator.#isValidSource) && record.files.every(SummaryValidator.#isValidFile);
+    }
+
+    /**
+     * Whether a stored source entry is well formed.
+     * @param {*} source Stored entry.
+     * @returns {boolean} True when it has a string title and URL.
+     */
+    static #isValidSource(source) {
+      return Boolean(source) && typeof source.title === 'string' && typeof source.url === 'string';
+    }
+
+    /**
+     * Whether a stored file entry is well formed.
+     * @param {*} file Stored entry.
+     * @returns {boolean} True when it has a string path and title.
+     */
+    static #isValidFile(file) {
+      return Boolean(file) && typeof file.path === 'string' && typeof file.title === 'string';
     }
   }
 
@@ -3236,12 +3486,16 @@
     }
 
     /**
-     * Recomputes the aggregate from the cache. Failures are logged and keep the previous totals.
+     * Recomputes the aggregate from the cache, skipping records that don't look valid. Failures are
+     * logged and keep the previous totals.
      * @returns {Promise<void>} Resolves once recomputed or failed.
      */
     async refreshAggregate() {
       try {
-        this.#aggregate = StatsAggregate.fromSummaries(await this.#database.readAll(DATABASE.stores.conversationSummaries));
+        const records = await this.#database.readAll(DATABASE.stores.conversationSummaries);
+        const summaries = records.filter(record => SummaryValidator.isValid(record));
+        this.#aggregate = StatsAggregate.fromSummaries(summaries);
+        this.#aggregate.skippedRecordCount = records.length - summaries.length;
         this.publish('aggregate');
       } catch (error) {
         console.warn(LOG_PREFIX, 'reading stats failed', error);
@@ -3356,7 +3610,8 @@
     }
 
     /**
-     * Whether the cache lacks a conversation or holds another version of it.
+     * Whether the cache lacks a conversation, holds another version of it, or holds a record that
+     * doesn't look valid.
      * @param {string} conversationId Conversation id.
      * @param {string} updatedAt Current version timestamp of the conversation.
      * @returns {Promise<boolean>} True when it must be (re)indexed.
@@ -3364,7 +3619,7 @@
      */
     async #isOutdated(conversationId, updatedAt) {
       const summary = await this.#database.read(DATABASE.stores.conversationSummaries, conversationId);
-      return !summary || summary.updatedAt !== updatedAt;
+      return !SummaryValidator.isValid(summary) || summary.updatedAt !== updatedAt;
     }
 
     /**
@@ -3478,15 +3733,15 @@
     };
 
     /**
-     * Reads today's and the all-time totals. Failures are logged and leave both at zero.
+     * Reads today's and the all-time totals, ignoring malformed records. Failures are logged and leave both at zero.
      * @returns {Promise<void>} Resolves once loaded or failed.
      */
     async #loadTotals() {
       try {
-        const records = await this.#database.readAll(DATABASE.stores.activity);
+        const records = (await this.#database.readAll(DATABASE.stores.activity)).filter(record => Boolean(record) && Number.isFinite(record.activeMs));
         const todayRecord = records.find(record => record.day === this.#countedDay);
         this.activeTodayMs = todayRecord ? todayRecord.activeMs : 0;
-        this.activeAllTimeMs = records.reduce((sum, record) => sum + (record.activeMs || 0), 0);
+        this.activeAllTimeMs = records.reduce((sum, record) => sum + record.activeMs, 0);
       } catch (error) {
         console.warn(LOG_PREFIX, 'reading activity failed', error);
       }
@@ -3615,6 +3870,914 @@
   }
 
   /**
+   * A column of a ColumnTable.
+   * @typedef {object} TableColumn
+   * @property {string} id Column id, unique within its table.
+   * @property {string} label Header text; may be empty.
+   * @property {function(object): (string|number)} sortValue Value the column sorts by.
+   * @property {function(object): string} cellHtml HTML of the column's cell for a row; must be escaped.
+   * @property {boolean} [isAlwaysVisible] Whether the column can't be hidden.
+   * @property {boolean} [isVisibleByDefault] Whether the column shows before the user has chosen columns.
+   * @property {boolean} [isNotSortable] Whether clicking the header does nothing.
+   * @property {'values'|'date'} [filter] Filter control under the header: a typeahead over the column's distinct values, or a date range.
+   * @property {function(object): ?string} [filterValue] Value the filter tests (an ISO timestamp for date filters); defaults to sortValue.
+   */
+
+  /**
+   * Case-insensitive text matching with `*` wildcards. A pattern without a wildcard matches any text
+   * containing it; a pattern with wildcards must match the whole text, each `*` standing for any
+   * characters (so `*nbc*` matches both "NBC" and "MSNBC").
+   */
+  class WildcardPattern {
+    /**
+     * Lower-case pattern text.
+     * @type {string}
+     */
+    #needle;
+
+    /**
+     * Compiled whole-text matcher, or null for plain substring matching.
+     * @type {?RegExp}
+     */
+    #wildcardMatcher;
+
+    /**
+     * Compiles a pattern.
+     * @param {string} pattern Pattern text; surrounding whitespace is ignored.
+     */
+    constructor(pattern) {
+      this.#needle = pattern.trim().toLowerCase();
+      this.#wildcardMatcher = this.#needle.includes('*') ? WildcardPattern.#toRegExp(this.#needle) : null;
+    }
+
+    /**
+     * Whether the pattern is empty and therefore matches everything.
+     * @returns {boolean} True for an empty pattern.
+     */
+    get isEmpty() {
+      return this.#needle === '';
+    }
+
+    /**
+     * The pattern as typed, lower-cased.
+     * @returns {string} The pattern text.
+     */
+    get text() {
+      return this.#needle;
+    }
+
+    /**
+     * Tests a value against the pattern.
+     * @param {*} value Value to test; null and undefined count as empty text.
+     * @returns {boolean} True when the value matches.
+     */
+    matches(value) {
+      if (this.isEmpty) return true;
+      const text = String(value ?? '').toLowerCase();
+      return this.#wildcardMatcher ? this.#wildcardMatcher.test(text) : text.includes(this.#needle);
+    }
+
+    /**
+     * Builds a whole-text regular expression from a wildcard pattern.
+     * @param {string} pattern Lower-case pattern containing `*`.
+     * @returns {RegExp} The expression.
+     */
+    static #toRegExp(pattern) {
+      const escapedParts = pattern.split('*').map(part => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'));
+      return new RegExp(`^${escapedParts.join('.*')}$`);
+    }
+  }
+
+  /**
+   * An inclusive range of calendar days in local time; either end may be open.
+   */
+  class DateRange {
+    /**
+     * First day, as YYYY-MM-DD, or an empty string for no lower bound.
+     * @type {string}
+     */
+    #firstDay;
+
+    /**
+     * Last day, as YYYY-MM-DD, or an empty string for no upper bound.
+     * @type {string}
+     */
+    #lastDay;
+
+    /**
+     * Creates the range.
+     * @param {?string} firstDay First day as YYYY-MM-DD; empty or missing for no lower bound.
+     * @param {?string} lastDay Last day as YYYY-MM-DD; empty or missing for no upper bound.
+     */
+    constructor(firstDay, lastDay) {
+      this.#firstDay = firstDay || '';
+      this.#lastDay = lastDay || '';
+    }
+
+    /**
+     * Whether a timestamp falls on a day inside the range. With both ends open everything matches;
+     * otherwise missing or invalid timestamps never match.
+     * @param {?string} isoDate ISO timestamp.
+     * @returns {boolean} True when inside the range.
+     */
+    contains(isoDate) {
+      if (!this.#firstDay && !this.#lastDay) return true;
+      const day = localDateKey(isoDate);
+      return day !== '' && this.#isNotBeforeFirstDay(day) && this.#isNotAfterLastDay(day);
+    }
+
+    /**
+     * Whether a day is on or after the first day.
+     * @param {string} day Day as YYYY-MM-DD.
+     * @returns {boolean} True when there is no lower bound or the day isn't before it.
+     */
+    #isNotBeforeFirstDay(day) {
+      return !this.#firstDay || day >= this.#firstDay;
+    }
+
+    /**
+     * Whether a day is on or before the last day.
+     * @param {string} day Day as YYYY-MM-DD.
+     * @returns {boolean} True when there is no upper bound or the day isn't after it.
+     */
+    #isNotAfterLastDay(day) {
+      return !this.#lastDay || day <= this.#lastDay;
+    }
+  }
+
+  /**
+   * A text input that shows the distinct values it can filter by in a list below it while focused.
+   * Typing narrows the list live with the same wildcard matching the filter uses; choosing an entry
+   * copies it into the input.
+   */
+  class ValueCombobox {
+    /**
+     * The input being enhanced.
+     * @type {HTMLInputElement}
+     */
+    #input;
+
+    /**
+     * Returns the values to offer.
+     * @type {function(): string[]}
+     */
+    #listValues;
+
+    /**
+     * The open list, or null while closed.
+     * @type {?HTMLElement}
+     */
+    #listElement = null;
+
+    /**
+     * Enhances an input.
+     * @param {HTMLInputElement} input The input.
+     * @param {function(): string[]} listValues Returns the values to offer, already distinct and sorted.
+     */
+    constructor(input, listValues) {
+      this.#input = input;
+      this.#listValues = listValues;
+      input.addEventListener('focus', this.#showList);
+      input.addEventListener('input', this.#showList);
+      input.addEventListener('blur', this.#hideList);
+      input.addEventListener('keydown', this.#onKeydown);
+    }
+
+    /**
+     * Closes the list.
+     * @returns {void}
+     */
+    dispose() {
+      this.#hideList();
+    }
+
+    /**
+     * Opens or refreshes the list with the values matching the input.
+     * @returns {void}
+     */
+    #showList = () => {
+      const pattern = new WildcardPattern(this.#input.value);
+      const values = this.#listValues().filter(value => pattern.matches(value)).slice(0, LIMITS.comboboxEntries);
+      this.#ensureListElement();
+      this.#listElement.innerHTML = values.map(value => `<div class="claude-plus-value-combobox__entry" data-value="${escapeHtml(value)}">${escapeHtml(value)}</div>`).join('')
+        || emptyStateHtml('No matching values.');
+      this.#positionList();
+    };
+
+    /**
+     * Closes the list if open.
+     * @returns {void}
+     */
+    #hideList = () => {
+      if (!this.#listElement) return;
+      this.#listElement.remove();
+      this.#listElement = null;
+    };
+
+    /**
+     * Closes the list on Escape.
+     * @param {KeyboardEvent} event Key press in the input.
+     * @returns {void}
+     */
+    #onKeydown = (event) => {
+      if (event.key === 'Escape') this.#hideList();
+    };
+
+    /**
+     * Copies the pressed entry into the input and announces the change; keeps focus in the input.
+     * @param {MouseEvent} event Mouse press inside the list.
+     * @returns {void}
+     */
+    #onListPress = (event) => {
+      event.preventDefault();
+      const entry = event.target.closest('[data-value]');
+      if (!entry) return;
+      this.#input.value = entry.dataset.value;
+      this.#input.dispatchEvent(new Event('input', { bubbles: true }));
+      this.#hideList();
+    };
+
+    /**
+     * Creates the list element on first use.
+     * @returns {void}
+     */
+    #ensureListElement() {
+      if (this.#listElement) return;
+      this.#listElement = createElement('div', { className: 'claude-plus-themed claude-plus-value-combobox' });
+      this.#listElement.addEventListener('mousedown', this.#onListPress);
+      document.body.append(this.#listElement);
+    }
+
+    /**
+     * Places the list directly below the input.
+     * @returns {void}
+     */
+    #positionList() {
+      const bounds = this.#input.getBoundingClientRect();
+      Object.assign(this.#listElement.style, { left: `${bounds.left}px`, top: `${bounds.bottom + 2}px`, minWidth: `${bounds.width}px` });
+    }
+  }
+
+  /**
+   * A reusable table with toggleable columns, sorting by clicking a header (clicking again reverses
+   * it), and per-column filters under the headers: typeahead wildcard filters for text columns and
+   * date ranges for timestamp columns. Column visibility and sort order persist per table id.
+   */
+  class ColumnTable {
+    /**
+     * Filter control HTML per filter kind.
+     * @type {Readonly<Record<string, function(TableColumn): string>>}
+     */
+    static #FILTER_CONTROLS = Object.freeze({
+      none: () => '',
+      values: column => `<input type="text" class="claude-plus-column-table__filter-input" data-filter-column="${column.id}" data-filter-bound="text" placeholder="Filter…" />`,
+      date: column => `<input type="date" class="claude-plus-column-table__filter-input" data-filter-column="${column.id}" data-filter-bound="from" title="From" /><input type="date" class="claude-plus-column-table__filter-input" data-filter-column="${column.id}" data-filter-bound="to" title="To" />`,
+    });
+
+    /**
+     * Storage key of the column and sort settings.
+     * @type {string}
+     */
+    #storageKey;
+
+    /**
+     * All columns, in display order.
+     * @type {TableColumn[]}
+     */
+    #columns;
+
+    /**
+     * Settings storage.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * Returns the attributes of a row's tr element.
+     * @type {function(object): string}
+     */
+    #rowAttributes;
+
+    /**
+     * Shown when no row passes the filters.
+     * @type {string}
+     */
+    #emptyText;
+
+    /**
+     * Most rows rendered at once, after filtering and sorting.
+     * @type {number}
+     */
+    #maxRenderedRows;
+
+    /**
+     * Current rows, unfiltered.
+     * @type {object[]}
+     */
+    #rows = [];
+
+    /**
+     * Ids of the visible columns.
+     * @type {Set<string>}
+     */
+    #visibleColumnIds;
+
+    /**
+     * Sort column and direction (1 ascending, -1 descending).
+     * @type {{column: string, direction: number}}
+     */
+    #sortOrder;
+
+    /**
+     * Filter input values per column id, keyed by bound ('text', 'from' or 'to').
+     * @type {Map<string, Object<string, string>>}
+     */
+    #filterInputs = new Map();
+
+    /**
+     * Named elements of the table.
+     * @type {Object<string, HTMLElement>}
+     */
+    #elements;
+
+    /**
+     * Typeaheads of the current filter row.
+     * @type {ValueCombobox[]}
+     */
+    #comboboxes = [];
+
+    /**
+     * Builds the table into a container.
+     * @param {object} options Table options.
+     * @param {HTMLElement} options.container Element the table is built into.
+     * @param {string} options.tableId Id under which column and sort settings are stored.
+     * @param {TableColumn[]} options.columns Columns in display order.
+     * @param {Preferences} options.preferences Settings storage.
+     * @param {{column: string, direction: number}} options.defaultSort Sort used until the user sorts.
+     * @param {function(object): string} options.rowAttributes Returns the escaped attributes of a row's tr element.
+     * @param {string} options.emptyText Shown when no row passes the filters.
+     * @param {number} [options.maxRenderedRows] Most rows rendered at once; unlimited by default.
+     */
+    constructor({ container, tableId, columns, preferences, defaultSort, rowAttributes, emptyText, maxRenderedRows = Infinity }) {
+      this.#storageKey = `${STORAGE_KEYS.tablePrefix}${tableId}`;
+      this.#columns = columns;
+      this.#preferences = preferences;
+      this.#rowAttributes = rowAttributes;
+      this.#emptyText = emptyText;
+      this.#maxRenderedRows = maxRenderedRows;
+      const stored = preferences.readJson(this.#storageKey);
+      this.#visibleColumnIds = ColumnTable.#storedVisibleColumns(stored, columns);
+      this.#sortOrder = ColumnTable.#storedSortOrder(stored, columns, defaultSort);
+      container.innerHTML = ColumnTable.#skeletonHtml(columns);
+      this.#elements = collectNamedElements(container);
+      this.#bindEvents();
+      this.#renderColumns();
+    }
+
+    /**
+     * The tbody element; row click handling is attached here by the table's owner.
+     * @returns {HTMLElement} The body.
+     */
+    get bodyElement() {
+      return this.#elements.tableBody;
+    }
+
+    /**
+     * Replaces the rows and re-renders.
+     * @param {object[]} rows New rows.
+     * @returns {void}
+     */
+    setRows(rows) {
+      this.#rows = rows;
+      this.#renderBody();
+    }
+
+    /**
+     * Closes any open typeahead list.
+     * @returns {void}
+     */
+    dispose() {
+      this.#comboboxes.forEach(combobox => combobox.dispose());
+    }
+
+    /**
+     * Visible columns from stored settings, or the default ones; always-visible columns are always included.
+     * @param {*} stored Parsed stored settings.
+     * @param {TableColumn[]} columns All columns.
+     * @returns {Set<string>} Ids of the visible columns.
+     */
+    static #storedVisibleColumns(stored, columns) {
+      const columnIds = columns.map(column => column.id);
+      const storedIds = stored && Array.isArray(stored.visibleColumnIds) ? stored.visibleColumnIds.filter(id => columnIds.includes(id)) : null;
+      const visible = new Set(storedIds ?? columns.filter(column => column.isVisibleByDefault).map(column => column.id));
+      columns.filter(column => column.isAlwaysVisible).forEach(column => visible.add(column.id));
+      return visible;
+    }
+
+    /**
+     * Sort order from stored settings, or the default one.
+     * @param {*} stored Parsed stored settings.
+     * @param {TableColumn[]} columns All columns.
+     * @param {{column: string, direction: number}} defaultSort Default sort.
+     * @returns {{column: string, direction: number}} The sort order.
+     */
+    static #storedSortOrder(stored, columns, defaultSort) {
+      const sortOrder = stored ? stored.sortOrder : null;
+      const isValid = Boolean(sortOrder) && columns.some(column => column.id === sortOrder.column);
+      return isValid ? { column: sortOrder.column, direction: sortOrder.direction === 1 ? 1 : -1 } : { ...defaultSort };
+    }
+
+    /**
+     * HTML of the column picker and the empty table.
+     * @param {TableColumn[]} columns All columns.
+     * @returns {string} The HTML.
+     */
+    static #skeletonHtml(columns) {
+      const toggles = columns.filter(column => !column.isAlwaysVisible)
+        .map(column => `<label class="claude-plus-column-table__column-toggle"><input type="checkbox" data-column-toggle="${column.id}" /> ${escapeHtml(column.label)}</label>`)
+        .join('');
+      const picker = toggles ? `<details class="claude-plus-column-table__column-picker"><summary>Columns</summary><div data-name="columnToggles">${toggles}</div></details>` : '';
+      return `${picker}<div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-column-table"><table class="claude-plus-column-table__table"><thead><tr data-name="headerRow"></tr><tr class="claude-plus-column-table__filter-row" data-name="filterRow"></tr></thead><tbody data-name="tableBody"></tbody></table></div>`;
+    }
+
+    /**
+     * Wires sorting, column toggles and filters.
+     * @returns {void}
+     */
+    #bindEvents() {
+      this.#elements.headerRow.addEventListener('click', event => this.#onHeaderClick(event));
+      this.#elements.filterRow.addEventListener('input', event => this.#onFilterInput(event));
+      if (this.#elements.columnToggles) this.#elements.columnToggles.addEventListener('change', event => this.#onColumnToggle(event));
+    }
+
+    /**
+     * Sorts by the clicked header's column.
+     * @param {MouseEvent} event Click in the header row.
+     * @returns {void}
+     */
+    #onHeaderClick(event) {
+      const header = event.target.closest('[data-sort-column]');
+      if (header) this.#sortBy(header.dataset.sortColumn);
+    }
+
+    /**
+     * Sorts by a column; the current column reverses direction, another one starts ascending.
+     * @param {string} columnId Column id.
+     * @returns {void}
+     */
+    #sortBy(columnId) {
+      const direction = this.#sortOrder.column === columnId ? -this.#sortOrder.direction : 1;
+      this.#sortOrder = { column: columnId, direction };
+      this.#saveSettings();
+      this.#renderHeader();
+      this.#renderBody();
+    }
+
+    /**
+     * Shows or hides the toggled column; a hidden column's filter is dropped.
+     * @param {Event} event Change of a column checkbox.
+     * @returns {void}
+     */
+    #onColumnToggle(event) {
+      const checkbox = event.target.closest('[data-column-toggle]');
+      if (!checkbox) return;
+      const columnId = checkbox.dataset.columnToggle;
+      if (checkbox.checked) this.#visibleColumnIds.add(columnId);
+      else this.#hideColumn(columnId);
+      this.#saveSettings();
+      this.#renderColumns();
+    }
+
+    /**
+     * Hides a column and drops its filter.
+     * @param {string} columnId Column id.
+     * @returns {void}
+     */
+    #hideColumn(columnId) {
+      this.#visibleColumnIds.delete(columnId);
+      this.#filterInputs.delete(columnId);
+    }
+
+    /**
+     * Records a filter input's value and re-renders the rows.
+     * @param {Event} event Input in the filter row.
+     * @returns {void}
+     */
+    #onFilterInput(event) {
+      const input = event.target.closest('[data-filter-column]');
+      if (!input) return;
+      const values = this.#filterInputs.get(input.dataset.filterColumn) ?? {};
+      values[input.dataset.filterBound] = input.value;
+      this.#filterInputs.set(input.dataset.filterColumn, values);
+      this.#renderBody();
+    }
+
+    /**
+     * Stores column visibility and sort order.
+     * @returns {void}
+     */
+    #saveSettings() {
+      this.#preferences.writeJson(this.#storageKey, { visibleColumnIds: [...this.#visibleColumnIds], sortOrder: this.#sortOrder });
+    }
+
+    /**
+     * Columns currently shown.
+     * @returns {TableColumn[]} The visible columns, in display order.
+     */
+    #visibleColumns() {
+      return this.#columns.filter(column => this.#visibleColumnIds.has(column.id));
+    }
+
+    /**
+     * Renders the column picker state, the header, the filter row and the rows.
+     * @returns {void}
+     */
+    #renderColumns() {
+      this.#syncColumnToggles();
+      this.#renderHeader();
+      this.#renderFilterRow();
+      this.#renderBody();
+    }
+
+    /**
+     * Checks the picker boxes of the visible columns.
+     * @returns {void}
+     */
+    #syncColumnToggles() {
+      if (!this.#elements.columnToggles) return;
+      this.#elements.columnToggles.querySelectorAll('[data-column-toggle]').forEach((checkbox) => {
+        checkbox.checked = this.#visibleColumnIds.has(checkbox.dataset.columnToggle);
+      });
+    }
+
+    /**
+     * Renders the header cells with the sort indicator.
+     * @returns {void}
+     */
+    #renderHeader() {
+      this.#elements.headerRow.innerHTML = this.#visibleColumns().map(column => this.#headerCellHtml(column)).join('');
+    }
+
+    /**
+     * HTML of one header cell.
+     * @param {TableColumn} column The column.
+     * @returns {string} The cell; sortable columns carry data-sort-column and show ▲ or ▼ while sorted.
+     */
+    #headerCellHtml(column) {
+      if (column.isNotSortable) return `<th>${escapeHtml(column.label)}</th>`;
+      const isSorted = this.#sortOrder.column === column.id;
+      const indicator = isSorted ? ColumnTable.#sortIndicator(this.#sortOrder.direction) : '';
+      return `<th class="claude-plus-column-table__sortable" data-sort-column="${column.id}">${escapeHtml(column.label)}${indicator}</th>`;
+    }
+
+    /**
+     * Arrow showing a sort direction.
+     * @param {number} direction 1 ascending, -1 descending.
+     * @returns {string} " ▲" or " ▼".
+     */
+    static #sortIndicator(direction) {
+      return direction === 1 ? ' ▲' : ' ▼';
+    }
+
+    /**
+     * Renders the filter controls under the visible columns, keeping entered values, and attaches
+     * the typeaheads.
+     * @returns {void}
+     */
+    #renderFilterRow() {
+      this.#comboboxes.forEach(combobox => combobox.dispose());
+      this.#elements.filterRow.innerHTML = this.#visibleColumns().map(column => `<th>${ColumnTable.#FILTER_CONTROLS[column.filter ?? 'none'](column)}</th>`).join('');
+      this.#elements.filterRow.querySelectorAll('[data-filter-column]').forEach(input => this.#restoreFilterInput(input));
+      this.#comboboxes = [...this.#elements.filterRow.querySelectorAll('[data-filter-bound="text"]')]
+        .map(input => new ValueCombobox(input, () => this.#distinctFilterValues(input.dataset.filterColumn)));
+    }
+
+    /**
+     * Puts a filter input's recorded value back after re-rendering.
+     * @param {HTMLInputElement} input The input.
+     * @returns {void}
+     */
+    #restoreFilterInput(input) {
+      const values = this.#filterInputs.get(input.dataset.filterColumn) ?? {};
+      input.value = values[input.dataset.filterBound] ?? '';
+    }
+
+    /**
+     * Distinct non-empty filter values of a column across all rows.
+     * @param {string} columnId Column id.
+     * @returns {string[]} The values, sorted.
+     */
+    #distinctFilterValues(columnId) {
+      const column = this.#columns.find(candidate => candidate.id === columnId);
+      const values = this.#rows.map(row => ColumnTable.#filterValue(column, row)).filter(Boolean).map(String);
+      return [...new Set(values)].sort((first, second) => first.localeCompare(second));
+    }
+
+    /**
+     * Renders the rows passing the filters, sorted and limited.
+     * @returns {void}
+     */
+    #renderBody() {
+      const visibleColumns = this.#visibleColumns();
+      const rows = this.#sortedRows(this.#filteredRows()).slice(0, this.#maxRenderedRows);
+      this.#elements.tableBody.innerHTML = rows.map(row => this.#rowHtml(row, visibleColumns)).join('')
+        || `<tr><td colspan="${visibleColumns.length}" class="claude-plus-empty-state">${escapeHtml(this.#emptyText)}</td></tr>`;
+    }
+
+    /**
+     * HTML of one row.
+     * @param {object} row The row.
+     * @param {TableColumn[]} visibleColumns Columns to render.
+     * @returns {string} The tr element.
+     */
+    #rowHtml(row, visibleColumns) {
+      const cells = visibleColumns.map(column => `<td class="claude-plus-column-table__cell claude-plus-column-table__cell--${column.id}">${column.cellHtml(row)}</td>`);
+      return `<tr ${this.#rowAttributes(row)}>${cells.join('')}</tr>`;
+    }
+
+    /**
+     * Rows passing every active filter of a visible column.
+     * @returns {object[]} The rows.
+     */
+    #filteredRows() {
+      const rowTests = [...this.#filterInputs]
+        .filter(([columnId]) => this.#visibleColumnIds.has(columnId))
+        .map(([columnId, values]) => this.#createRowTest(columnId, values));
+      return this.#rows.filter(row => rowTests.every(passes => passes(row)));
+    }
+
+    /**
+     * Creates the test for one column's filter.
+     * @param {string} columnId Column id.
+     * @param {Object<string, string>} values Filter input values by bound.
+     * @returns {function(object): boolean} Returns whether a row passes.
+     */
+    #createRowTest(columnId, values) {
+      const column = this.#columns.find(candidate => candidate.id === columnId);
+      if (column.filter === 'date') {
+        const range = new DateRange(values.from, values.to);
+        return row => range.contains(ColumnTable.#filterValue(column, row));
+      }
+      const pattern = new WildcardPattern(values.text ?? '');
+      return row => pattern.matches(ColumnTable.#filterValue(column, row));
+    }
+
+    /**
+     * Rows in the current sort order.
+     * @param {object[]} rows Rows to sort.
+     * @returns {object[]} A sorted copy.
+     */
+    #sortedRows(rows) {
+      const column = this.#columns.find(candidate => candidate.id === this.#sortOrder.column) ?? this.#columns[0];
+      const direction = this.#sortOrder.direction;
+      return [...rows].sort((first, second) => compareAscending(column.sortValue(first), column.sortValue(second)) * direction);
+    }
+
+    /**
+     * Value a column's filter tests for a row.
+     * @param {TableColumn} column The column.
+     * @param {object} row The row.
+     * @returns {*} The filter value, or the sort value when the column has no separate filter value.
+     */
+    static #filterValue(column, row) {
+      return column.filterValue ? column.filterValue(row) : column.sortValue(row);
+    }
+  }
+
+  /**
+   * Column definitions shared by the tables showing web sources and files.
+   */
+  class TableColumns {
+    /**
+     * Columns of a web source table.
+     * @param {boolean} includesConversation Whether to offer a column with the source's conversation.
+     * @returns {TableColumn[]} The columns.
+     */
+    static sources(includesConversation) {
+      const columns = [
+        { id: 'title', label: 'Title', isAlwaysVisible: true, filter: 'values', sortValue: source => (source.title || '').toLowerCase(), filterValue: source => source.title, cellHtml: source => `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a>` },
+        { id: 'outlet', label: 'Outlet', isVisibleByDefault: true, filter: 'values', sortValue: source => source.outlet || '', cellHtml: source => escapeHtml(source.outlet || '') },
+        { id: 'topLevelDomain', label: 'TLD', filter: 'values', sortValue: source => source.topLevelDomain || '', cellHtml: source => escapeHtml(source.topLevelDomain ? `.${source.topLevelDomain}` : '') },
+        TableColumns.#dateColumn(source => source.timestamp),
+      ];
+      return includesConversation ? [...columns, TableColumns.#conversationColumn()] : columns;
+    }
+
+    /**
+     * Columns of a file table.
+     * @param {boolean} includesConversation Whether to offer a column with the file's conversation.
+     * @returns {TableColumn[]} The columns.
+     */
+    static files(includesConversation) {
+      const columns = [
+        { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: file => (file.title || '').toLowerCase(), filterValue: file => file.title, cellHtml: file => escapeHtml(file.title || '(file)') },
+        { id: 'type', label: 'Type', isVisibleByDefault: true, filter: 'values', sortValue: file => fileExtension(file.title || file.path), cellHtml: file => escapeHtml(fileExtension(file.title || file.path)) },
+        TableColumns.#dateColumn(file => file.timestamp),
+        { id: 'source', label: 'Source', isVisibleByDefault: true, filter: 'values', sortValue: file => TableColumns.#fileSourceLabel(file), cellHtml: file => TableColumns.#fileSourceLabel(file) },
+      ];
+      return includesConversation ? [...columns, TableColumns.#conversationColumn()] : columns;
+    }
+
+    /**
+     * A sortable, date-range-filterable timestamp column.
+     * @param {function(object): ?string} timestampOf Returns a row's ISO timestamp.
+     * @returns {TableColumn} The column.
+     */
+    static #dateColumn(timestampOf) {
+      return {
+        id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date',
+        sortValue: row => toEpochMs(timestampOf(row)),
+        filterValue: row => timestampOf(row),
+        cellHtml: row => escapeHtml(formatTimestamp(timestampOf(row))),
+      };
+    }
+
+    /**
+     * A column naming the conversation a row belongs to.
+     * @returns {TableColumn} The column.
+     */
+    static #conversationColumn() {
+      return {
+        id: 'conversation', label: 'Chat', isVisibleByDefault: true, filter: 'values',
+        sortValue: row => (row.conversationTitle || '').toLowerCase(),
+        filterValue: row => row.conversationTitle,
+        cellHtml: row => escapeHtml(row.conversationTitle || ''),
+      };
+    }
+
+    /**
+     * Who provided a file.
+     * @param {FileEntry} file The file.
+     * @returns {string} "User" or "Claude".
+     */
+    static #fileSourceLabel(file) {
+      return file.source === 'user' ? 'User' : 'Claude';
+    }
+  }
+
+  /**
+   * A sub-pane inside a chat pane listing the web sources or files of that pane's conversation.
+   * It can be docked to the pane's left, top or right edge and closed.
+   */
+  class ConversationSubPane {
+    /**
+     * Title, table id, columns and row source per kind.
+     * @type {Readonly<Record<string, {title: string, tableId: string, columns: function(): TableColumn[], rowsOf: function(StatsAggregate, string): object[]}>>}
+     */
+    static #KINDS = Object.freeze({
+      sources: {
+        title: '🌐 Sources in this chat',
+        tableId: 'conversationSources',
+        columns: () => TableColumns.sources(false),
+        rowsOf: (aggregate, conversationId) => aggregate.sources.filter(source => source.conversationId === conversationId),
+      },
+      files: {
+        title: '📁 Files in this chat',
+        tableId: 'conversationFiles',
+        columns: () => TableColumns.files(false),
+        rowsOf: (aggregate, conversationId) => ConversationSubPane.#folderFiles(aggregate, conversationId),
+      },
+    });
+
+    /**
+     * Kind of content: 'sources' or 'files'.
+     * @type {string}
+     */
+    #kind;
+
+    /**
+     * Session whose conversation is shown.
+     * @type {ChatSession}
+     */
+    #session;
+
+    /**
+     * Conversation statistics.
+     * @type {StatsIndex}
+     */
+    #stats;
+
+    /**
+     * The sub-pane's root element.
+     * @type {HTMLElement}
+     */
+    #element;
+
+    /**
+     * The table.
+     * @type {ColumnTable}
+     */
+    #table;
+
+    /**
+     * Undoes the subscriptions.
+     * @type {Array<function(): void>}
+     */
+    #unsubscribers = [];
+
+    /**
+     * Builds the sub-pane.
+     * @param {object} options Sub-pane options.
+     * @param {string} options.kind 'sources' or 'files'.
+     * @param {ChatSession} options.session Session whose conversation is shown.
+     * @param {StatsIndex} options.stats Conversation statistics.
+     * @param {Preferences} options.preferences Table settings storage.
+     * @param {function(string): void} options.onClose Called with the kind when × is clicked.
+     * @param {function(string, string): void} options.onMove Called with the kind and 'left', 'top' or 'right' when an arrow is clicked.
+     */
+    constructor({ kind, session, stats, preferences, onClose, onMove }) {
+      const definition = ConversationSubPane.#KINDS[kind];
+      this.#kind = kind;
+      this.#session = session;
+      this.#stats = stats;
+      this.#element = createElement('section', { className: 'claude-plus-subpane', innerHTML: ConversationSubPane.#bodyHtml(definition.title) });
+      this.#table = new ColumnTable({
+        container: this.#element.querySelector('[data-name="tableHost"]'),
+        tableId: definition.tableId,
+        columns: definition.columns(),
+        preferences,
+        defaultSort: { column: 'date', direction: -1 },
+        rowAttributes: () => '',
+        emptyText: 'Nothing recorded for this chat yet.',
+      });
+      this.#element.querySelector('header').addEventListener('click', event => ConversationSubPane.#onHeaderClick(event, kind, onClose, onMove));
+      this.#unsubscribers.push(stats.subscribe('aggregate', () => this.render()), session.subscribe('openConversation', () => this.render()));
+      this.render();
+    }
+
+    /**
+     * The sub-pane's root element.
+     * @returns {HTMLElement} The element.
+     */
+    get element() {
+      return this.#element;
+    }
+
+    /**
+     * Shows the rows of the session's current conversation.
+     * @returns {void}
+     */
+    render() {
+      const conversationId = this.#session.openConversationId;
+      const rowsOf = ConversationSubPane.#KINDS[this.#kind].rowsOf;
+      this.#table.setRows(conversationId ? rowsOf(this.#stats.aggregate, conversationId) : []);
+    }
+
+    /**
+     * Ends the subscriptions and removes the sub-pane.
+     * @returns {void}
+     */
+    dispose() {
+      this.#unsubscribers.forEach(unsubscribe => unsubscribe());
+      this.#table.dispose();
+      this.#element.remove();
+    }
+
+    /**
+     * HTML of the sub-pane: a header with title, dock arrows and close button, and the table host.
+     * @param {string} title Header title.
+     * @returns {string} The HTML.
+     */
+    static #bodyHtml(title) {
+      return `
+        <header class="claude-plus-subpane__header">
+          <span class="claude-plus-subpane__title">${escapeHtml(title)}</span>
+          <button class="claude-plus-subpane__button" data-edge="left" title="Dock left">←</button>
+          <button class="claude-plus-subpane__button" data-edge="top" title="Dock top">↑</button>
+          <button class="claude-plus-subpane__button" data-edge="right" title="Dock right">→</button>
+          <button class="claude-plus-subpane__button" data-action="close" title="Close">×</button>
+        </header>
+        <div class="claude-plus-table-host" data-name="tableHost"></div>`;
+    }
+
+    /**
+     * Runs the clicked header button: a dock arrow or close.
+     * @param {MouseEvent} event Click in the header.
+     * @param {string} kind The sub-pane's kind.
+     * @param {function(string): void} onClose Close callback.
+     * @param {function(string, string): void} onMove Redock callback.
+     * @returns {void}
+     */
+    static #onHeaderClick(event, kind, onClose, onMove) {
+      const button = event.target.closest('button');
+      if (!button) return;
+      if (button.dataset.edge) onMove(kind, button.dataset.edge);
+      else onClose(kind);
+    }
+
+    /**
+     * Files of one conversation.
+     * @param {StatsAggregate} aggregate Current totals.
+     * @param {string} conversationId Conversation id.
+     * @returns {FileEntry[]} Its files, or none when it has no folder.
+     */
+    static #folderFiles(aggregate, conversationId) {
+      const folder = aggregate.folders.find(candidate => candidate.conversationId === conversationId);
+      return folder ? folder.files : [];
+    }
+  }
+
+  /**
    * A dockable panel. Its DOM is built on first access and immediately rendered from current state,
    * so a panel opened late is never blank. Subclasses override createBodyHtml, bindEvents and
    * render, look up elements only inside their own root through elements, and subscribe through
@@ -3638,6 +4801,12 @@
      * @type {Array<function(): void>}
      */
     #unsubscribers = [];
+
+    /**
+     * Called when the tab's close button is clicked, or null when the panel can't be closed this way.
+     * @type {?function(): void}
+     */
+    #closeHandler = null;
 
     /**
      * Creates the panel.
@@ -3674,11 +4843,20 @@
     }
 
     /**
+     * Makes the panel closable from its tab.
+     * @param {function(): void} closeHandler Called when the tab's close button is clicked.
+     * @returns {void}
+     */
+    setCloseHandler(closeHandler) {
+      this.#closeHandler = closeHandler;
+    }
+
+    /**
      * Whether the panel's tab offers a close button.
-     * @returns {boolean} False; closable panels override this.
+     * @returns {boolean} True once a close handler is set.
      */
     canClose() {
-      return false;
+      return this.#closeHandler !== null;
     }
 
     /**
@@ -3686,7 +4864,7 @@
      * @returns {void}
      */
     close() {
-      return undefined;
+      if (this.#closeHandler) this.#closeHandler();
     }
 
     /**
@@ -3747,33 +4925,11 @@
   }
 
   /**
-   * Conversation list with search, new chat, open in a new pane, and delete. Clicking a conversation
-   * opens it in the focused chat pane.
+   * Conversation list as a column table, with a quick title search, open in a new pane, delete, and
+   * dragging an entry out to open it as a new pane docked where it is dropped. Clicking a
+   * conversation opens it in the focused chat pane.
    */
   class ConversationListPanel extends Panel {
-    /**
-     * Column ids that can be shown for each entry, in display order.
-     * @type {ReadonlyArray<string>}
-     */
-    static #COLUMNS = Object.freeze(['date', 'turns', 'files']);
-
-    /**
-     * Label of each column, for its toggle checkbox.
-     * @type {Readonly<Record<string, string>>}
-     */
-    static #COLUMN_LABELS = Object.freeze({ date: 'Date', turns: 'Turns', files: 'Files' });
-
-    /**
-     * Label of each sort key, for the sort dropdown, in menu order.
-     * @type {ReadonlyArray<{key: string, label: string}>}
-     */
-    static #SORT_OPTIONS = Object.freeze([
-      { key: 'date', label: 'Date' },
-      { key: 'name', label: 'Name' },
-      { key: 'turns', label: 'Turns' },
-      { key: 'files', label: 'Files' },
-    ]);
-
     /**
      * Shared conversation list.
      * @type {ConversationDirectory}
@@ -3793,42 +4949,36 @@
     #paneManager;
 
     /**
-     * Conversation statistics, for the optional turn- and file-count columns and for sorting by them.
+     * Conversation statistics, for the turn and file columns.
      * @type {StatsIndex}
      */
     #stats;
 
     /**
-     * Column and sort preference storage.
+     * Table settings storage.
      * @type {Preferences}
      */
     #preferences;
 
     /**
-     * Lower-case search text.
+     * Lower-case quick search text.
      * @type {string}
      */
     #searchText = '';
 
     /**
-     * Ids of the columns currently shown, besides the title.
-     * @type {Set<string>}
+     * The conversation table; created with the DOM.
+     * @type {?ColumnTable}
      */
-    #visibleColumns;
+    #table = null;
 
     /**
-     * Current sort.
-     * @type {{key: string, direction: number}}
-     */
-    #sort;
-
-    /**
-     * Handler per button data-action value inside a conversation entry.
+     * Handler per button data-action value inside a conversation row.
      * @type {Map<string, function(HTMLElement): void>}
      */
-    #entryActionHandlers = new Map([
-      ['delete', entry => this.#confirmAndDelete(entry)],
-      ['openInNewPane', entry => this.#paneManager.openPane(entry.dataset.conversationId)],
+    #rowActionHandlers = new Map([
+      ['delete', row => this.#confirmAndDelete(row)],
+      ['openInNewPane', row => this.#paneManager.openPane(row.dataset.conversationId)],
     ]);
 
     /**
@@ -3837,8 +4987,8 @@
      * @param {ConversationDirectory} services.directory Shared conversation list.
      * @param {Router} services.router Navigation.
      * @param {ChatPaneManager} services.paneManager Chat panes.
-     * @param {StatsIndex} services.stats Conversation statistics.
-     * @param {Preferences} services.preferences Column and sort preference storage.
+     * @param {StatsIndex} services.stats Conversation statistics, for the turn and file columns.
+     * @param {Preferences} services.preferences Table settings storage.
      */
     constructor({ directory, router, paneManager, stats, preferences }) {
       super('Chats');
@@ -3847,58 +4997,56 @@
       this.#paneManager = paneManager;
       this.#stats = stats;
       this.#preferences = preferences;
-      this.#visibleColumns = ConversationListPanel.#loadVisibleColumns(preferences);
-      this.#sort = ConversationListPanel.#loadSort(preferences);
     }
 
     /**
-     * HTML of the panel body: new chat button, search box, a sort and column toolbar, and the list.
-     * @returns {string} The body.
+     * HTML of the panel body.
+     * @returns {string} Quick search box and table host.
      */
     createBodyHtml() {
       return `
-        <button class="claude-plus-primary-button" data-name="newChatButton">+ New chat</button>
         <input class="claude-plus-search-input" data-name="searchInput" type="text" placeholder="Search chats…" />
-        <div class="claude-plus-conversation-list-toolbar">
-          <select data-name="sortKeySelect">${ConversationListPanel.#sortOptionsHtml()}</select>
-          <button class="claude-plus-toolbar__button" data-name="sortDirectionButton" title="Toggle sort direction"></button>
-        </div>
-        <div class="claude-plus-column-toggles" data-name="columnToggles">${ConversationListPanel.#columnToggleHtml()}</div>
-        <div class="claude-plus-scrollable claude-plus-fill-remaining" data-name="conversationList"></div>`;
+        <div class="claude-plus-table-host" data-name="tableHost"></div>`;
     }
 
     /**
-     * Wires the buttons, search, sort, column toggles and list; follows list, focus, pane and stats
-     * changes; and applies the loaded sort and column preferences to the new controls.
+     * Creates the table, wires search, row clicks and drags, and follows list, focus, pane and stats changes.
      * @returns {void}
      */
     bindEvents() {
-      this.elements.newChatButton.addEventListener('click', () => this.#router.startNewConversation());
+      this.#table = new ColumnTable({
+        container: this.elements.tableHost,
+        tableId: 'conversations',
+        columns: this.#columns(),
+        preferences: this.#preferences,
+        defaultSort: { column: 'date', direction: -1 },
+        rowAttributes: conversation => this.#rowAttributes(conversation),
+        emptyText: 'No conversations.',
+      });
       this.elements.searchInput.addEventListener('input', () => this.#applySearch(this.elements.searchInput.value));
-      this.elements.sortKeySelect.addEventListener('change', () => this.#setSortKey(this.elements.sortKeySelect.value));
-      this.elements.sortDirectionButton.addEventListener('click', () => this.#toggleSortDirection());
-      this.elements.columnToggles.addEventListener('change', event => this.#onColumnToggle(event));
-      this.elements.conversationList.addEventListener('mousedown', event => this.#onConversationListPress(event));
-      this.elements.conversationList.addEventListener('click', event => this.#onConversationListClick(event));
+      this.#table.bodyElement.addEventListener('mousedown', event => this.#onRowPress(event));
+      this.#table.bodyElement.addEventListener('click', event => this.#onRowClick(event));
       this.listenTo(this.#directory, 'conversations', () => this.render());
       this.listenTo(this.#paneManager, 'focus', () => this.render());
       this.listenTo(this.#paneManager, 'paneConversations', () => this.render());
       this.listenTo(this.#stats, 'aggregate', () => this.render());
-      this.#applyPreferencesToControls();
     }
 
     /**
-     * Shows the conversations matching the search, sorted by the current sort, marking the focused
-     * pane's conversation and those open in other panes.
+     * Shows the conversations matching the quick search.
      * @returns {void}
      */
     render() {
-      const openIds = this.#paneManager.openConversationIds();
-      const focusedId = this.#paneManager.focusedSession.openConversationId;
-      const matching = this.#directory.conversations.filter(conversation => this.#matchesSearch(conversation));
-      const sorted = this.#sortedConversations(matching);
-      const emptyText = this.#searchText ? 'No chats match your search.' : 'No conversations yet.';
-      this.elements.conversationList.innerHTML = sorted.map(conversation => this.#conversationHtml(conversation, focusedId, openIds)).join('') || emptyStateHtml(emptyText);
+      this.#table.setRows(this.#directory.conversations.filter(conversation => this.#matchesSearch(conversation)));
+    }
+
+    /**
+     * Closes the table's typeahead and ends the subscriptions.
+     * @returns {void}
+     */
+    dispose() {
+      if (this.#table) this.#table.dispose();
+      super.dispose();
     }
 
     /**
@@ -3911,157 +5059,49 @@
     }
 
     /**
-     * Filters the list by title.
-     * @param {string} text Search text.
-     * @returns {void}
+     * The table's columns: name (always shown), date, turns, files, and the row buttons.
+     * @returns {TableColumn[]} The columns.
      */
-    #applySearch(text) {
-      this.#searchText = text.toLowerCase();
-      this.render();
+    #columns() {
+      return [
+        { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: conversation => (conversation.name || '').toLowerCase(), filterValue: conversation => conversation.name || UNTITLED, cellHtml: conversation => `<span class="claude-plus-conversation__title">${escapeHtml(conversation.name || UNTITLED)}</span>` },
+        { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: conversation => toEpochMs(conversation.updated_at), filterValue: conversation => conversation.updated_at, cellHtml: conversation => escapeHtml(formatDay(conversation.updated_at)) },
+        { id: 'turns', label: 'Turns', sortValue: conversation => this.#indexedCount(conversation, 'promptCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'promptCount') },
+        { id: 'files', label: 'Files', sortValue: conversation => this.#indexedCount(conversation, 'fileCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'fileCount') },
+        { id: 'actions', label: '', isAlwaysVisible: true, isNotSortable: true, sortValue: () => 0, cellHtml: () => ConversationListPanel.#actionButtonsHtml() },
+      ];
     }
 
     /**
-     * Whether a conversation's title contains the search text.
+     * A per-conversation count from the stats index.
      * @param {ConversationListing} conversation The conversation.
-     * @returns {boolean} True when it matches or there is no search.
+     * @param {string} field 'promptCount' or 'fileCount'.
+     * @returns {number} The count, or -1 while the conversation isn't indexed, so unindexed ones sort together.
      */
-    #matchesSearch(conversation) {
-      return (conversation.name || '').toLowerCase().includes(this.#searchText);
+    #indexedCount(conversation, field) {
+      const counts = this.#stats.aggregate.perConversation.get(conversation.uuid);
+      return counts ? counts[field] : -1;
     }
 
     /**
-     * Sets the checkboxes and select to match the loaded preferences, since the HTML they were built
-     * from is static.
-     * @returns {void}
-     */
-    #applyPreferencesToControls() {
-      this.elements.sortKeySelect.value = this.#sort.key;
-      this.#renderSortDirectionButton();
-      for (const checkbox of this.elements.columnToggles.querySelectorAll('[data-column]')) {
-        checkbox.checked = this.#visibleColumns.has(checkbox.dataset.column);
-      }
-    }
-
-    /**
-     * Sets the sort key, keeping the current direction, and re-renders.
-     * @param {string} key One of ConversationListPanel.#SORT_OPTIONS' keys.
-     * @returns {void}
-     */
-    #setSortKey(key) {
-      this.#sort = { ...this.#sort, key };
-      this.#saveSort();
-      this.render();
-    }
-
-    /**
-     * Flips the sort direction and re-renders.
-     * @returns {void}
-     */
-    #toggleSortDirection() {
-      this.#sort = { ...this.#sort, direction: -this.#sort.direction };
-      this.#saveSort();
-      this.#renderSortDirectionButton();
-      this.render();
-    }
-
-    /**
-     * Shows an arrow matching the current sort direction.
-     * @returns {void}
-     */
-    #renderSortDirectionButton() {
-      this.elements.sortDirectionButton.textContent = this.#sort.direction === 1 ? '↑' : '↓';
-    }
-
-    /**
-     * Persists the current sort.
-     * @returns {void}
-     */
-    #saveSort() {
-      this.#preferences.writeJson(STORAGE_KEYS.conversationListSort, this.#sort);
-    }
-
-    /**
-     * Toggles a column on or off, persists it and re-renders.
-     * @param {Event} event Change event from a column checkbox.
-     * @returns {void}
-     */
-    #onColumnToggle(event) {
-      const checkbox = event.target.closest('[data-column]');
-      if (!checkbox) return;
-      const column = checkbox.dataset.column;
-      if (checkbox.checked) this.#visibleColumns.add(column);
-      else this.#visibleColumns.delete(column);
-      this.#preferences.writeJson(STORAGE_KEYS.conversationListColumns, [...this.#visibleColumns]);
-      this.render();
-    }
-
-    /**
-     * Sorts conversations by the current sort key and direction. Turns and files fall back to -1 for
-     * conversations not yet indexed (opened, or pulled in by a stats backfill), sorting them to one
-     * end rather than scattering them by search-list order.
-     * @param {ConversationListing[]} conversations Conversations to sort.
-     * @returns {ConversationListing[]} A new, sorted array.
-     */
-    #sortedConversations(conversations) {
-      return [...conversations].sort((first, second) => {
-        const firstValue = this.#sortValue(first);
-        const secondValue = this.#sortValue(second);
-        if (firstValue < secondValue) return -this.#sort.direction;
-        if (firstValue > secondValue) return this.#sort.direction;
-        return 0;
-      });
-    }
-
-    /**
-     * A conversation's value for the current sort key.
+     * Cell HTML of a per-conversation count.
      * @param {ConversationListing} conversation The conversation.
-     * @returns {number|string} The value to compare.
+     * @param {string} field 'promptCount' or 'fileCount'.
+     * @returns {string} The count, or "–" while the conversation isn't indexed.
      */
-    #sortValue(conversation) {
-      if (this.#sort.key === 'name') return (conversation.name || '').toLowerCase();
-      if (this.#sort.key === 'date') return toEpochMs(conversation.updated_at);
-      const summary = this.#stats.aggregate.perConversation.get(conversation.uuid);
-      if (!summary) return -1;
-      return this.#sort.key === 'turns' ? summary.promptCount : summary.fileCount;
+    #indexedCountHtml(conversation, field) {
+      const count = this.#indexedCount(conversation, field);
+      return count < 0 ? '–' : String(count);
     }
 
     /**
-     * HTML of one conversation entry: title, a badge per visible column, then the action buttons.
+     * Attributes of a conversation's row: its id and the modifier showing where it is open.
      * @param {ConversationListing} conversation The conversation.
-     * @param {?string} focusedId Conversation of the focused pane.
-     * @param {Set<string>} openIds Conversations open in any pane.
-     * @returns {string} The entry.
+     * @returns {string} The attributes.
      */
-    #conversationHtml(conversation, focusedId, openIds) {
-      const badges = ConversationListPanel.#COLUMNS.filter(column => this.#visibleColumns.has(column))
-        .map(column => this.#columnBadgeHtml(column, conversation))
-        .join('');
-      return `
-        <div class="claude-plus-conversation${ConversationListPanel.#stateModifier(conversation.uuid, focusedId, openIds)}" data-conversation-id="${escapeHtml(conversation.uuid)}">
-          <div class="claude-plus-conversation__summary">
-            <div class="claude-plus-conversation__title">${escapeHtml(conversation.name || UNTITLED)}</div>
-            ${badges ? `<div class="claude-plus-conversation__badges">${badges}</div>` : ''}
-          </div>
-          <button class="claude-plus-conversation__action-button" data-action="openInNewPane" title="Open in new pane">⧉</button>
-          <button class="claude-plus-conversation__action-button" data-action="delete" title="Delete chat">🗑</button>
-        </div>`;
-    }
-
-    /**
-     * HTML of one column's badge for a conversation. Turns and files show "–" until the conversation
-     * has been indexed.
-     * @param {string} column 'date', 'turns' or 'files'.
-     * @param {ConversationListing} conversation The conversation.
-     * @returns {string} The badge.
-     */
-    #columnBadgeHtml(column, conversation) {
-      if (column === 'date') {
-        const date = conversation.updated_at ? new Date(conversation.updated_at).toLocaleDateString() : '–';
-        return `<span class="claude-plus-conversation__badge">${escapeHtml(date)}</span>`;
-      }
-      const summary = this.#stats.aggregate.perConversation.get(conversation.uuid);
-      const value = summary ? (column === 'turns' ? summary.promptCount : summary.fileCount) : '–';
-      return `<span class="claude-plus-conversation__badge">${escapeHtml(String(value))} ${escapeHtml(ConversationListPanel.#COLUMN_LABELS[column].toLowerCase())}</span>`;
+    #rowAttributes(conversation) {
+      const modifier = ConversationListPanel.#stateModifier(conversation.uuid, this.#paneManager.focusedSession.openConversationId, this.#paneManager.openConversationIds());
+      return `class="claude-plus-conversation${modifier}" data-conversation-id="${escapeHtml(conversation.uuid)}"`;
     }
 
     /**
@@ -4077,91 +5117,76 @@
     }
 
     /**
-     * Starts dragging a conversation out of the list on a primary-button press away from its action
-     * buttons; releasing over a valid dock target opens it as a new pane docked there, so several
-     * conversations can be compared side by side without switching between them or mixing their
-     * context. A plain click (no real drag) still falls through to #onConversationListClick, which
-     * opens it in the focused pane as before.
-     * @param {MouseEvent} event Mousedown inside the list.
+     * HTML of a row's buttons.
+     * @returns {string} Open-in-new-pane and delete buttons.
+     */
+    static #actionButtonsHtml() {
+      return `<span class="claude-plus-conversation__actions"><button class="claude-plus-conversation__action-button" data-action="openInNewPane" title="Open in new pane">⧉</button><button class="claude-plus-conversation__action-button" data-action="delete" title="Delete chat">🗑</button></span>`;
+    }
+
+    /**
+     * Filters the list by title.
+     * @param {string} text Search text.
      * @returns {void}
      */
-    #onConversationListPress(event) {
-      if (event.button !== 0) return;
-      const entry = event.target.closest('.claude-plus-conversation');
-      if (!entry || event.target.closest('[data-action]')) return;
-      const conversationId = entry.dataset.conversationId;
+    #applySearch(text) {
+      this.#searchText = text.toLowerCase();
+      this.render();
+    }
+
+    /**
+     * Whether a conversation's title contains the quick search text.
+     * @param {ConversationListing} conversation The conversation.
+     * @returns {boolean} True when it matches or there is no search.
+     */
+    #matchesSearch(conversation) {
+      return (conversation.name || '').toLowerCase().includes(this.#searchText);
+    }
+
+    /**
+     * Starts dragging a conversation out of the list on a primary-button press away from its
+     * buttons; releasing over a dock target opens it as a new pane docked there. A plain click still
+     * reaches #onRowClick.
+     * @param {MouseEvent} event Mouse press in the table body.
+     * @returns {void}
+     */
+    #onRowPress(event) {
+      const row = event.target.closest('[data-conversation-id]');
+      if (event.button !== 0 || !row || event.target.closest('[data-action]')) return;
+      const conversationId = row.dataset.conversationId;
       this.#paneManager.beginDragToOpenPane(event, conversationId, this.#directory.titleOf(conversationId));
     }
 
     /**
-     * Runs the clicked entry button's action, or opens the clicked conversation in the focused pane.
-     * @param {MouseEvent} event Click inside the list.
+     * Runs the clicked row button's action, or opens the clicked conversation in the focused pane.
+     * @param {MouseEvent} event Click in the table body.
      * @returns {void}
      */
-    #onConversationListClick(event) {
-      const entry = event.target.closest('.claude-plus-conversation');
-      if (!entry) return;
+    #onRowClick(event) {
+      const row = event.target.closest('[data-conversation-id]');
+      if (!row) return;
       const button = event.target.closest('[data-action]');
-      if (button) this.#entryActionHandlers.get(button.dataset.action)(entry);
-      else this.#router.openConversation(entry.dataset.conversationId);
+      if (button) this.#rowActionHandlers.get(button.dataset.action)(row);
+      else this.#router.openConversation(row.dataset.conversationId);
     }
 
     /**
-     * Asks for confirmation, then deletes a conversation. The entry is dimmed while deleting and
+     * Asks for confirmation, then deletes a conversation. The row is dimmed while deleting and
      * restored if deleting fails.
-     * @param {HTMLElement} entry The conversation's entry.
+     * @param {HTMLElement} row The conversation's row.
      * @returns {Promise<void>} Resolves once deleted, declined or failed.
      */
-    async #confirmAndDelete(entry) {
-      const conversationId = entry.dataset.conversationId;
-      const confirmed = await confirmDialog(`Delete "${this.#directory.titleOf(conversationId)}"? This cannot be undone.`, 'Delete');
-      if (!confirmed) return;
-      entry.classList.add('claude-plus-pending');
+    async #confirmAndDelete(row) {
+      const conversationId = row.dataset.conversationId;
+      const isConfirmed = await confirmDialog(`Delete "${this.#directory.titleOf(conversationId)}"? This cannot be undone.`, 'Delete');
+      if (!isConfirmed) return;
+      row.classList.add('claude-plus-pending');
       try {
         await this.#directory.deleteConversation(conversationId);
       } catch (error) {
         console.warn(LOG_PREFIX, 'delete failed', error);
-        entry.classList.remove('claude-plus-pending');
+        row.classList.remove('claude-plus-pending');
       }
-    }
-
-    /**
-     * HTML of the sort key dropdown's options.
-     * @returns {string} The options.
-     */
-    static #sortOptionsHtml() {
-      return ConversationListPanel.#SORT_OPTIONS.map(({ key, label }) => `<option value="${key}">${escapeHtml(label)}</option>`).join('');
-    }
-
-    /**
-     * HTML of the column toggle checkboxes. Their checked state is applied after insertion, by
-     * #applyPreferencesToControls, since it depends on instance state.
-     * @returns {string} The checkboxes.
-     */
-    static #columnToggleHtml() {
-      return ConversationListPanel.#COLUMNS.map(column => `<label class="claude-plus-column-toggle"><input type="checkbox" data-column="${column}" /> ${escapeHtml(ConversationListPanel.#COLUMN_LABELS[column])}</label>`).join('');
-    }
-
-    /**
-     * Loads which columns are visible, defaulting to none (matching the previous, column-free list).
-     * @param {Preferences} preferences Preference storage.
-     * @returns {Set<string>} The visible column ids.
-     */
-    static #loadVisibleColumns(preferences) {
-      const stored = preferences.readJson(STORAGE_KEYS.conversationListColumns);
-      const valid = Array.isArray(stored) ? stored.filter(column => ConversationListPanel.#COLUMNS.includes(column)) : [];
-      return new Set(valid);
-    }
-
-    /**
-     * Loads the sort, defaulting to newest first (matching the previous, server-ordered list).
-     * @param {Preferences} preferences Preference storage.
-     * @returns {{key: string, direction: number}} The sort.
-     */
-    static #loadSort(preferences) {
-      const stored = preferences.readJson(STORAGE_KEYS.conversationListSort);
-      const validKey = Boolean(stored) && ConversationListPanel.#SORT_OPTIONS.some(option => option.key === stored.key);
-      return { key: validKey ? stored.key : 'date', direction: stored && stored.direction === 1 ? 1 : -1 };
     }
   }
 
@@ -4355,15 +5380,17 @@
   }
 
   /**
-   * Prompt input of a chat session with model, effort and thinking options, and a send/stop button.
-   * The options are shared by all panes and stay in sync between them.
+   * The single message composer. It always targets the active chat (the focused chat pane) and can
+   * be docked anywhere. Enter sends and Shift+Enter inserts a line break; there is no send button,
+   * only a Stop button while a reply streams. Its toolbar holds the model options, buttons opening
+   * the active chat's files and sources sub-panes, and the chat export.
    */
-  class ComposerView {
+  class ComposerPanel extends Panel {
     /**
-     * Session prompts are sent in.
-     * @type {ChatSession}
+     * Chat panes; the focused one is the active chat.
+     * @type {ChatPaneManager}
      */
-    #session;
+    #paneManager;
 
     /**
      * Shared model options.
@@ -4372,65 +5399,114 @@
     #settings;
 
     /**
-     * Named elements of the composer.
-     * @type {Object<string, HTMLElement>}
+     * Exports the active chat.
+     * @type {ConversationExporter}
      */
-    #elements;
+    #exporter;
 
     /**
-     * Builds the composer into its container and wires it.
-     * @param {Panel} ownerPanel Panel owning the subscriptions.
-     * @param {HTMLElement} container Element the composer is built into.
-     * @param {ChatSession} session Session prompts are sent in.
-     * @param {ComposerSettings} settings Shared model options.
+     * Menu listing the export formats.
+     * @type {PopupMenu}
      */
-    constructor(ownerPanel, container, session, settings) {
-      this.#session = session;
+    #exportMenu = new PopupMenu();
+
+    /**
+     * Undoes the subscriptions to the active chat's session.
+     * @type {Array<function(): void>}
+     */
+    #sessionUnsubscribers = [];
+
+    /**
+     * Creates the panel.
+     * @param {object} services Panel dependencies.
+     * @param {ChatPaneManager} services.paneManager Chat panes; the focused one is the active chat.
+     * @param {ComposerSettings} services.settings Shared model options.
+     * @param {ConversationExporter} services.exporter Exports the active chat.
+     */
+    constructor({ paneManager, settings, exporter }) {
+      super('Message');
+      this.#paneManager = paneManager;
       this.#settings = settings;
-      container.innerHTML = ComposerView.#bodyHtml();
-      this.#elements = collectNamedElements(container);
-      this.#bindControls();
-      ownerPanel.listenTo(session, 'sending', () => this.render());
-      ownerPanel.listenTo(settings, 'settings', () => this.#showSettings());
-      this.#showSettings();
+      this.#exporter = exporter;
     }
 
     /**
-     * Shows Stop while sending and Send otherwise.
-     * @returns {void}
+     * HTML of the panel body.
+     * @returns {string} Toolbar, prompt input and Stop button.
      */
-    render() {
-      const { sendButton } = this.#elements;
-      sendButton.textContent = this.#session.isSending ? 'Stop' : 'Send';
-      sendButton.classList.toggle('claude-plus-composer__send-button--stop', this.#session.isSending);
-    }
-
-    /**
-     * HTML of the composer.
-     * @returns {string} Option controls, text area and button.
-     */
-    static #bodyHtml() {
+    createBodyHtml() {
       return `
         <div class="claude-plus-composer__options">
           <select data-name="modelSelect">${optionsHtml(MODELS, '')}</select>
           <select data-name="effortSelect">${optionsHtml(EFFORTS, '')}</select>
           <label class="claude-plus-composer__thinking-toggle"><input type="checkbox" data-name="thinkingCheckbox" /> Extended thinking</label>
+          <div class="claude-plus-fill-remaining"></div>
+          <button class="claude-plus-toolbar__button" data-name="filesButton" title="Files in the active chat">📁</button>
+          <button class="claude-plus-toolbar__button" data-name="sourcesButton" title="Web sources of the active chat">🌐</button>
+          <button class="claude-plus-toolbar__button" data-name="exportButton" title="Export the active chat">Export ▾</button>
         </div>
-        <textarea class="claude-plus-composer__input" data-name="promptInput" placeholder="Message Claude…" rows="3"></textarea>
-        <button class="claude-plus-primary-button claude-plus-composer__send-button" data-name="sendButton">Send</button>`;
+        <textarea class="claude-plus-composer__input" data-name="promptInput" placeholder="Message Claude… (Enter sends, Shift+Enter adds a line)" rows="3"></textarea>
+        <button class="claude-plus-primary-button claude-plus-composer__stop-button" data-name="stopButton" hidden>Stop</button>`;
     }
 
     /**
-     * Wires the options, the button and Enter-to-send.
+     * Wires the controls and follows the settings and the active chat.
      * @returns {void}
      */
-    #bindControls() {
-      const { modelSelect, effortSelect, thinkingCheckbox, promptInput, sendButton } = this.#elements;
+    bindEvents() {
+      const { modelSelect, effortSelect, thinkingCheckbox, promptInput, stopButton, filesButton, sourcesButton, exportButton } = this.elements;
       modelSelect.addEventListener('change', () => { this.#settings.model = modelSelect.value; });
       effortSelect.addEventListener('change', () => { this.#settings.effort = effortSelect.value; });
       thinkingCheckbox.addEventListener('change', () => { this.#settings.thinkingMode = thinkingCheckbox.checked ? THINKING_MODES.extended : THINKING_MODES.off; });
-      sendButton.addEventListener('click', () => this.#onSendButtonClick());
       promptInput.addEventListener('keydown', event => this.#onPromptKeydown(event));
+      stopButton.addEventListener('click', () => this.#paneManager.focusedSession.stopReply());
+      filesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('files'));
+      sourcesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('sources'));
+      exportButton.addEventListener('click', () => this.#showExportMenu());
+      this.listenTo(this.#settings, 'settings', () => this.#showSettings());
+      this.listenTo(this.#paneManager, 'focus', () => this.#followActiveChat());
+      this.listenTo(this.#paneManager, 'paneConversations', () => this.render());
+      this.#showSettings();
+      this.#followActiveChat();
+    }
+
+    /**
+     * Shows Stop only while the active chat streams a reply, and enables export only for a saved conversation.
+     * @returns {void}
+     */
+    render() {
+      const session = this.#paneManager.focusedSession;
+      this.elements.stopButton.hidden = !session.isSending;
+      this.elements.exportButton.disabled = !session.openConversationId;
+    }
+
+    /**
+     * Ends the subscriptions, including those to the active chat.
+     * @returns {void}
+     */
+    dispose() {
+      this.#unsubscribeFromSession();
+      this.#exportMenu.close();
+      super.dispose();
+    }
+
+    /**
+     * Subscribes to the newly active chat's sending state.
+     * @returns {void}
+     */
+    #followActiveChat() {
+      this.#unsubscribeFromSession();
+      this.#sessionUnsubscribers = [this.#paneManager.focusedSession.subscribe('sending', () => this.render())];
+      this.render();
+    }
+
+    /**
+     * Ends the subscriptions to the previously active chat.
+     * @returns {void}
+     */
+    #unsubscribeFromSession() {
+      this.#sessionUnsubscribers.forEach(unsubscribe => unsubscribe());
+      this.#sessionUnsubscribers = [];
     }
 
     /**
@@ -4438,18 +5514,23 @@
      * @returns {void}
      */
     #showSettings() {
-      this.#elements.modelSelect.value = this.#settings.model;
-      this.#elements.effortSelect.value = this.#settings.effort;
-      this.#elements.thinkingCheckbox.checked = this.#settings.thinkingMode === THINKING_MODES.extended;
+      this.elements.modelSelect.value = this.#settings.model;
+      this.elements.effortSelect.value = this.#settings.effort;
+      this.elements.thinkingCheckbox.checked = this.#settings.thinkingMode === THINKING_MODES.extended;
     }
 
     /**
-     * Stops the reply while sending, otherwise sends the prompt.
+     * Opens the export format menu below the export button.
      * @returns {void}
      */
-    #onSendButtonClick() {
-      if (this.#session.isSending) this.#session.stopReply();
-      else this.#sendTypedPrompt();
+    #showExportMenu() {
+      const bounds = this.elements.exportButton.getBoundingClientRect();
+      this.#exportMenu.open({
+        left: bounds.left,
+        top: bounds.bottom + 4,
+        entries: [...ConversationExporter.FORMATS].map(([formatId, format]) => ({ id: formatId, label: format.label })),
+        onSelect: formatId => this.#exporter.exportOpenConversation(formatId),
+      });
     }
 
     /**
@@ -4458,7 +5539,7 @@
      * @returns {void}
      */
     #onPromptKeydown(event) {
-      if (!ComposerView.#isSendShortcut(event)) return;
+      if (!ComposerPanel.#isSendShortcut(event)) return;
       event.preventDefault();
       this.#sendTypedPrompt();
     }
@@ -4473,21 +5554,25 @@
     }
 
     /**
-     * Sends the typed prompt and clears the input; ignored for blank input or while sending.
+     * Sends the typed prompt to the active chat and clears the input; ignored for blank input or
+     * while the active chat is sending.
      * @returns {void}
      */
     #sendTypedPrompt() {
-      const { promptInput } = this.#elements;
-      if (!promptInput.value.trim() || this.#session.isSending) return;
+      const { promptInput } = this.elements;
+      const session = this.#paneManager.focusedSession;
+      if (!promptInput.value.trim() || session.isSending) return;
       const prompt = promptInput.value;
       promptInput.value = '';
-      this.#session.sendPrompt(prompt);
+      session.sendPrompt(prompt);
     }
   }
 
   /**
-   * A chat pane: one session's messages above its composer. Its tab shows the conversation title,
-   * it becomes the focused pane when clicked or typed in, and it can be closed while other panes exist.
+   * A chat pane: one session's messages, plus optional sub-panes listing the conversation's files
+   * and web sources docked to its left, top or right edge. Its tab shows the conversation title; it
+   * becomes the active chat when clicked, and gets a faint green border while it is active and more
+   * than one chat pane is visible.
    */
   class ChatPanel extends Panel {
     /**
@@ -4503,12 +5588,6 @@
     #session;
 
     /**
-     * Shared model options.
-     * @type {ComposerSettings}
-     */
-    #settings;
-
-    /**
      * Shared conversation list, for the tab title.
      * @type {ConversationDirectory}
      */
@@ -4521,33 +5600,47 @@
     #paneManager;
 
     /**
+     * Conversation statistics, for the sub-panes.
+     * @type {StatsIndex}
+     */
+    #stats;
+
+    /**
+     * Table settings storage, for the sub-panes.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
      * The message list.
      * @type {?MessageListView}
      */
     #messageListView = null;
 
     /**
-     * The composer.
-     * @type {?ComposerView}
+     * Open sub-panes by kind.
+     * @type {Map<string, ConversationSubPane>}
      */
-    #composerView = null;
+    #subPanes = new Map();
 
     /**
      * Creates the pane's panel.
      * @param {object} services Panel dependencies.
      * @param {string} services.paneId Pane id.
      * @param {ChatSession} services.session Session shown in this pane.
-     * @param {ComposerSettings} services.settings Shared model options.
      * @param {ConversationDirectory} services.directory Shared conversation list, for the tab title.
      * @param {ChatPaneManager} services.paneManager Chat panes, for focus and closing.
+     * @param {StatsIndex} services.stats Conversation statistics, for the sub-panes.
+     * @param {Preferences} services.preferences Table settings storage, for the sub-panes.
      */
-    constructor({ paneId, session, settings, directory, paneManager }) {
+    constructor({ paneId, session, directory, paneManager, stats, preferences }) {
       super('Chat');
       this.#paneId = paneId;
       this.#session = session;
-      this.#settings = settings;
       this.#directory = directory;
       this.#paneManager = paneManager;
+      this.#stats = stats;
+      this.#preferences = preferences;
     }
 
     /**
@@ -4576,43 +5669,101 @@
     }
 
     /**
-     * HTML of the panel body.
-     * @returns {string} Containers for the message list and the composer.
+     * HTML of the panel body: side containers for sub-panes around the message list.
+     * @returns {string} The layout.
      */
     createBodyHtml() {
       return `
-        <div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-message-list" data-name="messageList"></div>
-        <div class="claude-plus-composer" data-name="composer"></div>`;
+        <div class="claude-plus-chat-layout">
+          <div class="claude-plus-chat-layout__side" data-name="leftSide"></div>
+          <div class="claude-plus-chat-layout__center">
+            <div class="claude-plus-chat-layout__top" data-name="topSide"></div>
+            <div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-message-list" data-name="messageList"></div>
+          </div>
+          <div class="claude-plus-chat-layout__side" data-name="rightSide"></div>
+        </div>`;
     }
 
     /**
-     * Creates the views, focuses the pane on interaction and follows focus changes.
+     * Creates the message list, focuses the pane on interaction and follows focus and visibility changes.
      * @returns {void}
      */
     bindEvents() {
       this.#messageListView = new MessageListView(this, this.elements.messageList, this.#session);
-      this.#composerView = new ComposerView(this, this.elements.composer, this.#session, this.#settings);
       this.element.addEventListener('mousedown', () => this.#paneManager.focusPane(this.#paneId));
       this.element.addEventListener('focusin', () => this.#paneManager.focusPane(this.#paneId));
       this.listenTo(this.#paneManager, 'focus', () => this.#renderFocus());
+      this.listenTo(this.#paneManager, 'visiblePanes', () => this.#renderFocus());
     }
 
     /**
-     * Renders the focus marker, the messages and the composer.
+     * Renders the focus markers and the messages.
      * @returns {void}
      */
     render() {
       this.#renderFocus();
       this.#messageListView.render();
-      this.#composerView.render();
     }
 
     /**
-     * Marks the pane while it is the focused one.
+     * Opens a sub-pane on the right edge, unless one of that kind is already open.
+     * @param {string} kind 'files' or 'sources'.
+     * @returns {void}
+     */
+    openSubPane(kind) {
+      if (this.#subPanes.has(kind)) return;
+      const subPane = new ConversationSubPane({
+        kind,
+        session: this.#session,
+        stats: this.#stats,
+        preferences: this.#preferences,
+        onClose: closedKind => this.#closeSubPane(closedKind),
+        onMove: (movedKind, edge) => this.#dockSubPane(movedKind, edge),
+      });
+      this.#subPanes.set(kind, subPane);
+      this.#dockSubPane(kind, 'right');
+    }
+
+    /**
+     * Disposes the sub-panes and ends the subscriptions.
+     * @returns {void}
+     */
+    dispose() {
+      this.#subPanes.forEach(subPane => subPane.dispose());
+      this.#subPanes.clear();
+      super.dispose();
+    }
+
+    /**
+     * Moves a sub-pane to an edge of the pane.
+     * @param {string} kind Sub-pane kind.
+     * @param {string} edge 'left', 'top' or 'right'.
+     * @returns {void}
+     */
+    #dockSubPane(kind, edge) {
+      const sideElements = { left: this.elements.leftSide, top: this.elements.topSide, right: this.elements.rightSide };
+      sideElements[edge].append(this.#subPanes.get(kind).element);
+    }
+
+    /**
+     * Closes a sub-pane.
+     * @param {string} kind Sub-pane kind.
+     * @returns {void}
+     */
+    #closeSubPane(kind) {
+      this.#subPanes.get(kind).dispose();
+      this.#subPanes.delete(kind);
+    }
+
+    /**
+     * Marks the pane while it is the active chat, and shows the green border only while more than
+     * one chat pane is visible.
      * @returns {void}
      */
     #renderFocus() {
-      this.element.classList.toggle('claude-plus-panel--focused', this.#paneManager.focusedPaneId === this.#paneId);
+      const isActive = this.#paneManager.focusedPaneId === this.#paneId;
+      this.element.classList.toggle('claude-plus-panel--focused', isActive);
+      this.element.classList.toggle('claude-plus-panel--active-among-several', isActive && this.#paneManager.hasSeveralVisiblePanes);
     }
   }
 
@@ -4668,6 +5819,7 @@
           <button class="claude-plus-primary-button claude-plus-full-width" data-name="backfillButton">Index full history</button>
           <div class="claude-plus-hint" data-name="backfillStatus"></div>
           <div class="claude-plus-spaced-above">${row('Conversations indexed', 'indexedConversationCount')}</div>
+          <div class="claude-plus-hint" data-name="staleRecordHint" hidden></div>
         </div>`;
     }
 
@@ -4746,6 +5898,8 @@
       this.elements.averageResponseTime.textContent = responseTimes.length ? formatDuration(average(responseTimes)) : '–';
       this.elements.estimatedTokens.textContent = `~${aggregate.estimatedTokensIn.toLocaleString()} in / ~${aggregate.estimatedTokensOut.toLocaleString()} out`;
       this.elements.indexedConversationCount.textContent = aggregate.conversationCount;
+      this.elements.staleRecordHint.hidden = aggregate.skippedRecordCount === 0;
+      this.elements.staleRecordHint.textContent = `${aggregate.skippedRecordCount} stored record(s) look stale and were skipped — consider running "Index full history".`;
       this.elements.toolCallTotal.textContent = toolRanking.reduce((sum, [, count]) => sum + count, 0);
       this.elements.toolCallRanking.innerHTML = toolRanking.map(([toolName, count]) => valueRowHtml(toolName, count)).join('') || emptyStateHtml('No tool calls indexed yet.');
     }
@@ -4773,7 +5927,8 @@
   }
 
   /**
-   * Web sources cited in tool results, filterable by top-level domain and outlet, plus an outlet ranking.
+   * Web sources cited in tool results, as a column table with typeahead and date filters, plus an
+   * outlet ranking.
    */
   class WebSourcesPanel extends Panel {
     /**
@@ -4783,95 +5938,73 @@
     #stats;
 
     /**
-     * Creates the panel.
-     * @param {StatsIndex} stats Conversation statistics.
+     * Table settings storage.
+     * @type {Preferences}
      */
-    constructor(stats) {
+    #preferences;
+
+    /**
+     * The sources table; created with the DOM.
+     * @type {?ColumnTable}
+     */
+    #table = null;
+
+    /**
+     * Creates the panel.
+     * @param {object} services Panel dependencies.
+     * @param {StatsIndex} services.stats Conversation statistics.
+     * @param {Preferences} services.preferences Table settings storage.
+     */
+    constructor({ stats, preferences }) {
       super('Web Sources');
       this.#stats = stats;
+      this.#preferences = preferences;
     }
 
     /**
      * HTML of the panel body.
-     * @returns {string} Filters, source list and outlet ranking.
+     * @returns {string} Table host and outlet ranking.
      */
     createBodyHtml() {
       return `
-        <div class="claude-plus-source-filters">
-          <select data-name="topLevelDomainSelect"><option value="">All TLDs</option></select>
-          <input data-name="outletInput" type="text" placeholder="Outlet contains…" />
-        </div>
-        <div class="claude-plus-scrollable claude-plus-fill-remaining" data-name="sourceList"></div>
+        <div class="claude-plus-table-host" data-name="tableHost"></div>
         <details class="claude-plus-panel__section"><summary>Top outlets (<span data-name="outletTotal">0</span>)</summary><div class="claude-plus-scrollable" data-name="outletRanking"></div></details>`;
     }
 
     /**
-     * Wires the filters and follows aggregate changes.
+     * Creates the table and follows aggregate changes.
      * @returns {void}
      */
     bindEvents() {
-      this.elements.topLevelDomainSelect.addEventListener('change', () => this.#renderSourceList());
-      this.elements.outletInput.addEventListener('input', () => this.#renderSourceList());
+      this.#table = new ColumnTable({
+        container: this.elements.tableHost,
+        tableId: 'webSources',
+        columns: TableColumns.sources(true),
+        preferences: this.#preferences,
+        defaultSort: { column: 'date', direction: -1 },
+        rowAttributes: () => '',
+        emptyText: 'No web sources match these filters.',
+        maxRenderedRows: LIMITS.listedSources,
+      });
       this.listenTo(this.#stats, 'aggregate', () => this.render());
     }
 
     /**
-     * Renders the filter options, the list and the ranking.
+     * Renders the table and the ranking.
      * @returns {void}
      */
     render() {
-      this.#renderTopLevelDomainOptions();
-      this.#renderSourceList();
+      this.#table.setRows(this.#stats.aggregate.sources);
       this.#renderOutletRanking();
     }
 
     /**
-     * Rebuilds the top-level domain options, keeping the selection if it still exists.
+     * Closes the table's typeahead and ends the subscriptions.
      * @returns {void}
      */
-    #renderTopLevelDomainOptions() {
-      const { topLevelDomainSelect } = this.elements;
-      const selected = topLevelDomainSelect.value;
-      const domains = [...this.#stats.aggregate.topLevelDomains].sort();
-      topLevelDomainSelect.innerHTML = `<option value="">All TLDs</option>${domains.map(domain => `<option value="${escapeHtml(domain)}">.${escapeHtml(domain)}</option>`).join('')}`;
-      topLevelDomainSelect.value = domains.includes(selected) ? selected : '';
-    }
-
-    /**
-     * Lists the newest sources matching the filters, up to LIMITS.listedSources.
-     * @returns {void}
-     */
-    #renderSourceList() {
-      const topLevelDomain = this.elements.topLevelDomainSelect.value;
-      const outletText = this.elements.outletInput.value.toLowerCase();
-      const sources = this.#stats.aggregate.sources
-        .filter(source => WebSourcesPanel.#matchesFilters(source, topLevelDomain, outletText))
-        .slice(0, LIMITS.listedSources);
-      this.elements.sourceList.innerHTML = sources.map(source => WebSourcesPanel.#sourceHtml(source)).join('') || emptyStateHtml('No web sources match these filters.');
-    }
-
-    /**
-     * Whether a source passes both filters.
-     * @param {SourceEntry} source The source.
-     * @param {string} topLevelDomain Required top-level domain; empty for any.
-     * @param {string} outletText Lower-case text the outlet must contain; empty for any.
-     * @returns {boolean} True when it matches.
-     */
-    static #matchesFilters(source, topLevelDomain, outletText) {
-      return (!topLevelDomain || source.topLevelDomain === topLevelDomain) && (source.outlet || '').toLowerCase().includes(outletText);
-    }
-
-    /**
-     * HTML of one source: linked title and details line.
-     * @param {SourceEntry} source The source.
-     * @returns {string} The entry.
-     */
-    static #sourceHtml(source) {
-      const details = [source.outlet, source.topLevelDomain ? `.${source.topLevelDomain}` : null, new Date(source.timestamp).toLocaleString(), source.conversationTitle]
-        .filter(detail => detail !== null)
-        .map(escapeHtml)
-        .join(' · ');
-      return `<div class="claude-plus-source"><a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a><div class="claude-plus-source__details">${details}</div></div>`;
+    dispose() {
+      if (this.#table) this.#table.dispose();
+      super.dispose();
     }
 
     /**
@@ -4887,20 +6020,10 @@
   }
 
   /**
-   * Uploaded and produced files, one folder per conversation, with a sortable table per folder.
+   * Uploaded and produced files: a table of conversations with files, and per conversation a table
+   * of its files; both with configurable columns, sorting and filters.
    */
   class FilesPanel extends Panel {
-    /**
-     * Sort value per column.
-     * @type {Readonly<Record<string, function(FileEntry): (string|number)>>}
-     */
-    static #SORT_VALUE_BY_COLUMN = Object.freeze({
-      name: file => (file.title || '').toLowerCase(),
-      type: file => file.extension,
-      date: file => toEpochMs(file.timestamp),
-      source: file => file.source || '',
-    });
-
     /**
      * Conversation statistics.
      * @type {StatsIndex}
@@ -4908,65 +6031,123 @@
     #stats;
 
     /**
-     * Conversation id of the open folder, or null for the folder view.
+     * Table settings storage.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * Conversation id of the open folder, or null for the folder table.
      * @type {?string}
      */
     #openFolderId = null;
 
     /**
-     * Sort column and direction (1 ascending, -1 descending).
-     * @type {{column: string, direction: number}}
+     * Table of conversations with files; created with the DOM.
+     * @type {?ColumnTable}
      */
-    #sortOrder = { column: 'date', direction: -1 };
+    #folderTable = null;
+
+    /**
+     * Table of the open folder's files; created with the DOM.
+     * @type {?ColumnTable}
+     */
+    #fileTable = null;
 
     /**
      * Creates the panel.
-     * @param {StatsIndex} stats Conversation statistics.
+     * @param {object} services Panel dependencies.
+     * @param {StatsIndex} services.stats Conversation statistics.
+     * @param {Preferences} services.preferences Table settings storage.
      */
-    constructor(stats) {
+    constructor({ stats, preferences }) {
       super('Files');
       this.#stats = stats;
+      this.#preferences = preferences;
     }
 
     /**
      * HTML of the panel body.
-     * @returns {string} Breadcrumb, folder grid and file table.
+     * @returns {string} Breadcrumb and the two table hosts.
      */
     createBodyHtml() {
       return `
         <div class="claude-plus-breadcrumb" data-name="breadcrumb"></div>
-        <div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-folder-grid" data-name="folderGrid"></div>
-        <div class="claude-plus-scrollable claude-plus-fill-remaining" data-name="fileTableContainer" hidden>
-          <table class="claude-plus-file-table">
-            <thead data-name="fileTableHeader"><tr><th data-sort-column="name">Name</th><th data-sort-column="type">Type</th><th data-sort-column="date">Date</th><th data-sort-column="source">Source</th></tr></thead>
-            <tbody data-name="fileTableBody"></tbody>
-          </table>
-        </div>`;
+        <div class="claude-plus-table-host" data-name="folderTableHost"></div>
+        <div class="claude-plus-table-host" data-name="fileTableHost" hidden></div>`;
     }
 
     /**
-     * Wires navigation and sorting, and follows aggregate changes.
+     * Creates both tables, wires navigation and follows aggregate changes.
      * @returns {void}
      */
     bindEvents() {
+      this.#folderTable = new ColumnTable({
+        container: this.elements.folderTableHost,
+        tableId: 'fileFolders',
+        columns: FilesPanel.#folderColumns(),
+        preferences: this.#preferences,
+        defaultSort: { column: 'date', direction: -1 },
+        rowAttributes: folder => `class="claude-plus-folder" data-conversation-id="${escapeHtml(folder.conversationId)}"`,
+        emptyText: 'No files or attachments indexed yet.',
+      });
+      this.#fileTable = new ColumnTable({
+        container: this.elements.fileTableHost,
+        tableId: 'files',
+        columns: TableColumns.files(false),
+        preferences: this.#preferences,
+        defaultSort: { column: 'date', direction: -1 },
+        rowAttributes: () => '',
+        emptyText: 'No files here.',
+      });
+      this.#folderTable.bodyElement.addEventListener('click', event => this.#onFolderClick(event));
       this.elements.breadcrumb.addEventListener('click', event => this.#onBreadcrumbClick(event));
-      this.elements.folderGrid.addEventListener('dblclick', event => this.#onFolderDoubleClick(event));
-      this.elements.fileTableHeader.addEventListener('click', event => this.#onColumnHeaderClick(event));
       this.listenTo(this.#stats, 'aggregate', () => this.render());
     }
 
     /**
-     * Shows the open folder's table, or the folder grid when none is open or it no longer exists.
+     * Shows the open folder's files, or the folder table when none is open or it no longer exists.
      * @returns {void}
      */
     render() {
       const openFolder = this.#stats.aggregate.folders.find(folder => folder.conversationId === this.#openFolderId);
-      if (openFolder) this.#renderFileTable(openFolder);
-      else this.#renderFolderGrid();
+      if (openFolder) this.#showFiles(openFolder);
+      else this.#showFolders();
     }
 
     /**
-     * Returns to the folder grid when the back link is clicked.
+     * Closes the tables' typeaheads and ends the subscriptions.
+     * @returns {void}
+     */
+    dispose() {
+      [this.#folderTable, this.#fileTable].filter(Boolean).forEach(table => table.dispose());
+      super.dispose();
+    }
+
+    /**
+     * Columns of the folder table.
+     * @returns {TableColumn[]} Chat, file count and newest file date.
+     */
+    static #folderColumns() {
+      return [
+        { id: 'conversation', label: 'Chat', isAlwaysVisible: true, filter: 'values', sortValue: folder => folder.conversationTitle.toLowerCase(), filterValue: folder => folder.conversationTitle, cellHtml: folder => `📁 ${escapeHtml(folder.conversationTitle)}` },
+        { id: 'fileCount', label: 'Files', isVisibleByDefault: true, sortValue: folder => folder.files.length, cellHtml: folder => String(folder.files.length) },
+        { id: 'date', label: 'Newest', isVisibleByDefault: true, filter: 'date', sortValue: folder => folder.newestFileTime, filterValue: folder => new Date(folder.newestFileTime).toISOString(), cellHtml: folder => escapeHtml(formatTimestamp(new Date(folder.newestFileTime).toISOString())) },
+      ];
+    }
+
+    /**
+     * Opens the clicked folder.
+     * @param {MouseEvent} event Click in the folder table body.
+     * @returns {void}
+     */
+    #onFolderClick(event) {
+      const row = event.target.closest('[data-conversation-id]');
+      if (row) this.#openFolder(row.dataset.conversationId);
+    }
+
+    /**
+     * Returns to the folder table when the back link is clicked.
      * @param {MouseEvent} event Click in the breadcrumb.
      * @returns {void}
      */
@@ -4975,28 +6156,8 @@
     }
 
     /**
-     * Opens the double-clicked folder.
-     * @param {MouseEvent} event Double click in the folder grid.
-     * @returns {void}
-     */
-    #onFolderDoubleClick(event) {
-      const folder = event.target.closest('.claude-plus-folder');
-      if (folder) this.#openFolder(folder.dataset.conversationId);
-    }
-
-    /**
-     * Sorts by the clicked column.
-     * @param {MouseEvent} event Click in the table header.
-     * @returns {void}
-     */
-    #onColumnHeaderClick(event) {
-      const header = event.target.closest('th[data-sort-column]');
-      if (header) this.#sortBy(header.dataset.sortColumn);
-    }
-
-    /**
-     * Opens a folder, or the folder grid.
-     * @param {?string} conversationId Folder to open, or null for the folder grid.
+     * Opens a folder, or the folder table.
+     * @param {?string} conversationId Folder to open, or null for the folder table.
      * @returns {void}
      */
     #openFolder(conversationId) {
@@ -5005,79 +6166,435 @@
     }
 
     /**
-     * Sorts by a column; the current column toggles direction, a new one starts ascending.
-     * @param {string} column Column key from #SORT_VALUE_BY_COLUMN.
+     * Shows the folder table.
      * @returns {void}
      */
-    #sortBy(column) {
-      const direction = this.#sortOrder.column === column ? -this.#sortOrder.direction : 1;
-      this.#sortOrder = { column, direction };
+    #showFolders() {
+      this.#openFolderId = null;
+      this.elements.breadcrumb.innerHTML = '<span>All folders</span>';
+      this.elements.folderTableHost.hidden = false;
+      this.elements.fileTableHost.hidden = true;
+      this.#folderTable.setRows(this.#stats.aggregate.folders);
+    }
+
+    /**
+     * Shows a folder's files.
+     * @param {FileFolder} folder The folder.
+     * @returns {void}
+     */
+    #showFiles(folder) {
+      this.elements.breadcrumb.innerHTML = `<span class="claude-plus-breadcrumb__back-link" data-action="back">← All folders</span> / ${escapeHtml(folder.conversationTitle)}`;
+      this.elements.folderTableHost.hidden = true;
+      this.elements.fileTableHost.hidden = false;
+      this.#fileTable.setRows(folder.files);
+    }
+  }
+
+  /**
+   * A parsed search query: free terms plus qualifiers such as `file:*.pdf` or `outlet:"new york times"`.
+   * Qualifier values and terms may contain `*` wildcards; `before:` and `after:` take YYYY-MM-DD dates.
+   */
+  class SearchQuery {
+    /**
+     * Canonical qualifier per accepted qualifier name.
+     * @type {Readonly<Record<string, string>>}
+     */
+    static #QUALIFIER_NAMES = Object.freeze({ chat: 'chat', title: 'chat', file: 'file', outlet: 'outlet', source: 'source', url: 'source', tool: 'tool', before: 'before', after: 'after' });
+
+    /**
+     * One token: a qualifier with a quoted or plain value, a quoted term, or a plain term.
+     * @type {RegExp}
+     */
+    static #TOKEN = /(\w+):(?:"([^"]*)"|(\S+))|"([^"]*)"|(\S+)/g;
+
+    /**
+     * Free terms; each must match the item's own text or its conversation title.
+     * @type {WildcardPattern[]}
+     */
+    #terms;
+
+    /**
+     * Qualifier values by canonical qualifier.
+     * @type {Map<string, string[]>}
+     */
+    #qualifiers;
+
+    /**
+     * Creates a query.
+     * @param {WildcardPattern[]} terms Free terms.
+     * @param {Map<string, string[]>} qualifiers Qualifier values by canonical qualifier.
+     */
+    constructor(terms, qualifiers) {
+      this.#terms = terms;
+      this.#qualifiers = qualifiers;
+    }
+
+    /**
+     * Parses query text. Unknown qualifiers are treated as free terms.
+     * @param {string} text Query text.
+     * @returns {SearchQuery} The query.
+     */
+    static parse(text) {
+      const terms = [];
+      const qualifiers = new Map();
+      for (const token of text.matchAll(SearchQuery.#TOKEN)) SearchQuery.#addToken(token, terms, qualifiers);
+      return new SearchQuery(terms, qualifiers);
+    }
+
+    /**
+     * Whether the query has nothing to search for.
+     * @returns {boolean} True without terms and qualifiers.
+     */
+    get isEmpty() {
+      return this.#terms.length === 0 && this.#qualifiers.size === 0;
+    }
+
+    /**
+     * Free terms.
+     * @returns {WildcardPattern[]} The terms.
+     */
+    get terms() {
+      return this.#terms;
+    }
+
+    /**
+     * Patterns of a qualifier.
+     * @param {string} qualifier Canonical qualifier name.
+     * @returns {WildcardPattern[]} One pattern per value; empty when the qualifier isn't used.
+     */
+    patterns(qualifier) {
+      return (this.#qualifiers.get(qualifier) ?? []).map(value => new WildcardPattern(value));
+    }
+
+    /**
+     * Last value of a qualifier.
+     * @param {string} qualifier Canonical qualifier name.
+     * @returns {string} The value, or an empty string when the qualifier isn't used.
+     */
+    lastValue(qualifier) {
+      const values = this.#qualifiers.get(qualifier) ?? [];
+      return values.length ? values[values.length - 1] : '';
+    }
+
+    /**
+     * Whether a qualifier is used.
+     * @param {string} qualifier Canonical qualifier name.
+     * @returns {boolean} True when it has at least one value.
+     */
+    uses(qualifier) {
+      return this.#qualifiers.has(qualifier);
+    }
+
+    /**
+     * Adds one token to the terms or qualifiers.
+     * @param {RegExpMatchArray} token Token match.
+     * @param {WildcardPattern[]} terms Free terms; modified in place.
+     * @param {Map<string, string[]>} qualifiers Qualifier values; modified in place.
+     * @returns {void}
+     */
+    static #addToken(token, terms, qualifiers) {
+      const qualifier = SearchQuery.#qualifierOf(token);
+      if (!qualifier) {
+        terms.push(new WildcardPattern(token[4] ?? token[0]));
+        return;
+      }
+      qualifiers.set(qualifier.name, [...(qualifiers.get(qualifier.name) ?? []), qualifier.value]);
+    }
+
+    /**
+     * The known qualifier a token carries.
+     * @param {RegExpMatchArray} token Token match.
+     * @returns {?{name: string, value: string}} The canonical qualifier and its value, or null for a free term.
+     */
+    static #qualifierOf(token) {
+      const name = token[1] ? SearchQuery.#QUALIFIER_NAMES[token[1].toLowerCase()] : undefined;
+      return name ? { name, value: token[2] ?? token[3] } : null;
+    }
+  }
+
+  /**
+   * One thing a search can find.
+   * @typedef {object} SearchItem
+   * @property {'chat'|'file'|'source'|'tool'} kind What was found.
+   * @property {string} text The item's own text: chat title, file name, source title or tool name.
+   * @property {?string} detail Secondary text: the source's outlet and URL, otherwise null.
+   * @property {string} conversationId Conversation the item belongs to.
+   * @property {string} conversationTitle Title of that conversation.
+   * @property {?string} timestamp ISO timestamp of the item.
+   * @property {string} [reason] Why it matched, set on results.
+   */
+
+  /**
+   * Finds chats, files, web sources and tool uses matching a SearchQuery. Qualifiers naming a kind
+   * (file, source, outlet, tool) restrict the results to those kinds; chat, before and after apply to
+   * every kind; free terms must match the item's text or its conversation title.
+   */
+  class SearchEngine {
+    /**
+     * Result kinds selected by each kind qualifier.
+     * @type {Readonly<Record<string, string>>}
+     */
+    static #KIND_OF_QUALIFIER = Object.freeze({ file: 'file', source: 'source', outlet: 'source', tool: 'tool' });
+
+    /**
+     * Label of each kind, for reasons and the kind column.
+     * @type {Readonly<Record<string, string>>}
+     */
+    static #KIND_LABELS = Object.freeze({ chat: 'Chat', file: 'File', source: 'Source', tool: 'Tool' });
+
+    /**
+     * Label of a result kind.
+     * @param {string} kind Result kind.
+     * @returns {string} The label.
+     */
+    static kindLabel(kind) {
+      return SearchEngine.#KIND_LABELS[kind] ?? kind;
+    }
+
+    /**
+     * Searches everything indexed plus the listed conversation titles.
+     * @param {SearchQuery} query The query.
+     * @param {StatsAggregate} aggregate Indexed statistics.
+     * @param {ConversationListing[]} conversations Listed conversations.
+     * @returns {SearchItem[]} Matching items, each with its reason.
+     */
+    static find(query, aggregate, conversations) {
+      const kinds = SearchEngine.#selectedKinds(query);
+      return SearchEngine.#items(aggregate, conversations)
+        .filter(item => kinds.has(item.kind) && SearchEngine.#matches(item, query))
+        .map(item => ({ ...item, reason: SearchEngine.#reason(item, query) }));
+    }
+
+    /**
+     * Kinds the query can return.
+     * @param {SearchQuery} query The query.
+     * @returns {Set<string>} The kinds named by kind qualifiers, or every kind when none is used.
+     */
+    static #selectedKinds(query) {
+      const named = Object.keys(SearchEngine.#KIND_OF_QUALIFIER).filter(qualifier => query.uses(qualifier)).map(qualifier => SearchEngine.#KIND_OF_QUALIFIER[qualifier]);
+      return new Set(named.length ? named : Object.keys(SearchEngine.#KIND_LABELS));
+    }
+
+    /**
+     * Every searchable item.
+     * @param {StatsAggregate} aggregate Indexed statistics.
+     * @param {ConversationListing[]} conversations Listed conversations.
+     * @returns {SearchItem[]} Chats, files, sources and tool uses.
+     */
+    static #items(aggregate, conversations) {
+      const chats = conversations.map(conversation => SearchEngine.#item('chat', conversation.name || UNTITLED, null, { conversationId: conversation.uuid, conversationTitle: conversation.name || UNTITLED, timestamp: conversation.updated_at }));
+      const files = aggregate.folders.flatMap(folder => folder.files).map(file => SearchEngine.#item('file', file.title || file.path, null, file));
+      const sources = aggregate.sources.map(source => SearchEngine.#item('source', source.title, `${source.outlet || ''} ${source.url}`, source));
+      const tools = [...aggregate.perConversation].flatMap(([conversationId, summary]) => summary.toolNames.map(toolName => SearchEngine.#item('tool', toolName, null, { conversationId, conversationTitle: summary.title, timestamp: summary.updatedAt })));
+      return [...chats, ...files, ...sources, ...tools];
+    }
+
+    /**
+     * Creates a search item.
+     * @param {string} kind Item kind.
+     * @param {string} text The item's own text.
+     * @param {?string} detail Secondary text.
+     * @param {{conversationId: string, conversationTitle: string, timestamp: ?string}} origin Conversation and time of the item.
+     * @returns {SearchItem} The item.
+     */
+    static #item(kind, text, detail, origin) {
+      return { kind, text, detail, conversationId: origin.conversationId, conversationTitle: origin.conversationTitle, timestamp: origin.timestamp };
+    }
+
+    /**
+     * Whether an item satisfies every part of the query.
+     * @param {SearchItem} item The item.
+     * @param {SearchQuery} query The query.
+     * @returns {boolean} True when it matches.
+     */
+    static #matches(item, query) {
+      return SearchEngine.#matchesKindQualifiers(item, query)
+        && query.patterns('chat').every(pattern => pattern.matches(item.conversationTitle))
+        && SearchEngine.#matchesDates(item, query)
+        && query.terms.every(term => term.matches(item.text) || term.matches(item.conversationTitle));
+    }
+
+    /**
+     * Whether an item satisfies the qualifiers of its kind.
+     * @param {SearchItem} item The item.
+     * @param {SearchQuery} query The query.
+     * @returns {boolean} True when every file, source, outlet or tool pattern relevant to the item matches.
+     */
+    static #matchesKindQualifiers(item, query) {
+      const checks = {
+        file: () => query.patterns('file').every(pattern => pattern.matches(item.text)),
+        source: () => query.patterns('source').every(pattern => pattern.matches(item.text) || pattern.matches(item.detail))
+          && query.patterns('outlet').every(pattern => pattern.matches(item.detail)),
+        tool: () => query.patterns('tool').every(pattern => pattern.matches(item.text)),
+        chat: () => true,
+      };
+      return checks[item.kind]();
+    }
+
+    /**
+     * Whether an item's day is inside the before/after bounds.
+     * @param {SearchItem} item The item.
+     * @param {SearchQuery} query The query.
+     * @returns {boolean} True when inside the bounds, or when no date qualifier is used.
+     */
+    static #matchesDates(item, query) {
+      return new DateRange(query.lastValue('after'), query.lastValue('before')).contains(item.timestamp);
+    }
+
+    /**
+     * Human-readable explanation of why an item matched.
+     * @param {SearchItem} item The item.
+     * @param {SearchQuery} query The query.
+     * @returns {string} The criteria it satisfied, separated by semicolons.
+     */
+    static #reason(item, query) {
+      const qualifierReasons = ['file', 'source', 'outlet', 'tool', 'chat', 'after', 'before']
+        .filter(qualifier => query.uses(qualifier))
+        .map(qualifier => `${qualifier}: ${query.lastValue(qualifier)}`);
+      const termReasons = query.terms.map(term => `"${term.text}" in ${term.matches(item.text) ? SearchEngine.kindLabel(item.kind).toLowerCase() : 'chat title'}`);
+      return [...qualifierReasons, ...termReasons].join('; ');
+    }
+  }
+
+  /**
+   * Structured search over chats, files, web sources and tool uses, e.g. `file:*.pdf`,
+   * `outlet:*nbc*`, `tool:web_search`, `chat:budget`, `after:2026-01-01`. Results show what matched,
+   * where, when and why; clicking one opens its conversation in the active chat.
+   */
+  class SearchPanel extends Panel {
+    /**
+     * Conversation statistics.
+     * @type {StatsIndex}
+     */
+    #stats;
+
+    /**
+     * Shared conversation list.
+     * @type {ConversationDirectory}
+     */
+    #directory;
+
+    /**
+     * Navigation.
+     * @type {Router}
+     */
+    #router;
+
+    /**
+     * Table settings storage.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * The current query.
+     * @type {SearchQuery}
+     */
+    #query = SearchQuery.parse('');
+
+    /**
+     * The results table; created with the DOM.
+     * @type {?ColumnTable}
+     */
+    #table = null;
+
+    /**
+     * Creates the panel.
+     * @param {object} services Panel dependencies.
+     * @param {StatsIndex} services.stats Conversation statistics.
+     * @param {ConversationDirectory} services.directory Shared conversation list.
+     * @param {Router} services.router Navigation.
+     * @param {Preferences} services.preferences Table settings storage.
+     */
+    constructor({ stats, directory, router, preferences }) {
+      super('Search');
+      this.#stats = stats;
+      this.#directory = directory;
+      this.#router = router;
+      this.#preferences = preferences;
+    }
+
+    /**
+     * HTML of the panel body.
+     * @returns {string} Query input, syntax hint and results host.
+     */
+    createBodyHtml() {
+      return `
+        <input class="claude-plus-search-input" data-name="queryInput" type="text" placeholder="Search… e.g. file:*.pdf outlet:*nbc*" />
+        <div class="claude-plus-hint">Qualifiers: chat: file: source: outlet: tool: after:YYYY-MM-DD before:YYYY-MM-DD — * is a wildcard, quote values with spaces.</div>
+        <div class="claude-plus-table-host" data-name="tableHost"></div>`;
+    }
+
+    /**
+     * Creates the results table, wires the query and result clicks, and follows data changes.
+     * @returns {void}
+     */
+    bindEvents() {
+      this.#table = new ColumnTable({
+        container: this.elements.tableHost,
+        tableId: 'searchResults',
+        columns: SearchPanel.#columns(),
+        preferences: this.#preferences,
+        defaultSort: { column: 'date', direction: -1 },
+        rowAttributes: item => `class="claude-plus-search-result" data-conversation-id="${escapeHtml(item.conversationId)}"`,
+        emptyText: 'No results.',
+        maxRenderedRows: LIMITS.searchResults,
+      });
+      this.elements.queryInput.addEventListener('input', () => this.#runQuery(this.elements.queryInput.value));
+      this.#table.bodyElement.addEventListener('click', event => this.#onResultClick(event));
+      this.listenTo(this.#stats, 'aggregate', () => this.render());
+      this.listenTo(this.#directory, 'conversations', () => this.render());
+    }
+
+    /**
+     * Shows the results of the current query; none for an empty query.
+     * @returns {void}
+     */
+    render() {
+      this.#table.setRows(this.#query.isEmpty ? [] : SearchEngine.find(this.#query, this.#stats.aggregate, this.#directory.conversations));
+    }
+
+    /**
+     * Closes the table's typeahead and ends the subscriptions.
+     * @returns {void}
+     */
+    dispose() {
+      if (this.#table) this.#table.dispose();
+      super.dispose();
+    }
+
+    /**
+     * Columns of the results table.
+     * @returns {TableColumn[]} Match, kind, chat, date and reason.
+     */
+    static #columns() {
+      return [
+        { id: 'match', label: 'Match', isAlwaysVisible: true, sortValue: item => item.text.toLowerCase(), cellHtml: item => escapeHtml(item.text) },
+        { id: 'kind', label: 'Kind', isVisibleByDefault: true, filter: 'values', sortValue: item => SearchEngine.kindLabel(item.kind), cellHtml: item => escapeHtml(SearchEngine.kindLabel(item.kind)) },
+        { id: 'conversation', label: 'Chat', isVisibleByDefault: true, filter: 'values', sortValue: item => item.conversationTitle.toLowerCase(), filterValue: item => item.conversationTitle, cellHtml: item => escapeHtml(item.conversationTitle) },
+        { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: item => toEpochMs(item.timestamp), filterValue: item => item.timestamp, cellHtml: item => escapeHtml(formatTimestamp(item.timestamp)) },
+        { id: 'reason', label: 'Why', isVisibleByDefault: true, sortValue: item => item.reason, cellHtml: item => escapeHtml(item.reason) },
+      ];
+    }
+
+    /**
+     * Parses new query text and shows its results.
+     * @param {string} text Query text.
+     * @returns {void}
+     */
+    #runQuery(text) {
+      this.#query = SearchQuery.parse(text);
       this.render();
     }
 
     /**
-     * Shows the folder grid.
+     * Opens the clicked result's conversation in the active chat.
+     * @param {MouseEvent} event Click in the results body.
      * @returns {void}
      */
-    #renderFolderGrid() {
-      this.#openFolderId = null;
-      this.elements.breadcrumb.innerHTML = '<span>All folders</span>';
-      this.elements.folderGrid.hidden = false;
-      this.elements.fileTableContainer.hidden = true;
-      this.elements.folderGrid.innerHTML = this.#stats.aggregate.folders.map(FilesPanel.#folderHtml).join('') || emptyStateHtml('No files or attachments indexed yet.');
-    }
-
-    /**
-     * HTML of one folder tile.
-     * @param {FileFolder} folder The folder.
-     * @returns {string} The tile.
-     */
-    static #folderHtml(folder) {
-      const fileCount = folder.files.length;
-      return `
-        <div class="claude-plus-folder" data-conversation-id="${escapeHtml(folder.conversationId)}" title="${escapeHtml(folder.conversationTitle)}">
-          <div class="claude-plus-folder__icon">📁</div>
-          <div class="claude-plus-folder__title">${escapeHtml(folder.conversationTitle)}</div>
-          <div class="claude-plus-folder__file-count">${fileCount} file${fileCount === 1 ? '' : 's'}</div>
-        </div>`;
-    }
-
-    /**
-     * Shows a folder's files as a sorted table.
-     * @param {FileFolder} folder The folder.
-     * @returns {void}
-     */
-    #renderFileTable(folder) {
-      this.elements.breadcrumb.innerHTML = `<span class="claude-plus-breadcrumb__back-link" data-action="back">← All folders</span> / ${escapeHtml(folder.conversationTitle)}`;
-      this.elements.folderGrid.hidden = true;
-      this.elements.fileTableContainer.hidden = false;
-      this.elements.fileTableBody.innerHTML = this.#sortedFiles(folder.files).map(FilesPanel.#fileRowHtml).join('')
-        || '<tr><td colspan="4" class="claude-plus-empty-state">No files here.</td></tr>';
-    }
-
-    /**
-     * Files in the current sort order.
-     * @param {FileEntry[]} files The files.
-     * @returns {FileEntry[]} A sorted copy.
-     */
-    #sortedFiles(files) {
-      const sortValue = FilesPanel.#SORT_VALUE_BY_COLUMN[this.#sortOrder.column];
-      return [...files].sort((first, second) => compareAscending(sortValue(first), sortValue(second)) * this.#sortOrder.direction);
-    }
-
-    /**
-     * HTML of one table row.
-     * @param {FileEntry} file The file.
-     * @returns {string} The row.
-     */
-    static #fileRowHtml(file) {
-      return `
-        <tr>
-          <td>${escapeHtml(file.title || '(file)')}</td>
-          <td>${escapeHtml(file.extension)}</td>
-          <td>${escapeHtml(new Date(file.timestamp).toLocaleString())}</td>
-          <td>${file.source === 'user' ? 'User' : 'Claude'}</td>
-        </tr>`;
+    #onResultClick(event) {
+      const row = event.target.closest('[data-conversation-id]');
+      if (row) this.#router.openConversation(row.dataset.conversationId);
     }
   }
 
@@ -5094,8 +6611,8 @@
     }
 
     /**
-     * The default layout: the conversation list on the left, the chat panes tabbed in the middle,
-     * stats, web sources and files tabbed on the right.
+     * The default layout: the conversation list on the left, the chat panes tabbed in the middle
+     * above the composer, stats, web sources, files and search tabbed on the right.
      * @param {string[]} chatPaneIds Panel ids of the chat panes, at least one.
      * @returns {DockTree} A new tree.
      */
@@ -5104,10 +6621,36 @@
         type: 'split', direction: 'row', sizes: [0.18, 0.62, 0.2],
         children: [
           DockTree.#createLeaf(['conversations'], 'leaf-conversations'),
-          DockTree.#createLeaf(chatPaneIds, 'leaf-chat'),
-          DockTree.#createLeaf(['stats', 'webSources', 'files'], 'leaf-extras'),
+          {
+            type: 'split', direction: 'column', sizes: [0.8, 0.2],
+            children: [DockTree.#createLeaf(chatPaneIds, 'leaf-chat'), DockTree.#createLeaf(['composer'], 'leaf-composer')],
+          },
+          DockTree.#createLeaf(['stats', 'webSources', 'files', 'search'], 'leaf-extras'),
         ],
       });
+    }
+
+    /**
+     * Every panel id a stored layout mentions, without validating it.
+     * @param {*} storedNode Parsed stored layout or node.
+     * @returns {Set<string>} The ids; empty for anything that isn't a layout.
+     */
+    static collectPanelIds(storedNode) {
+      const panelIds = new Set();
+      DockTree.#collectPanelIdsInto(storedNode, panelIds);
+      return panelIds;
+    }
+
+    /**
+     * Adds the panel ids of a stored node and its descendants to a set.
+     * @param {*} storedNode Stored node.
+     * @param {Set<string>} panelIds Collected ids; modified in place.
+     * @returns {void}
+     */
+    static #collectPanelIdsInto(storedNode, panelIds) {
+      if (!storedNode || typeof storedNode !== 'object') return;
+      (Array.isArray(storedNode.tabs) ? storedNode.tabs : []).filter(tab => typeof tab === 'string').forEach(tab => panelIds.add(tab));
+      (Array.isArray(storedNode.children) ? storedNode.children : []).forEach(child => DockTree.#collectPanelIdsInto(child, panelIds));
     }
 
     /**
@@ -5707,6 +7250,24 @@
     #requiredPanelIds;
 
     /**
+     * Docks a required panel the layout lacks.
+     * @type {function(DockTree, string): void}
+     */
+    #placeMissingPanel;
+
+    /**
+     * Entries of the zones' "+" menu and what choosing one does.
+     * @type {{entries: function(): ChoiceOption[], onSelect: function(string, string): void}}
+     */
+    #addPanelMenuOptions;
+
+    /**
+     * Called after every layout with the ids of the visible panels.
+     * @type {function(Set<string>): void}
+     */
+    #onLayout;
+
+    /**
      * Creates the workspace from the stored layout, or the default one, and docks any required
      * panel the layout lacks.
      * @param {object} options Workspace options.
@@ -5714,12 +7275,18 @@
      * @param {Preferences} options.preferences Layout storage.
      * @param {function(): DockTree} options.createDefaultTree Creates the default layout.
      * @param {function(): string[]} options.requiredPanelIds Ids of the panels that must always be docked.
+     * @param {function(DockTree, string): void} options.placeMissingPanel Docks a required panel the layout lacks.
+     * @param {{entries: function(): ChoiceOption[], onSelect: function(string, string): void}} options.addPanelMenu Entries of the zones' "+" menu, and a callback receiving the chosen entry id and the zone id.
+     * @param {function(Set<string>): void} options.onLayout Called after every layout with the ids of the visible panels.
      */
-    constructor({ panels, preferences, createDefaultTree, requiredPanelIds }) {
+    constructor({ panels, preferences, createDefaultTree, requiredPanelIds, placeMissingPanel, addPanelMenu, onLayout }) {
       this.#panels = panels;
       this.#preferences = preferences;
       this.#createDefaultTree = createDefaultTree;
       this.#requiredPanelIds = requiredPanelIds;
+      this.#placeMissingPanel = placeMissingPanel;
+      this.#addPanelMenuOptions = addPanelMenu;
+      this.#onLayout = onLayout;
       this.#tree = DockTree.fromStored(preferences.readJson(STORAGE_KEYS.dockLayout), panels.keys()) ?? createDefaultTree();
       this.#dockMissingRequiredPanels();
     }
@@ -5820,12 +7387,75 @@
     }
 
     /**
-     * Adds every required panel missing from the layout as a tab of the first zone.
+     * Docks every required panel missing from the layout.
      * @returns {void}
      */
     #dockMissingRequiredPanels() {
       const missing = this.#requiredPanelIds().filter(panelId => !this.#tree.findLeafContaining(panelId));
-      missing.forEach(panelId => this.#tree.dockPanel(panelId, this.#tree.firstLeaf().id, 'center'));
+      missing.forEach(panelId => this.#placeMissingPanel(this.#tree, panelId));
+    }
+
+    /**
+     * Adds a panel as the active tab of a zone and saves the layout.
+     * @param {string} panelId Id of the new panel.
+     * @param {Panel} panel The panel.
+     * @param {string} leafId Zone id.
+     * @returns {void}
+     */
+    addPanelToZone(panelId, panel, leafId) {
+      this.#panels.set(panelId, panel);
+      this.#tree.dockPanel(panelId, leafId, 'center');
+      this.#layoutAndSave();
+    }
+
+    /**
+     * Makes a panel known without docking it; used before applying a layout that contains it.
+     * @param {string} panelId Panel id.
+     * @param {Panel} panel The panel.
+     * @returns {void}
+     */
+    registerPanel(panelId, panel) {
+      this.#panels.set(panelId, panel);
+    }
+
+    /**
+     * Whether a panel is known.
+     * @param {string} panelId Panel id.
+     * @returns {boolean} True when it exists, docked or not.
+     */
+    hasPanel(panelId) {
+      return this.#panels.has(panelId);
+    }
+
+    /**
+     * A copy of the current arrangement.
+     * @returns {DockNode} The layout tree, detached from the live one.
+     */
+    layoutSnapshot() {
+      return JSON.parse(JSON.stringify(this.#tree));
+    }
+
+    /**
+     * Applies a stored arrangement: panels it doesn't mention are closed, required panels it lacks
+     * are docked, and the result is laid out and saved. Unusable arrangements fall back to the default.
+     * @param {*} storedTree Stored layout tree.
+     * @returns {void}
+     */
+    replaceLayout(storedTree) {
+      this.#tree = DockTree.fromStored(storedTree, this.#panels.keys()) ?? this.#createDefaultTree();
+      this.#dockMissingRequiredPanels();
+      [...this.#panels].filter(([panelId, panel]) => !this.#tree.findLeafContaining(panelId) && panel.canClose()).forEach(([, panel]) => panel.close());
+      this.#layoutAndSave();
+    }
+
+    /**
+     * The first docked panel satisfying a predicate.
+     * @param {function(Panel): boolean} predicate Test for each panel.
+     * @returns {?{panelId: string, panel: Panel}} The panel and its id, or null.
+     */
+    findDockedPanel(predicate) {
+      const entry = [...this.#panels].find(([panelId, panel]) => this.#tree.findLeafContaining(panelId) && predicate(panel));
+      return entry ? { panelId: entry[0], panel: entry[1] } : null;
     }
 
     /**
@@ -5840,7 +7470,8 @@
     }
 
     /**
-     * Redraws zone frames, tab strips and dividers and positions the visible panels; other panels are hidden.
+     * Redraws zone frames, tab strips and dividers and positions the visible panels; other panels
+     * are hidden. Reports the visible panels through the onLayout callback.
      * @returns {void}
      */
     layout() {
@@ -5849,8 +7480,10 @@
       this.#zoneChromeLayer.replaceChildren();
       this.#dividerLayer.replaceChildren();
       leaves.forEach(placement => this.#renderZone(placement));
-      this.#hidePanelsExcept(new Set(leaves.map(placement => placement.leaf.activeTab)));
+      const visiblePanelIds = new Set(leaves.map(placement => placement.leaf.activeTab));
+      this.#hidePanelsExcept(visiblePanelIds);
       dividers.forEach(placement => this.#renderDivider(placement));
+      this.#onLayout(visiblePanelIds);
     }
 
     /**
@@ -5989,7 +7622,7 @@
      * @returns {HTMLElement} The button.
      */
     #createAddPanelButton(leafId) {
-      const button = createElement('div', { className: 'claude-plus-tab-strip__add-button', textContent: '+', title: 'Add panel to this zone' });
+      const button = createElement('div', { className: 'claude-plus-tab-strip__add-button', textContent: '+', title: 'Add a chat or panel to this zone' });
       button.addEventListener('click', event => this.#showAddPanelMenu(event, leafId));
       return button;
     }
@@ -6209,38 +7842,23 @@
     }
 
     /**
-     * Opens a menu of the panels not currently docked; selecting one adds it as a tab of the zone.
+     * Opens a zone's "+" menu: adding a chat or a new instance of a view panel as a tab of the zone.
      * @param {MouseEvent} event Click on the zone's "+" button.
      * @param {string} leafId Zone id.
      * @returns {void}
      */
     #showAddPanelMenu(event, leafId) {
-      const entries = [...this.#panels.keys()]
-        .filter(panelId => !this.#tree.findLeafContaining(panelId))
-        .map(panelId => ({ id: panelId, label: this.#panelTitle(panelId) }));
-      if (entries.length === 0) return;
       this.#addPanelMenu.open({
         left: event.clientX,
         top: event.clientY,
-        entries,
-        onSelect: panelId => this.#addPanelToZone(panelId, leafId),
+        entries: this.#addPanelMenuOptions.entries(),
+        onSelect: entryId => this.#addPanelMenuOptions.onSelect(entryId, leafId),
       });
-    }
-
-    /**
-     * Adds a panel as a tab of a zone and saves the layout.
-     * @param {string} panelId Panel id.
-     * @param {string} leafId Zone id.
-     * @returns {void}
-     */
-    #addPanelToZone(panelId, leafId) {
-      this.#tree.dockPanel(panelId, leafId, 'center');
-      this.#layoutAndSave();
     }
   }
 
   /**
-   * Global keyboard shortcuts. Cmd+K (Ctrl+K elsewhere) reveals the conversation list and focuses
+   * Global keyboard shortcuts. Cmd+K (Ctrl+K elsewhere) reveals a conversation list and focuses
    * its search. Shortcuts are handled in the capture phase and stopped there, so claude.ai's own
    * hidden app never reacts to them.
    */
@@ -6252,19 +7870,11 @@
     #workspace;
 
     /**
-     * Panel whose search box the search shortcut focuses.
-     * @type {ConversationListPanel}
-     */
-    #conversationListPanel;
-
-    /**
      * Creates the shortcuts.
-     * @param {DockWorkspace} workspace Workspace used to reveal panels.
-     * @param {ConversationListPanel} conversationListPanel Panel whose search box the search shortcut focuses.
+     * @param {DockWorkspace} workspace Workspace used to find and reveal panels.
      */
-    constructor(workspace, conversationListPanel) {
+    constructor(workspace) {
       this.#workspace = workspace;
-      this.#conversationListPanel = conversationListPanel;
     }
 
     /**
@@ -6297,11 +7907,12 @@
     }
 
     /**
-     * Shows the conversation list and focuses its search box; does nothing when the list isn't docked.
+     * Shows the first docked conversation list and focuses its search box; does nothing when none is docked.
      * @returns {void}
      */
     #focusConversationSearch() {
-      if (this.#workspace.revealPanel('conversations')) this.#conversationListPanel.focusSearch();
+      const docked = this.#workspace.findDockedPanel(panel => panel instanceof ConversationListPanel);
+      if (docked && this.#workspace.revealPanel(docked.panelId)) docked.panel.focusSearch();
     }
   }
 
@@ -6650,7 +8261,306 @@
   }
 
   /**
-   * Top bar with the title, the message font size slider, new chat panes, chat export and layout reset.
+   * Creates view panels (chats list, stats, sources, files, search). Any number of instances of a
+   * type can exist; they are independent views of the same shared data. Instance ids are the type
+   * ("stats") for the first instance and "type#uuid" for added ones, so instances stored in a layout
+   * can be recreated on the next visit.
+   */
+  class PanelFactory {
+    /**
+     * Menu label and constructor per view panel type, in menu order.
+     * @type {Map<string, {label: string, create: function(object): Panel}>}
+     */
+    static #VIEW_TYPES = new Map([
+      ['conversations', { label: 'Chats-list', create: services => new ConversationListPanel(services) }],
+      ['stats', { label: 'Stats', create: services => new StatsPanel(services.stats, services.activity, services.rateLimits) }],
+      ['webSources', { label: 'Sources', create: services => new WebSourcesPanel(services) }],
+      ['files', { label: 'Files', create: services => new FilesPanel(services) }],
+      ['search', { label: 'Search', create: services => new SearchPanel(services) }],
+    ]);
+
+    /**
+     * Services passed to the panel constructors.
+     * @type {object}
+     */
+    #services;
+
+    /**
+     * Workspace the panels live in; set by attachWorkspace.
+     * @type {?DockWorkspace}
+     */
+    #workspace = null;
+
+    /**
+     * Creates the factory.
+     * @param {object} services Services passed to the panel constructors.
+     * @param {ConversationDirectory} services.directory Shared conversation list.
+     * @param {Router} services.router Navigation.
+     * @param {ChatPaneManager} services.paneManager Chat panes.
+     * @param {StatsIndex} services.stats Conversation statistics.
+     * @param {ActivityTracker} services.activity Active-time tracking.
+     * @param {RateLimitMonitor} services.rateLimits Usage windows.
+     * @param {Preferences} services.preferences Settings storage.
+     */
+    constructor(services) {
+      this.#services = services;
+    }
+
+    /**
+     * Ids of the default instance of every view type.
+     * @returns {string[]} The ids.
+     */
+    static get defaultPanelIds() {
+      return [...PanelFactory.#VIEW_TYPES.keys()];
+    }
+
+    /**
+     * Connects the workspace, which removes panels when they are closed.
+     * @param {DockWorkspace} workspace The workspace.
+     * @returns {void}
+     */
+    attachWorkspace(workspace) {
+      this.#workspace = workspace;
+    }
+
+    /**
+     * Whether an id belongs to a view panel instance.
+     * @param {string} panelId Panel id.
+     * @returns {boolean} True when its type is a view type.
+     */
+    isViewPanelId(panelId) {
+      return PanelFactory.#VIEW_TYPES.has(PanelFactory.#typeOf(panelId));
+    }
+
+    /**
+     * Creates the view panel with an id; closing it removes it from the workspace.
+     * @param {string} panelId Panel id of a view type.
+     * @returns {Panel} The panel.
+     */
+    create(panelId) {
+      const panel = PanelFactory.#VIEW_TYPES.get(PanelFactory.#typeOf(panelId)).create(this.#services);
+      panel.setCloseHandler(() => this.#workspace.removePanel(panelId));
+      return panel;
+    }
+
+    /**
+     * Creates a new instance of a view type with a new id.
+     * @param {string} type View type.
+     * @returns {{panelId: string, panel: Panel}} The id and the panel.
+     */
+    createInstance(type) {
+      const panelId = `${type}#${crypto.randomUUID()}`;
+      return { panelId, panel: this.create(panelId) };
+    }
+
+    /**
+     * Entries of a zone's "+" menu.
+     * @returns {ChoiceOption[]} "Add chat", then one "Add … panel" entry per view type.
+     */
+    addMenuEntries() {
+      return [{ id: 'chat', label: 'Add chat' }, ...[...PanelFactory.#VIEW_TYPES].map(([type, definition]) => ({ id: type, label: `Add ${definition.label} panel` }))];
+    }
+
+    /**
+     * Type part of a panel id.
+     * @param {string} panelId Panel id.
+     * @returns {string} Everything before the first "#".
+     */
+    static #typeOf(panelId) {
+      return String(panelId).split('#')[0];
+    }
+  }
+
+  /**
+   * Named layouts: saves the current dock arrangement together with each chat pane's conversation,
+   * and restores a saved one, recreating the panels it needs.
+   */
+  class LayoutLibrary {
+    /**
+     * Storage of the saved layouts.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * The workspace.
+     * @type {DockWorkspace}
+     */
+    #workspace;
+
+    /**
+     * Chat panes.
+     * @type {ChatPaneManager}
+     */
+    #paneManager;
+
+    /**
+     * Creates view panels a layout needs.
+     * @type {PanelFactory}
+     */
+    #panelFactory;
+
+    /**
+     * Creates the library.
+     * @param {object} services Library dependencies.
+     * @param {Preferences} services.preferences Storage of the saved layouts.
+     * @param {DockWorkspace} services.workspace The workspace.
+     * @param {ChatPaneManager} services.paneManager Chat panes.
+     * @param {PanelFactory} services.panelFactory Creates view panels a layout needs.
+     */
+    constructor({ preferences, workspace, paneManager, panelFactory }) {
+      this.#preferences = preferences;
+      this.#workspace = workspace;
+      this.#paneManager = paneManager;
+      this.#panelFactory = panelFactory;
+    }
+
+    /**
+     * Names of the saved layouts.
+     * @returns {string[]} The names, sorted.
+     */
+    names() {
+      return Object.keys(this.#readAll()).sort((first, second) => first.localeCompare(second));
+    }
+
+    /**
+     * Saves the current arrangement under a name, replacing a layout of the same name.
+     * @param {string} name Layout name.
+     * @returns {void}
+     */
+    save(name) {
+      const layouts = this.#readAll();
+      layouts[name] = { tree: this.#workspace.layoutSnapshot(), chatPanes: this.#paneManager.storedPanes() };
+      this.#preferences.writeJson(STORAGE_KEYS.savedLayouts, layouts);
+    }
+
+    /**
+     * Restores a saved layout: creates the panels it references that don't exist, applies its
+     * arrangement and closes the panels it doesn't contain. Unknown names are ignored.
+     * @param {string} name Layout name.
+     * @returns {void}
+     */
+    load(name) {
+      const layout = this.#readAll()[name];
+      if (!layout) return;
+      const conversationByPane = new Map((Array.isArray(layout.chatPanes) ? layout.chatPanes : []).map(pane => [pane.paneId, pane.conversationId]));
+      DockTree.collectPanelIds(layout.tree).forEach(panelId => this.#ensurePanel(panelId, conversationByPane.get(panelId) ?? null));
+      this.#workspace.replaceLayout(layout.tree);
+    }
+
+    /**
+     * Deletes a saved layout.
+     * @param {string} name Layout name.
+     * @returns {void}
+     */
+    remove(name) {
+      const layouts = this.#readAll();
+      delete layouts[name];
+      this.#preferences.writeJson(STORAGE_KEYS.savedLayouts, layouts);
+    }
+
+    /**
+     * Creates a panel referenced by a layout if it doesn't exist yet; unknown ids are ignored.
+     * @param {string} panelId Panel id from the layout.
+     * @param {?string} conversationId Conversation of a chat pane, or null.
+     * @returns {void}
+     */
+    #ensurePanel(panelId, conversationId) {
+      if (this.#workspace.hasPanel(panelId)) return;
+      if (ChatPaneManager.isPaneId(panelId)) this.#workspace.registerPanel(panelId, this.#paneManager.createPaneForLayout(panelId, conversationId));
+      else if (this.#panelFactory.isViewPanelId(panelId)) this.#workspace.registerPanel(panelId, this.#panelFactory.create(panelId));
+    }
+
+    /**
+     * The saved layouts.
+     * @returns {Object<string, {tree: DockNode, chatPanes: Array<{paneId: string, conversationId: ?string}>}>} Layouts by name; empty when nothing valid is stored.
+     */
+    #readAll() {
+      const stored = this.#preferences.readJson(STORAGE_KEYS.savedLayouts);
+      return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+    }
+  }
+
+  /**
+   * Exports all ClaudePlus settings (every localStorage entry of the script: preferences, panes,
+   * layouts, table columns) to a JSON file and imports them back. The indexed conversation cache is
+   * not included; it can be rebuilt with "Index full history".
+   */
+  class SettingsTransfer {
+    /**
+     * Format marker of exported files.
+     * @type {string}
+     */
+    static #FORMAT = 'ClaudePlus settings';
+
+    /**
+     * Settings storage.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * Creates the transfer.
+     * @param {Preferences} preferences Settings storage.
+     */
+    constructor(preferences) {
+      this.#preferences = preferences;
+    }
+
+    /**
+     * Downloads every setting as "ClaudePlus settings <date>.json".
+     * @returns {void}
+     */
+    exportSettings() {
+      const exportedAt = new Date().toISOString();
+      const document = { format: SettingsTransfer.#FORMAT, exportedAt, settings: this.#preferences.entriesWithPrefix(STORAGE_KEY_PREFIX) };
+      downloadTextFile(`ClaudePlus settings ${exportedAt.slice(0, 10)}.json`, `${JSON.stringify(document, null, 2)}\n`, 'application/json');
+    }
+
+    /**
+     * Lets the user pick an exported file and imports it.
+     * @returns {void}
+     */
+    chooseFileAndImport() {
+      const input = createElement('input', { type: 'file', accept: 'application/json,.json' });
+      input.addEventListener('change', () => this.#importFile(input.files[0]));
+      input.click();
+    }
+
+    /**
+     * Reads an exported file, asks for confirmation, replaces all settings and reloads the page.
+     * Invalid files are reported in a dialog and change nothing.
+     * @param {?File} file The chosen file.
+     * @returns {Promise<void>} Resolves once imported, declined or failed.
+     */
+    async #importFile(file) {
+      if (!file) return;
+      try {
+        const settings = SettingsTransfer.#parseSettings(await file.text());
+        if (!(await confirmDialog('Replace all ClaudePlus settings with the imported ones? The page reloads afterwards.', 'Import'))) return;
+        this.#preferences.replaceEntriesWithPrefix(STORAGE_KEY_PREFIX, settings);
+        location.reload();
+      } catch (error) {
+        await alertDialog(`Import failed: ${error.message}`);
+      }
+    }
+
+    /**
+     * Validates an exported file and extracts its settings.
+     * @param {string} text File content.
+     * @returns {Object<string, string>} Settings by storage key; only ClaudePlus keys with string values.
+     * @throws {Error} When the content isn't a ClaudePlus settings file.
+     */
+    static #parseSettings(text) {
+      const parsed = JSON.parse(text);
+      if (!parsed || parsed.format !== SettingsTransfer.#FORMAT || !parsed.settings || typeof parsed.settings !== 'object') throw new Error('this is not a ClaudePlus settings file');
+      return Object.fromEntries(Object.entries(parsed.settings).filter(([key, value]) => key.startsWith(STORAGE_KEY_PREFIX) && typeof value === 'string'));
+    }
+  }
+
+  /**
+   * Top bar with the title, the message font size slider, the layout menu, the settings menu and
+   * layout reset.
    */
   class Toolbar {
     /**
@@ -6672,42 +8582,42 @@
     #workspace;
 
     /**
+     * Saved layouts.
+     * @type {LayoutLibrary}
+     */
+    #layoutLibrary;
+
+    /**
+     * Settings export and import.
+     * @type {SettingsTransfer}
+     */
+    #settingsTransfer;
+
+    /**
+     * The layout and settings menus.
+     * @type {PopupMenu}
+     */
+    #menu = new PopupMenu();
+
+    /**
      * Message font size in pixels.
      * @type {number}
      */
     #messageFontSize;
 
     /**
-     * Chat panes, for opening panes and enabling the export button.
-     * @type {ChatPaneManager}
-     */
-    #paneManager;
-
-    /**
-     * Exports the focused pane's conversation.
-     * @type {ConversationExporter}
-     */
-    #exporter;
-
-    /**
-     * Menu listing the export formats.
-     * @type {PopupMenu}
-     */
-    #exportMenu = new PopupMenu();
-
-    /**
      * Creates the toolbar with the stored font size, limited to the allowed range.
      * @param {object} services Toolbar dependencies.
      * @param {Preferences} services.preferences Font size storage.
      * @param {DockWorkspace} services.workspace Workspace to reset.
-     * @param {ChatPaneManager} services.paneManager Chat panes, for opening panes and enabling the export button.
-     * @param {ConversationExporter} services.exporter Exports the focused pane's conversation.
+     * @param {LayoutLibrary} services.layoutLibrary Saved layouts.
+     * @param {SettingsTransfer} services.settingsTransfer Settings export and import.
      */
-    constructor({ preferences, workspace, paneManager, exporter }) {
+    constructor({ preferences, workspace, layoutLibrary, settingsTransfer }) {
       this.#preferences = preferences;
       this.#workspace = workspace;
-      this.#paneManager = paneManager;
-      this.#exporter = exporter;
+      this.#layoutLibrary = layoutLibrary;
+      this.#settingsTransfer = settingsTransfer;
       const storedSize = Number.parseFloat(preferences.read(STORAGE_KEYS.messageFontSize));
       const { minimum, maximum, fallback } = Toolbar.#FONT_SIZE;
       this.#messageFontSize = Number.isFinite(storedSize) ? clamp(storedSize, minimum, maximum) : fallback;
@@ -6729,53 +8639,85 @@
             <span data-name="fontSizeLabel"></span>
           </label>
           <div class="claude-plus-fill-remaining"></div>
-          <button class="claude-plus-toolbar__button" data-name="newPaneButton" title="Open another chat next to the focused one">+ Chat pane</button>
-          <button class="claude-plus-toolbar__button" data-name="exportButton">Export chat ▾</button>
+          <button class="claude-plus-toolbar__button" data-name="layoutsButton">Layouts ▾</button>
+          <button class="claude-plus-toolbar__button" data-name="settingsButton">Settings ▾</button>
           <button class="claude-plus-toolbar__button" data-name="resetLayoutButton">Reset layout</button>`,
       });
       const elements = collectNamedElements(toolbar);
       elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
+      elements.layoutsButton.addEventListener('click', () => this.#showLayoutsMenu(elements.layoutsButton));
+      elements.settingsButton.addEventListener('click', () => this.#showSettingsMenu(elements.settingsButton));
       elements.resetLayoutButton.addEventListener('click', () => this.#workspace.resetLayout());
-      elements.newPaneButton.addEventListener('click', () => this.#paneManager.openPane(null));
-      this.#bindExportButton(elements.exportButton);
       this.#applyFontSize(elements.fontSizeLabel);
       document.body.append(toolbar);
     }
 
     /**
-     * Opens the format menu on click and keeps the button's enabled state current.
-     * @param {HTMLButtonElement} exportButton The export button.
+     * Opens the layout menu: save, then load and delete entries per saved layout.
+     * @param {HTMLElement} button The layouts button.
      * @returns {void}
      */
-    #bindExportButton(exportButton) {
-      exportButton.addEventListener('click', () => this.#showExportMenu(exportButton));
-      this.#paneManager.subscribe('focus', () => this.#updateExportButton(exportButton));
-      this.#paneManager.subscribe('paneConversations', () => this.#updateExportButton(exportButton));
-      this.#updateExportButton(exportButton);
+    #showLayoutsMenu(button) {
+      const names = this.#layoutLibrary.names();
+      this.#openMenuBelow(button, [
+        { id: 'save:', label: 'Save current layout…' },
+        ...names.map(name => ({ id: `load:${name}`, label: `Load "${name}"` })),
+        ...names.map(name => ({ id: `delete:${name}`, label: `Delete "${name}"` })),
+      ], entryId => this.#onLayoutsMenuSelect(entryId));
     }
 
     /**
-     * Enables the export button only while the focused pane shows a saved conversation.
-     * @param {HTMLButtonElement} exportButton The export button.
+     * Runs a layout menu entry.
+     * @param {string} entryId "save:", "load:<name>" or "delete:<name>".
      * @returns {void}
      */
-    #updateExportButton(exportButton) {
-      exportButton.disabled = !this.#paneManager.focusedSession.openConversationId;
+    #onLayoutsMenuSelect(entryId) {
+      const separator = entryId.indexOf(':');
+      const action = entryId.slice(0, separator);
+      const name = entryId.slice(separator + 1);
+      const actions = {
+        save: () => this.#askNameAndSave(),
+        load: () => this.#layoutLibrary.load(name),
+        delete: () => this.#layoutLibrary.remove(name),
+      };
+      actions[action]();
     }
 
     /**
-     * Opens the format menu below the export button.
-     * @param {HTMLButtonElement} exportButton The export button.
+     * Asks for a layout name and saves the current layout under it; a blank name cancels.
+     * @returns {Promise<void>} Resolves once saved or cancelled.
+     */
+    async #askNameAndSave() {
+      const name = await promptDialog('Name of this layout:', '', 'Save');
+      if (name && name.trim()) this.#layoutLibrary.save(name.trim());
+    }
+
+    /**
+     * Opens the settings menu: export and import.
+     * @param {HTMLElement} button The settings button.
      * @returns {void}
      */
-    #showExportMenu(exportButton) {
-      const buttonBounds = exportButton.getBoundingClientRect();
-      this.#exportMenu.open({
-        left: buttonBounds.left,
-        top: buttonBounds.bottom + 4,
-        entries: [...ConversationExporter.FORMATS].map(([formatId, format]) => ({ id: formatId, label: format.label })),
-        onSelect: formatId => this.#exporter.exportOpenConversation(formatId),
-      });
+    #showSettingsMenu(button) {
+      const actions = {
+        export: () => this.#settingsTransfer.exportSettings(),
+        import: () => this.#settingsTransfer.chooseFileAndImport(),
+      };
+      this.#openMenuBelow(button, [
+        { id: 'export', label: 'Export settings (JSON)' },
+        { id: 'import', label: 'Import settings…' },
+      ], entryId => actions[entryId]());
+    }
+
+    /**
+     * Opens the toolbar menu below a button.
+     * @param {HTMLElement} button The button.
+     * @param {ChoiceOption[]} entries Menu entries.
+     * @param {function(string): void} onSelect Called with the chosen entry's id.
+     * @returns {void}
+     */
+    #openMenuBelow(button, entries, onSelect) {
+      const bounds = button.getBoundingClientRect();
+      this.#menu.open({ left: bounds.left, top: bounds.bottom + 4, entries, onSelect });
     }
 
     /**
@@ -6830,6 +8772,7 @@
       --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);
       --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);
       --claude-plus-color-error: #e57373;
+      --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);
       --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);
       --claude-plus-color-border: rgba(255, 255, 255, 0.08);
       --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);
@@ -6843,7 +8786,7 @@
       --claude-plus-layer-drop-highlight: 2147483646;
       --claude-plus-layer-drag-label: 2147483647;
     }
-    .claude-plus-themed { font-family: var(--claude-plus-font-family); color: var(--claude-plus-color-text); }
+    .claude-plus-themed { font-family: var(--claude-plus-font-family); color: var(--claude-plus-color-text); color-scheme: dark; }
     .claude-plus-themed [hidden], .claude-plus-themed[hidden], .claude-plus-drop-highlight[hidden] { display: none !important; }
     html.claude-plus-resizing-horizontally, html.claude-plus-resizing-horizontally * { cursor: col-resize !important; user-select: none; }
     html.claude-plus-resizing-vertically, html.claude-plus-resizing-vertically * { cursor: row-resize !important; user-select: none; }
@@ -6881,12 +8824,13 @@
     .claude-plus-dialog-overlay { position: fixed; inset: 0; z-index: var(--claude-plus-layer-drag-label); background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; }
     .claude-plus-dialog { background: var(--claude-plus-color-raised); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 8px; padding: 16px; max-width: 360px; font-size: 13px; }
     .claude-plus-dialog__message { margin: 0 0 14px; line-height: 1.4; }
+    .claude-plus-dialog__input { width: 100%; box-sizing: border-box; margin: 0 0 14px; padding: 6px 8px; background: var(--claude-plus-color-bar); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; color: var(--claude-plus-color-text); font: inherit; }
     .claude-plus-dialog__actions { display: flex; justify-content: flex-end; gap: 8px; }
 
     .claude-plus-panel { position: fixed; z-index: var(--claude-plus-layer-panel); box-sizing: border-box; padding: 10px 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; font-size: 13px; background: var(--claude-plus-color-background); }
     .claude-plus-panel summary { cursor: pointer; padding: 4px 0; }
-    .claude-plus-panel--focused { box-shadow: inset 0 2px 0 var(--claude-plus-color-accent); }
-    .claude-plus-panel select, .claude-plus-panel input[type=text], .claude-plus-panel textarea { background: var(--claude-plus-color-bar); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; color: var(--claude-plus-color-text); font-size: 12px; font-family: inherit; }
+    .claude-plus-panel--active-among-several { box-shadow: inset 0 0 0 1px var(--claude-plus-color-active-chat); }
+    .claude-plus-panel select, .claude-plus-panel input[type=text], .claude-plus-panel input[type=date], .claude-plus-panel textarea { background: var(--claude-plus-color-bar); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; color: var(--claude-plus-color-text); font-size: 12px; font-family: inherit; }
     .claude-plus-panel__section { padding: 8px 0; border-bottom: 1px solid var(--claude-plus-color-hover); flex-shrink: 0; }
     .claude-plus-panel__section:last-child { border-bottom: none; }
     .claude-plus-value-row { display: flex; justify-content: space-between; padding: 2px 0; gap: 8px; }
@@ -6903,20 +8847,14 @@
     .claude-plus-full-width { width: 100%; }
 
     .claude-plus-search-input { flex-shrink: 0; padding: 6px 8px; }
-    .claude-plus-conversation-list-toolbar { display: flex; gap: 6px; flex-shrink: 0; }
-    .claude-plus-conversation-list-toolbar select { flex: 1; min-width: 0; padding: 4px 6px; }
-    .claude-plus-conversation-list-toolbar .claude-plus-toolbar__button { flex-shrink: 0; padding: 4px 8px; }
-    .claude-plus-column-toggles { display: flex; flex-wrap: wrap; gap: 2px 10px; flex-shrink: 0; font-size: 11px; color: var(--claude-plus-color-text-muted); }
-    .claude-plus-column-toggle { display: flex; align-items: center; gap: 4px; cursor: pointer; }
-    .claude-plus-conversation { padding: 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
-    .claude-plus-conversation:hover { background: var(--claude-plus-color-hover); }
     .claude-plus-conversation:hover .claude-plus-conversation__action-button { visibility: visible; }
-    .claude-plus-conversation--active { background: var(--claude-plus-color-accent-soft); }
-    .claude-plus-conversation--open-elsewhere { box-shadow: inset 2px 0 0 var(--claude-plus-color-accent); }
-    .claude-plus-conversation__summary { flex: 1; min-width: 0; }
-    .claude-plus-conversation__title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .claude-plus-conversation__badges { display: flex; flex-wrap: wrap; gap: 2px 8px; margin-top: 2px; }
-    .claude-plus-conversation__badge { font-size: 11px; color: var(--claude-plus-color-text-faint); }
+    .claude-plus-conversation { cursor: pointer; }
+    .claude-plus-conversation:hover > td { background: var(--claude-plus-color-hover); }
+    .claude-plus-conversation--active > td { background: var(--claude-plus-color-accent-soft); }
+    .claude-plus-conversation--open-elsewhere > td:first-child { box-shadow: inset 2px 0 0 var(--claude-plus-color-accent); }
+    .claude-plus-conversation__actions { display: inline-flex; white-space: nowrap; }
+    .claude-plus-search-result, .claude-plus-folder { cursor: pointer; }
+    .claude-plus-search-result:hover > td, .claude-plus-folder:hover > td { background: var(--claude-plus-color-hover); }
     .claude-plus-conversation__action-button { visibility: hidden; background: none; border: none; cursor: pointer; font-size: 12px; padding: 4px; border-radius: 4px; flex-shrink: 0; }
     .claude-plus-conversation__action-button:hover { background: rgba(255, 255, 255, 0.1); }
 
@@ -6939,32 +8877,48 @@
     .claude-plus-streaming-cursor { animation: claude-plus-blink 1s step-start infinite; }
     @keyframes claude-plus-blink { 50% { opacity: 0; } }
 
-    .claude-plus-composer { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; padding-top: 8px; border-top: 1px solid var(--claude-plus-color-border); }
     .claude-plus-composer__options { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex-shrink: 0; }
     .claude-plus-composer__options select { padding: 4px 6px; }
     .claude-plus-composer__thinking-toggle { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--claude-plus-color-text-muted); cursor: pointer; }
-    .claude-plus-panel .claude-plus-composer__input { resize: vertical; min-height: 60px; border-radius: 8px; padding: 8px; font-size: 14px; }
-    .claude-plus-composer__send-button--stop { background: var(--claude-plus-color-button-hover); }
+    .claude-plus-panel .claude-plus-composer__input { flex: 1; resize: none; min-height: 40px; border-radius: 8px; padding: 8px; font-size: 14px; }
 
-    .claude-plus-source-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; flex-shrink: 0; }
-    .claude-plus-source-filters select, .claude-plus-source-filters input[type=text] { flex: 1; min-width: 100px; padding: 5px 6px; }
-    .claude-plus-source { padding: 6px 0; border-top: 1px solid var(--claude-plus-color-border-faint); }
-    .claude-plus-source:first-child { border-top: none; }
-    .claude-plus-source a { color: var(--claude-plus-color-accent); text-decoration: none; }
-    .claude-plus-source a:hover { text-decoration: underline; }
-    .claude-plus-source__details { color: var(--claude-plus-color-text-faint); font-size: 11px; margin-top: 2px; }
 
-    .claude-plus-folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; align-content: start; }
-    .claude-plus-folder { display: flex; flex-direction: column; align-items: center; text-align: center; cursor: pointer; padding: 8px 4px; border-radius: 8px; }
-    .claude-plus-folder:hover { background: var(--claude-plus-color-hover); }
-    .claude-plus-folder__icon { font-size: 28px; }
-    .claude-plus-folder__title { font-size: 11px; margin-top: 4px; overflow-wrap: anywhere; }
-    .claude-plus-folder__file-count { font-size: 10px; color: var(--claude-plus-color-text-faint); }
+    .claude-plus-table-host { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; }
+    .claude-plus-column-table__column-picker { flex-shrink: 0; font-size: 11px; color: var(--claude-plus-color-text-muted); }
+    .claude-plus-column-table__column-picker summary { padding: 0; }
+    .claude-plus-column-table__column-toggle { display: inline-flex; align-items: center; gap: 4px; margin: 2px 10px 2px 0; cursor: pointer; }
+    .claude-plus-column-table__table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .claude-plus-column-table__table th { text-align: left; padding: 4px 6px; color: var(--claude-plus-color-text-muted); background: var(--claude-plus-color-raised); position: sticky; z-index: 1; white-space: nowrap; font-weight: 600; }
+    .claude-plus-column-table__table thead tr:first-child th { top: 0; }
+    .claude-plus-column-table__filter-row th { top: 24px; padding-top: 0; border-bottom: 1px solid var(--claude-plus-color-border-strong); font-weight: normal; }
+    .claude-plus-column-table__sortable { cursor: pointer; user-select: none; }
+    .claude-plus-column-table__sortable:hover { color: var(--claude-plus-color-text); }
+    .claude-plus-panel .claude-plus-column-table__filter-input { display: block; width: 100%; min-width: 40px; box-sizing: border-box; padding: 2px 4px; font-size: 11px; }
+    .claude-plus-panel input[type=date].claude-plus-column-table__filter-input { min-width: 0; max-width: 112px; padding: 1px 2px; font-size: 10px; }
+    .claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] { margin-top: 2px; }
+    .claude-plus-column-table__cell { padding: 4px 6px; border-bottom: 1px solid var(--claude-plus-color-border-faint); vertical-align: top; }
+    .claude-plus-column-table__cell--name, .claude-plus-column-table__cell--title, .claude-plus-column-table__cell--match { width: 100%; max-width: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .claude-plus-column-table__cell a { color: var(--claude-plus-color-accent); text-decoration: none; }
+    .claude-plus-column-table__cell a:hover { text-decoration: underline; }
+    .claude-plus-value-combobox { position: fixed; z-index: var(--claude-plus-layer-popup-menu); max-height: 240px; overflow-y: auto; background: var(--claude-plus-color-raised); border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; padding: 4px; font-size: 12px; }
+    .claude-plus-value-combobox__entry { padding: 4px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+    .claude-plus-value-combobox__entry:hover { background: var(--claude-plus-color-raised-hover); }
+
+    .claude-plus-chat-layout { display: flex; gap: 8px; flex: 1; min-height: 0; }
+    .claude-plus-chat-layout__center { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+    .claude-plus-chat-layout__side { display: flex; flex-direction: column; gap: 8px; width: 300px; flex-shrink: 0; min-height: 0; }
+    .claude-plus-chat-layout__top { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+    .claude-plus-chat-layout__side:empty, .claude-plus-chat-layout__top:empty { display: none; }
+    .claude-plus-subpane { display: flex; flex-direction: column; gap: 4px; min-height: 0; flex: 1; padding: 6px; border: 1px solid var(--claude-plus-color-border-strong); border-radius: 6px; background: var(--claude-plus-color-bar); }
+    .claude-plus-chat-layout__top .claude-plus-subpane { height: 200px; flex: none; }
+    .claude-plus-subpane__header { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+    .claude-plus-subpane__title { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .claude-plus-subpane__button { background: none; border: none; color: var(--claude-plus-color-text-faint); cursor: pointer; padding: 2px 5px; border-radius: 4px; }
+    .claude-plus-subpane__button:hover { background: var(--claude-plus-color-hover); color: var(--claude-plus-color-text); }
+    .claude-plus-composer__stop-button { flex-shrink: 0; background: var(--claude-plus-color-button-hover); }
+
     .claude-plus-breadcrumb { font-size: 12px; color: var(--claude-plus-color-text-muted); margin-bottom: 6px; flex-shrink: 0; }
     .claude-plus-breadcrumb__back-link { color: var(--claude-plus-color-accent); cursor: pointer; }
-    .claude-plus-file-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .claude-plus-file-table th { text-align: left; cursor: pointer; padding: 4px 6px; color: var(--claude-plus-color-text-muted); border-bottom: 1px solid var(--claude-plus-color-border-strong); position: sticky; top: 0; background: var(--claude-plus-color-raised); }
-    .claude-plus-file-table td { padding: 4px 6px; border-bottom: 1px solid var(--claude-plus-color-border-faint); }
   `;
 
   /**
@@ -6980,29 +8934,6 @@
       for (const [storeKey, storeName] of Object.entries(DATABASE.stores)) {
         if (!database.objectStoreNames.contains(storeName)) database.createObjectStore(storeName, { keyPath: DATABASE.keyPaths[storeKey] });
       }
-    }
-
-    /**
-     * Creates every panel, keyed by panel id: the conversation list, one panel per chat pane and
-     * the stats, web sources and files panels.
-     * @param {object} services Shared services.
-     * @param {ConversationDirectory} services.directory Shared conversation list.
-     * @param {Router} services.router Navigation.
-     * @param {ChatPaneManager} services.paneManager Chat panes.
-     * @param {StatsIndex} services.stats Conversation statistics.
-     * @param {ActivityTracker} services.activity Active-time tracking.
-     * @param {RateLimitMonitor} services.rateLimits Usage windows.
-     * @param {Preferences} services.preferences Column and sort preference storage.
-     * @returns {Map<string, Panel>} The panels.
-     */
-    static #createPanels({ directory, router, paneManager, stats, activity, rateLimits, preferences }) {
-      return new Map([
-        ['conversations', new ConversationListPanel({ directory, router, paneManager, stats, preferences })],
-        ...paneManager.panelEntries(),
-        ['stats', new StatsPanel(stats, activity, rateLimits)],
-        ['webSources', new WebSourcesPanel(stats)],
-        ['files', new FilesPanel(stats)],
-      ]);
     }
 
     /**
@@ -7043,27 +8974,85 @@
       const database = new IndexedDbStore({ name: DATABASE.name, version: DATABASE.version, upgrade: ClaudePlusApp.#createMissingStores });
       const settings = new ComposerSettings(preferences);
       const directory = new ConversationDirectory(api);
-      const paneManager = new ChatPaneManager({ api, settings, directory, preferences });
-      const router = new Router(paneManager);
       const stats = new StatsIndex(api, database);
       const activity = new ActivityTracker(database);
       const rateLimits = new RateLimitMonitor(api);
+      const paneManager = new ChatPaneManager({ api, settings, directory, preferences, stats });
+      const router = new Router(paneManager);
       ClaudePlusApp.#connectServices({ directory, paneManager, stats, rateLimits });
       paneManager.restorePanes(conversationIdFromPath(location.pathname));
 
-      const panels = ClaudePlusApp.#createPanels({ directory, router, paneManager, stats, activity, rateLimits, preferences });
+      const panelFactory = new PanelFactory({ directory, router, paneManager, stats, activity, rateLimits, preferences });
+      const composer = new ComposerPanel({ paneManager, settings, exporter: new ConversationExporter(api, paneManager) });
+      const workspace = ClaudePlusApp.#createWorkspace({ preferences, paneManager, panelFactory, composer });
+      paneManager.attachWorkspace(workspace);
+      panelFactory.attachWorkspace(workspace);
+      const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
+      new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences) }).mount();
+      workspace.mount();
+      ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
+      new KeyboardShortcuts(workspace).install();
+      return { directory, router, paneManager, stats, activity, rateLimits };
+    }
+
+    /**
+     * Creates the workspace with the chat panes, the composer and the view panels of the stored
+     * layout (or the default view panels when no layout is stored).
+     * @param {object} parts Workspace parts.
+     * @param {Preferences} parts.preferences Layout storage.
+     * @param {ChatPaneManager} parts.paneManager Chat panes.
+     * @param {PanelFactory} parts.panelFactory Creates view panels.
+     * @param {ComposerPanel} parts.composer The composer.
+     * @returns {DockWorkspace} The workspace, not yet mounted.
+     */
+    static #createWorkspace({ preferences, paneManager, panelFactory, composer }) {
+      const storedPanelIds = DockTree.collectPanelIds(preferences.readJson(STORAGE_KEYS.dockLayout));
+      const viewPanelIds = storedPanelIds.size ? [...storedPanelIds].filter(panelId => panelFactory.isViewPanelId(panelId)) : PanelFactory.defaultPanelIds;
+      const panels = new Map([...paneManager.panelEntries(), ['composer', composer], ...viewPanelIds.map(panelId => [panelId, panelFactory.create(panelId)])]);
       const workspace = new DockWorkspace({
         panels,
         preferences,
         createDefaultTree: () => DockTree.createDefault(paneManager.paneIds),
-        requiredPanelIds: () => paneManager.paneIds,
+        requiredPanelIds: () => [...paneManager.paneIds, 'composer'],
+        placeMissingPanel: ClaudePlusApp.#placeMissingPanel,
+        addPanelMenu: {
+          entries: () => panelFactory.addMenuEntries(),
+          onSelect: (entryId, leafId) => ClaudePlusApp.#addFromMenu({ entryId, leafId, paneManager, panelFactory, workspace }),
+        },
+        onLayout: visiblePanelIds => paneManager.updateVisiblePanels(visiblePanelIds),
       });
-      paneManager.attachWorkspace(workspace);
-      new Toolbar({ preferences, workspace, paneManager, exporter: new ConversationExporter(api, paneManager) }).mount();
-      workspace.mount();
-      ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
-      new KeyboardShortcuts(workspace, panels.get('conversations')).install();
-      return { directory, router, paneManager, stats, activity, rateLimits };
+      return workspace;
+    }
+
+    /**
+     * Docks a required panel missing from the layout: the composer along the bottom edge, anything
+     * else as a tab of the first zone.
+     * @param {DockTree} tree The layout.
+     * @param {string} panelId Panel id.
+     * @returns {void}
+     */
+    static #placeMissingPanel(tree, panelId) {
+      if (panelId === 'composer') tree.dockPanelAtEdge(panelId, 'bottom');
+      else tree.dockPanel(panelId, tree.firstLeaf().id, 'center');
+    }
+
+    /**
+     * Runs a "+" menu entry: a new empty chat, or a new instance of a view panel, as a tab of the zone.
+     * @param {object} choice The chosen entry and context.
+     * @param {string} choice.entryId "chat" or a view panel type.
+     * @param {string} choice.leafId Zone whose "+" was clicked.
+     * @param {ChatPaneManager} choice.paneManager Chat panes.
+     * @param {PanelFactory} choice.panelFactory Creates view panels.
+     * @param {DockWorkspace} choice.workspace The workspace.
+     * @returns {void}
+     */
+    static #addFromMenu({ entryId, leafId, paneManager, panelFactory, workspace }) {
+      if (entryId === 'chat') {
+        paneManager.openPaneInZone(leafId);
+        return;
+      }
+      const { panelId, panel } = panelFactory.createInstance(entryId);
+      workspace.addPanelToZone(panelId, panel, leafId);
     }
 
     /**
