@@ -21,7 +21,7 @@ const documentedContexts = [
 const browserGlobals = Object.fromEntries([
   'AbortController', 'Blob', 'CSS', 'CompressionStream', 'DOMException', 'Event', 'File', 'FormData', 'HTMLElement', 'Intl', 'Response',
   'TextDecoderStream', 'TextEncoder', 'URL', 'URLSearchParams', 'cancelAnimationFrame', 'clearInterval', 'clearTimeout',
-  'console', 'crypto', 'document', 'fetch', 'history', 'indexedDB', 'localStorage', 'location', 'navigator',
+  'console', 'crypto', 'document', 'fetch', 'getComputedStyle', 'history', 'indexedDB', 'localStorage', 'location', 'navigator',
   'requestAnimationFrame', 'setInterval', 'setTimeout', 'window',
 ].map(name => [name, 'readonly']));
 
