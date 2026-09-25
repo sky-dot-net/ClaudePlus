@@ -249,9 +249,20 @@ export class WidgetIframeSource {
   static #firstHostElement(fiber) {
     let node = fiber;
     while (node) {
-      if (node.stateNode instanceof HTMLElement) return node.stateNode;
+      if (WidgetIframeSource.#isElementNode(node.stateNode)) return node.stateNode;
       node = node.child;
     }
     return null;
+  }
+
+  /**
+   * Whether a value is a DOM element, checked by nodeType rather than instanceof HTMLElement,
+   * since the latter fails across realms: the iframe's elements are instances of ITS OWN
+   * HTMLElement constructor, a different object from this script's, even though same-origin.
+   * @param {*} value The value.
+   * @returns {boolean} True for an element node.
+   */
+  static #isElementNode(value) {
+    return Boolean(value) && value.nodeType === 1;
   }
 }
