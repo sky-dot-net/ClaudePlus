@@ -33,7 +33,7 @@
  * occupies that stretch, rather than something painted over.
  */
 .claude-plus-tab {
-  height: calc(var(--claude-plus-tab-strip-height) - 1px);
+  height: var(--claude-plus-tab-strip-height);
   padding: 5px 12px;
   font-size: 12px;
   color: var(--claude-plus-color-text-muted);
@@ -66,6 +66,8 @@
   border-top: 1px solid var(--claude-plus-color-active-chat);
   border-right: 1px solid var(--claude-plus-color-active-chat);
   border-bottom: none;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
 }
 
 .claude-plus-tab--active.claude-plus-tab--border-inactive {
@@ -73,6 +75,8 @@
   border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
   border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
   border-bottom: none;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
 }
 
 .claude-plus-tab {
@@ -106,7 +110,10 @@
 }
 
 .claude-plus-tab-strip__add-button {
-  height: calc(var(--claude-plus-tab-strip-height) - 1px);
+  height: var(--claude-plus-tab-strip-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 5px 10px;
   cursor: pointer;
   color: var(--claude-plus-color-text-faint);
@@ -119,7 +126,7 @@
 }
 
 .claude-plus-tab-strip__filler {
-  height: calc(var(--claude-plus-tab-strip-height) - 1px);
+  height: var(--claude-plus-tab-strip-height);
   flex: 1;
   box-sizing: border-box;
 }
