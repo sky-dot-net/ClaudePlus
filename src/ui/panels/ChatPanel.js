@@ -291,9 +291,9 @@ export class ChatPanel extends Panel {
    */
   #renderFocus() {
     const isActive = this.#paneManager.focusedPaneId === this.#paneId;
-    const hasSeveral = this.#paneManager.hasSeveralVisiblePanes;
+    const borderKind = this.#paneManager.borderKindOf(this.#paneId);
     this.element.classList.toggle('claude-plus-panel--focused', isActive);
-    this.element.classList.toggle('claude-plus-panel--active-among-several', isActive && hasSeveral);
-    this.element.classList.toggle('claude-plus-panel--inactive-among-several', !isActive && hasSeveral);
+    this.element.classList.toggle('claude-plus-panel--active-among-several', borderKind === 'active');
+    this.element.classList.toggle('claude-plus-panel--inactive-among-several', borderKind === 'inactive');
   }
 }

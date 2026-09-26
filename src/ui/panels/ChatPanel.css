@@ -1,9 +1,11 @@
 .claude-plus-panel--active-among-several {
-  box-shadow: inset 0 0 0 1px var(--claude-plus-color-active-chat);
+  border: 1px solid var(--claude-plus-color-active-chat);
+  border-top: none;
 }
 
 .claude-plus-panel--inactive-among-several {
-  box-shadow: inset 0 0 0 1px var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
+  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
+  border-top: none;
 }
 
 .claude-plus-chat-layout {

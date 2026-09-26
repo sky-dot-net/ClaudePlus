@@ -22,6 +22,12 @@ export class DockWorkspace {
   #panels;
 
   /**
+   * Chat panes, to decide each zone's chat border kind.
+   * @type {ChatPaneManager}
+   */
+  #paneManager;
+
+  /**
    * Layout storage.
    * @type {Preferences}
    */
@@ -92,6 +98,7 @@ export class DockWorkspace {
    * panel the layout lacks.
    * @param {object} options Workspace options.
    * @param {Map<string, Panel>} options.panels Panels by id; panels can be added and removed later.
+   * @param {ChatPaneManager} options.paneManager Chat panes, to decide each zone's chat border kind.
    * @param {Preferences} options.preferences Layout storage.
    * @param {function(): DockTree} options.createDefaultTree Creates the default layout.
    * @param {function(): string[]} options.requiredPanelIds Ids of the panels that must always be docked.
@@ -99,8 +106,9 @@ export class DockWorkspace {
    * @param {{entries: function(): ChoiceOption[], onSelect: function(string, string): void}} options.addPanelMenu Entries of the zones' "+" menu, and a callback receiving the chosen entry id and the zone id.
    * @param {function(Set<string>): void} options.onLayout Called after every layout with the ids of the visible panels.
    */
-  constructor({ panels, preferences, createDefaultTree, requiredPanelIds, placeMissingPanel, addPanelMenu, onLayout }) {
+  constructor({ panels, paneManager, preferences, createDefaultTree, requiredPanelIds, placeMissingPanel, addPanelMenu, onLayout }) {
     this.#panels = new PanelHost(panels);
+    this.#paneManager = paneManager;
     this.#preferences = preferences;
     this.#createDefaultTree = createDefaultTree;
     this.#requiredPanelIds = requiredPanelIds;
@@ -111,6 +119,7 @@ export class DockWorkspace {
     this.#dividers = this.#createDividerRenderer();
     this.#tree = DockTree.fromStored(preferences.readJson(STORAGE_KEYS.dockLayout), this.#panels.panelIds) ?? createDefaultTree();
     this.#dockMissingRequiredPanels();
+    paneManager.subscribe('focus', () => this.#redrawZoneChrome());
   }
 
   /**
@@ -261,6 +270,16 @@ export class DockWorkspace {
   }
 
   /**
+   * Redraws just the zone frames and tab strips at their last computed areas, without touching
+   * panel positions or dividers; used when only a chat pane's border kind can have changed.
+   * @returns {void}
+   */
+  #redrawZoneChrome() {
+    this.#zoneChrome.clear();
+    this.#leafPlacements.forEach(placement => this.#zoneChrome.render(placement));
+  }
+
+  /**
    * Redraws zone frames, tab strips and dividers and positions the visible panels; other panels
    * are hidden. Reports the visible panels through the onLayout callback.
    * @returns {void}
@@ -294,6 +313,7 @@ export class DockWorkspace {
       titleOf: panelId => this.#panels.titleOf(panelId),
       canClose: panelId => this.#panels.canClose(panelId),
       isChatPane: panelId => ChatPaneManager.isPaneId(panelId),
+      chatBorderKindOf: panelId => this.#paneManager.borderKindOf(panelId),
       onTabPress: (event, panelId) => this.#onTabPress(event, panelId),
       onTabActivate: (leafId, panelId) => this.#activateTab(leafId, panelId),
       onTabClose: panelId => this.#panels.close(panelId),

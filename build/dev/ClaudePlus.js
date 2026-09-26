@@ -3074,7 +3074,7 @@
     }
   }
 
-  var stylesheet$f = ".claude-plus-panel--active-among-several {\r\n  box-shadow: inset 0 0 0 1px var(--claude-plus-color-active-chat);\r\n}\r\n\r\n.claude-plus-panel--inactive-among-several {\r\n  box-shadow: inset 0 0 0 1px var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
+  var stylesheet$f = ".claude-plus-panel--active-among-several {\r\n  border: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-panel--inactive-among-several {\r\n  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$f);
 
@@ -3360,10 +3360,10 @@
      */
     #renderFocus() {
       const isActive = this.#paneManager.focusedPaneId === this.#paneId;
-      const hasSeveral = this.#paneManager.hasSeveralVisiblePanes;
+      const borderKind = this.#paneManager.borderKindOf(this.#paneId);
       this.element.classList.toggle('claude-plus-panel--focused', isActive);
-      this.element.classList.toggle('claude-plus-panel--active-among-several', isActive && hasSeveral);
-      this.element.classList.toggle('claude-plus-panel--inactive-among-several', !isActive && hasSeveral);
+      this.element.classList.toggle('claude-plus-panel--active-among-several', borderKind === 'active');
+      this.element.classList.toggle('claude-plus-panel--inactive-among-several', borderKind === 'inactive');
     }
   }
 
@@ -4650,6 +4650,19 @@
      */
     static isPaneId(panelId) {
       return String(panelId).startsWith('chat-');
+    }
+
+    /**
+     * Which border a chat pane's tab and content should show, so its tab strip, frame and content
+     * all agree: the focused pane gets the active (green) border, every other one a faint
+     * theme-aware border, both only while more than one chat pane is visible. An id that isn't a
+     * chat pane, or a chat pane while only one is visible, gets none.
+     * @param {string} panelId Panel id.
+     * @returns {?('active'|'inactive')} The border kind, or null for none.
+     */
+    borderKindOf(panelId) {
+      if (!ChatPaneManager.isPaneId(panelId) || !this.#hasSeveralVisiblePanes) return null;
+      return this.#focusedPaneId === panelId ? 'active' : 'inactive';
     }
 
     /**
@@ -7665,7 +7678,7 @@
     }
   }
 
-  var stylesheet$6 = ".claude-plus-zone-chrome-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-zone-chrome);\r\n}\r\n\r\n.claude-plus-zone-frame {\r\n  position: fixed;\r\n  background: var(--claude-plus-color-background);\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-tab-strip {\r\n  position: fixed;\r\n  display: flex;\r\n  align-items: center;\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border);\r\n  overflow-x: auto;\r\n  box-sizing: border-box;\r\n  pointer-events: auto;\r\n}\r\n\r\n.claude-plus-tab {\r\n  padding: 5px 12px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n  border-right: 1px solid var(--claude-plus-color-border-faint);\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab--active {\r\n  color: var(--claude-plus-color-text);\r\n  border-bottom: 2px solid var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-tab {\r\n  display: flex;\r\n  align-items: center;\r\n  min-width: 0;\r\n  max-width: 220px;\r\n}\r\n\r\n.claude-plus-tab__label {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-tab--chat .claude-plus-tab__label {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-tab__close-button {\r\n  flex-shrink: 0;\r\n  margin-left: 8px;\r\n  padding: 0 3px;\r\n  border-radius: 3px;\r\n  color: var(--claude-plus-color-text-faint);\r\n}\r\n\r\n.claude-plus-tab__close-button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__add-button {\r\n  padding: 5px 10px;\r\n  cursor: pointer;\r\n  color: var(--claude-plus-color-text-faint);\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__add-button:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-table-host {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n";
+  var stylesheet$6 = ".claude-plus-zone-chrome-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-zone-chrome);\r\n}\r\n\r\n.claude-plus-zone-frame {\r\n  position: fixed;\r\n  background: var(--claude-plus-color-background);\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-tab-strip {\r\n  position: fixed;\r\n  display: flex;\r\n  align-items: center;\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border);\r\n  overflow-x: auto;\r\n  box-sizing: border-box;\r\n  pointer-events: auto;\r\n}\r\n\r\n.claude-plus-tab-strip--chat-active {\r\n  border: 1px solid var(--claude-plus-color-active-chat);\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-tab-strip--chat-inactive {\r\n  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-tab {\r\n  padding: 5px 12px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n  border-right: 1px solid var(--claude-plus-color-border-faint);\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab--active {\r\n  color: var(--claude-plus-color-text);\r\n  border-bottom: 2px solid var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--seamless {\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-tab {\r\n  display: flex;\r\n  align-items: center;\r\n  min-width: 0;\r\n  max-width: 220px;\r\n}\r\n\r\n.claude-plus-tab__label {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-tab--chat .claude-plus-tab__label {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-tab__close-button {\r\n  flex-shrink: 0;\r\n  margin-left: 8px;\r\n  padding: 0 3px;\r\n  border-radius: 3px;\r\n  color: var(--claude-plus-color-text-faint);\r\n}\r\n\r\n.claude-plus-tab__close-button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__add-button {\r\n  padding: 5px 10px;\r\n  cursor: pointer;\r\n  color: var(--claude-plus-color-text-faint);\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__add-button:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-table-host {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$6);
 
@@ -7717,31 +7730,60 @@
      * @returns {void}
      */
     render({ leaf, rect }) {
+      const borderKind = this.#callbacks.chatBorderKindOf(leaf.activeTab);
       const frame = createElement('div', { className: 'claude-plus-zone-frame' });
-      const tabStrip = createElement('div', { className: 'claude-plus-tab-strip' });
+      const tabStrip = createElement('div', { className: ZoneChromeRenderer.#tabStripClassName(borderKind) });
       placeElement(frame, rect);
       placeElement(tabStrip, { ...rect, height: LAYOUT.tabStripHeight });
-      tabStrip.append(...leaf.tabs.map(panelId => this.#createTab(leaf, panelId)), this.#createAddPanelButton(leaf.id));
+      tabStrip.append(...leaf.tabs.map(panelId => this.#createTab(leaf, panelId, borderKind)), this.#createAddPanelButton(leaf.id));
       this.#layer.append(frame, tabStrip);
+    }
+
+    /**
+     * A tab strip's class names: the base one, plus a modifier matching its active tab's chat
+     * border kind (if any), so the strip's own border reads as one continuous outline with the
+     * bordered chat pane below it.
+     * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
+     * @returns {string} The class names.
+     */
+    static #tabStripClassName(borderKind) {
+      return borderKind ? `claude-plus-tab-strip claude-plus-tab-strip--chat-${borderKind}` : 'claude-plus-tab-strip';
     }
 
     /**
      * Creates a tab that reports presses and clicks.
      * @param {LeafNode} leaf Zone of the tab.
      * @param {string} panelId Panel id.
+     * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
      * @returns {HTMLElement} The tab.
      */
-    #createTab(leaf, panelId) {
+    #createTab(leaf, panelId, borderKind) {
       const title = this.#callbacks.titleOf(panelId);
-      const classNames = ['claude-plus-tab'];
-      if (panelId === leaf.activeTab) classNames.push('claude-plus-tab--active');
-      if (this.#callbacks.isChatPane(panelId)) classNames.push('claude-plus-tab--chat');
-      const tab = createElement('div', { className: classNames.join(' '), title });
+      const isActiveTab = panelId === leaf.activeTab;
+      const className = this.#tabClassName(panelId, isActiveTab, borderKind);
+      const tab = createElement('div', { className, title });
       tab.append(createElement('span', { className: 'claude-plus-tab__label', textContent: title }));
       tab.addEventListener('mousedown', event => this.#callbacks.onTabPress(event, panelId));
       tab.addEventListener('click', () => this.#callbacks.onTabActivate(leaf.id, panelId));
       if (this.#callbacks.canClose(panelId)) tab.append(this.#createCloseButton(panelId));
       return tab;
+    }
+
+    /**
+     * A tab's class names: the base one, plus modifiers for being the strip's active tab, a chat
+     * pane, and (only for a zone with a chat border) the active tab whose bottom border is removed
+     * to merge with the content below.
+     * @param {string} panelId Panel id.
+     * @param {boolean} isActiveTab Whether this is the strip's active tab.
+     * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
+     * @returns {string} The class names.
+     */
+    #tabClassName(panelId, isActiveTab, borderKind) {
+      const classNames = ['claude-plus-tab'];
+      if (isActiveTab) classNames.push('claude-plus-tab--active');
+      if (this.#callbacks.isChatPane(panelId)) classNames.push('claude-plus-tab--chat');
+      if (isActiveTab && borderKind) classNames.push('claude-plus-tab--seamless');
+      return classNames.join(' ');
     }
 
     /**
@@ -7781,6 +7823,12 @@
      * @type {PanelHost}
      */
     #panels;
+
+    /**
+     * Chat panes, to decide each zone's chat border kind.
+     * @type {ChatPaneManager}
+     */
+    #paneManager;
 
     /**
      * Layout storage.
@@ -7853,6 +7901,7 @@
      * panel the layout lacks.
      * @param {object} options Workspace options.
      * @param {Map<string, Panel>} options.panels Panels by id; panels can be added and removed later.
+     * @param {ChatPaneManager} options.paneManager Chat panes, to decide each zone's chat border kind.
      * @param {Preferences} options.preferences Layout storage.
      * @param {function(): DockTree} options.createDefaultTree Creates the default layout.
      * @param {function(): string[]} options.requiredPanelIds Ids of the panels that must always be docked.
@@ -7860,8 +7909,9 @@
      * @param {{entries: function(): ChoiceOption[], onSelect: function(string, string): void}} options.addPanelMenu Entries of the zones' "+" menu, and a callback receiving the chosen entry id and the zone id.
      * @param {function(Set<string>): void} options.onLayout Called after every layout with the ids of the visible panels.
      */
-    constructor({ panels, preferences, createDefaultTree, requiredPanelIds, placeMissingPanel, addPanelMenu, onLayout }) {
+    constructor({ panels, paneManager, preferences, createDefaultTree, requiredPanelIds, placeMissingPanel, addPanelMenu, onLayout }) {
       this.#panels = new PanelHost(panels);
+      this.#paneManager = paneManager;
       this.#preferences = preferences;
       this.#createDefaultTree = createDefaultTree;
       this.#requiredPanelIds = requiredPanelIds;
@@ -7872,6 +7922,7 @@
       this.#dividers = this.#createDividerRenderer();
       this.#tree = DockTree.fromStored(preferences.readJson(STORAGE_KEYS.dockLayout), this.#panels.panelIds) ?? createDefaultTree();
       this.#dockMissingRequiredPanels();
+      paneManager.subscribe('focus', () => this.#redrawZoneChrome());
     }
 
     /**
@@ -8022,6 +8073,16 @@
     }
 
     /**
+     * Redraws just the zone frames and tab strips at their last computed areas, without touching
+     * panel positions or dividers; used when only a chat pane's border kind can have changed.
+     * @returns {void}
+     */
+    #redrawZoneChrome() {
+      this.#zoneChrome.clear();
+      this.#leafPlacements.forEach(placement => this.#zoneChrome.render(placement));
+    }
+
+    /**
      * Redraws zone frames, tab strips and dividers and positions the visible panels; other panels
      * are hidden. Reports the visible panels through the onLayout callback.
      * @returns {void}
@@ -8055,6 +8116,7 @@
         titleOf: panelId => this.#panels.titleOf(panelId),
         canClose: panelId => this.#panels.canClose(panelId),
         isChatPane: panelId => ChatPaneManager.isPaneId(panelId),
+        chatBorderKindOf: panelId => this.#paneManager.borderKindOf(panelId),
         onTabPress: (event, panelId) => this.#onTabPress(event, panelId),
         onTabActivate: (leafId, panelId) => this.#activateTab(leafId, panelId),
         onTabClose: panelId => this.#panels.close(panelId),
@@ -12341,6 +12403,7 @@
       const panels = new Map([...paneManager.panelEntries(), ['composer', composer], ...viewPanelIds.map(panelId => [panelId, panelFactory.create(panelId)])]);
       const workspace = new DockWorkspace({
         panels,
+        paneManager,
         preferences,
         createDefaultTree: () => DockTree.createDefault(paneManager.paneIds),
         requiredPanelIds: () => [...paneManager.paneIds, 'composer'],

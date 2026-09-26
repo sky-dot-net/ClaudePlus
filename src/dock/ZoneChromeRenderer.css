@@ -23,6 +23,16 @@
   pointer-events: auto;
 }
 
+.claude-plus-tab-strip--chat-active {
+  border: 1px solid var(--claude-plus-color-active-chat);
+  border-bottom: none;
+}
+
+.claude-plus-tab-strip--chat-inactive {
+  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
+  border-bottom: none;
+}
+
 .claude-plus-tab {
   padding: 5px 12px;
   font-size: 12px;
@@ -36,6 +46,10 @@
 .claude-plus-tab--active {
   color: var(--claude-plus-color-text);
   border-bottom: 2px solid var(--claude-plus-color-accent);
+}
+
+.claude-plus-tab--active.claude-plus-tab--seamless {
+  border-bottom: none;
 }
 
 .claude-plus-tab {

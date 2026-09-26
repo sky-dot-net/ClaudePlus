@@ -158,6 +158,19 @@ export class ChatPaneManager extends EventEmitter {
   }
 
   /**
+   * Which border a chat pane's tab and content should show, so its tab strip, frame and content
+   * all agree: the focused pane gets the active (green) border, every other one a faint
+   * theme-aware border, both only while more than one chat pane is visible. An id that isn't a
+   * chat pane, or a chat pane while only one is visible, gets none.
+   * @param {string} panelId Panel id.
+   * @returns {?('active'|'inactive')} The border kind, or null for none.
+   */
+  borderKindOf(panelId) {
+    if (!ChatPaneManager.isPaneId(panelId) || !this.#hasSeveralVisiblePanes) return null;
+    return this.#focusedPaneId === panelId ? 'active' : 'inactive';
+  }
+
+  /**
    * Records which panels are visible after a layout and announces when the "several chat panes
    * visible" state changes.
    * @param {Set<string>} visiblePanelIds Ids of the visible panels.

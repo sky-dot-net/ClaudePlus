@@ -54,31 +54,60 @@ export class ZoneChromeRenderer {
    * @returns {void}
    */
   render({ leaf, rect }) {
+    const borderKind = this.#callbacks.chatBorderKindOf(leaf.activeTab);
     const frame = createElement('div', { className: 'claude-plus-zone-frame' });
-    const tabStrip = createElement('div', { className: 'claude-plus-tab-strip' });
+    const tabStrip = createElement('div', { className: ZoneChromeRenderer.#tabStripClassName(borderKind) });
     placeElement(frame, rect);
     placeElement(tabStrip, { ...rect, height: LAYOUT.tabStripHeight });
-    tabStrip.append(...leaf.tabs.map(panelId => this.#createTab(leaf, panelId)), this.#createAddPanelButton(leaf.id));
+    tabStrip.append(...leaf.tabs.map(panelId => this.#createTab(leaf, panelId, borderKind)), this.#createAddPanelButton(leaf.id));
     this.#layer.append(frame, tabStrip);
+  }
+
+  /**
+   * A tab strip's class names: the base one, plus a modifier matching its active tab's chat
+   * border kind (if any), so the strip's own border reads as one continuous outline with the
+   * bordered chat pane below it.
+   * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
+   * @returns {string} The class names.
+   */
+  static #tabStripClassName(borderKind) {
+    return borderKind ? `claude-plus-tab-strip claude-plus-tab-strip--chat-${borderKind}` : 'claude-plus-tab-strip';
   }
 
   /**
    * Creates a tab that reports presses and clicks.
    * @param {LeafNode} leaf Zone of the tab.
    * @param {string} panelId Panel id.
+   * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
    * @returns {HTMLElement} The tab.
    */
-  #createTab(leaf, panelId) {
+  #createTab(leaf, panelId, borderKind) {
     const title = this.#callbacks.titleOf(panelId);
-    const classNames = ['claude-plus-tab'];
-    if (panelId === leaf.activeTab) classNames.push('claude-plus-tab--active');
-    if (this.#callbacks.isChatPane(panelId)) classNames.push('claude-plus-tab--chat');
-    const tab = createElement('div', { className: classNames.join(' '), title });
+    const isActiveTab = panelId === leaf.activeTab;
+    const className = this.#tabClassName(panelId, isActiveTab, borderKind);
+    const tab = createElement('div', { className, title });
     tab.append(createElement('span', { className: 'claude-plus-tab__label', textContent: title }));
     tab.addEventListener('mousedown', event => this.#callbacks.onTabPress(event, panelId));
     tab.addEventListener('click', () => this.#callbacks.onTabActivate(leaf.id, panelId));
     if (this.#callbacks.canClose(panelId)) tab.append(this.#createCloseButton(panelId));
     return tab;
+  }
+
+  /**
+   * A tab's class names: the base one, plus modifiers for being the strip's active tab, a chat
+   * pane, and (only for a zone with a chat border) the active tab whose bottom border is removed
+   * to merge with the content below.
+   * @param {string} panelId Panel id.
+   * @param {boolean} isActiveTab Whether this is the strip's active tab.
+   * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
+   * @returns {string} The class names.
+   */
+  #tabClassName(panelId, isActiveTab, borderKind) {
+    const classNames = ['claude-plus-tab'];
+    if (isActiveTab) classNames.push('claude-plus-tab--active');
+    if (this.#callbacks.isChatPane(panelId)) classNames.push('claude-plus-tab--chat');
+    if (isActiveTab && borderKind) classNames.push('claude-plus-tab--seamless');
+    return classNames.join(' ');
   }
 
   /**

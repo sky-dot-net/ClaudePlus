@@ -196,6 +196,7 @@ export class ClaudePlusApp {
     const panels = new Map([...paneManager.panelEntries(), ['composer', composer], ...viewPanelIds.map(panelId => [panelId, panelFactory.create(panelId)])]);
     const workspace = new DockWorkspace({
       panels,
+      paneManager,
       preferences,
       createDefaultTree: () => DockTree.createDefault(paneManager.paneIds),
       requiredPanelIds: () => [...paneManager.paneIds, 'composer'],
