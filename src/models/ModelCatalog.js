@@ -89,11 +89,28 @@ export class ModelCatalog extends EventEmitter {
   async #runRefresh() {
     try {
       const { models, efforts } = await ModelCatalogSource.extract();
-      this.#apply(models, efforts.length ? efforts : this.#efforts, Date.now());
+      this.#apply(ModelCatalog.#withPreferredDefaultFirst(models), efforts.length ? efforts : this.#efforts, Date.now());
       this.#preferences.writeJson(STORAGE_KEYS.modelCatalog, { fetchedAt: this.#fetchedAt, models: this.#models, efforts: this.#efforts });
     } catch (error) {
       console.warn(LOG_PREFIX, 'extracting the live model list failed; keeping the previous list', error);
     }
+  }
+
+  /**
+   * Moves the built-in fallback's own default model to the front of a freshly extracted list, so
+   * a user who never picked one keeps getting a sensible default instead of whatever claude.ai's
+   * own menu happens to render first (which can be a credit-gated model like Fable). A list
+   * without that id, or already led by it, is returned as is.
+   * @param {ChoiceOption[]} models Freshly extracted models.
+   * @returns {ChoiceOption[]} The models, reordered if needed.
+   */
+  static #withPreferredDefaultFirst(models) {
+    const preferredIndex = models.findIndex(model => model.id === MODELS[0].id);
+    if (preferredIndex <= 0) return models;
+    const reordered = [...models];
+    const [preferred] = reordered.splice(preferredIndex, 1);
+    reordered.unshift(preferred);
+    return reordered;
   }
 
   /**
