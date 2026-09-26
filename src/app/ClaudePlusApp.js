@@ -48,6 +48,21 @@ export class ClaudePlusApp {
   #nativeHidingStyle = null;
 
   /**
+   * The always-on-top button that starts or re-shows the app; shown only over the native UI,
+   * never while the workspace itself is showing.
+   * @type {ClaudePlusLauncher}
+   */
+  #launcher;
+
+  /**
+   * Creates the app.
+   * @param {ClaudePlusLauncher} launcher The launcher button, shown only over the native UI.
+   */
+  constructor(launcher) {
+    this.#launcher = launcher;
+  }
+
+  /**
    * Shows the interface: runs the one-time heavy boot on the first call, or just reveals it
    * again with all state intact on a later one.
    * @returns {Promise<void>} Resolves once shown.
@@ -59,6 +74,7 @@ export class ClaudePlusApp {
     }
     await this.start();
     this.#isStarted = Boolean(this.#nativeHidingStyle);
+    if (this.#isStarted) this.#launcher.hide();
   }
 
   /**
@@ -68,6 +84,7 @@ export class ClaudePlusApp {
   show() {
     if (this.#nativeHidingStyle) this.#nativeHidingStyle.disabled = false;
     ClaudePlusApp.#setInterfaceVisible(true);
+    this.#launcher.hide();
   }
 
   /**
@@ -77,6 +94,7 @@ export class ClaudePlusApp {
   hide() {
     if (this.#nativeHidingStyle) this.#nativeHidingStyle.disabled = true;
     ClaudePlusApp.#setInterfaceVisible(false);
+    this.#launcher.show();
   }
 
   /**

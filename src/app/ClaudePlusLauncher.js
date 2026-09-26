@@ -37,6 +37,22 @@ export class ClaudePlusLauncher {
   }
 
   /**
+   * Shows the button; only the native claude.ai UI should have it visible.
+   * @returns {void}
+   */
+  show() {
+    this.#button.style.display = '';
+  }
+
+  /**
+   * Hides the button while ClaudePlus's own workspace is showing.
+   * @returns {void}
+   */
+  hide() {
+    this.#button.style.display = 'none';
+  }
+
+  /**
    * The button's inline styling, self-contained so it renders correctly before ClaudePlus's own
    * stylesheet exists.
    * @returns {string} The CSS text.

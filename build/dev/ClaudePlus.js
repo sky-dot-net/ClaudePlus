@@ -12272,6 +12272,21 @@
     #nativeHidingStyle = null;
 
     /**
+     * The always-on-top button that starts or re-shows the app; shown only over the native UI,
+     * never while the workspace itself is showing.
+     * @type {ClaudePlusLauncher}
+     */
+    #launcher;
+
+    /**
+     * Creates the app.
+     * @param {ClaudePlusLauncher} launcher The launcher button, shown only over the native UI.
+     */
+    constructor(launcher) {
+      this.#launcher = launcher;
+    }
+
+    /**
      * Shows the interface: runs the one-time heavy boot on the first call, or just reveals it
      * again with all state intact on a later one.
      * @returns {Promise<void>} Resolves once shown.
@@ -12283,6 +12298,7 @@
       }
       await this.start();
       this.#isStarted = Boolean(this.#nativeHidingStyle);
+      if (this.#isStarted) this.#launcher.hide();
     }
 
     /**
@@ -12292,6 +12308,7 @@
     show() {
       if (this.#nativeHidingStyle) this.#nativeHidingStyle.disabled = false;
       ClaudePlusApp.#setInterfaceVisible(true);
+      this.#launcher.hide();
     }
 
     /**
@@ -12301,6 +12318,7 @@
     hide() {
       if (this.#nativeHidingStyle) this.#nativeHidingStyle.disabled = true;
       ClaudePlusApp.#setInterfaceVisible(false);
+      this.#launcher.show();
     }
 
     /**
@@ -12558,6 +12576,22 @@
     }
 
     /**
+     * Shows the button; only the native claude.ai UI should have it visible.
+     * @returns {void}
+     */
+    show() {
+      this.#button.style.display = '';
+    }
+
+    /**
+     * Hides the button while ClaudePlus's own workspace is showing.
+     * @returns {void}
+     */
+    hide() {
+      this.#button.style.display = 'none';
+    }
+
+    /**
      * The button's inline styling, self-contained so it renders correctly before ClaudePlus's own
      * stylesheet exists.
      * @returns {string} The CSS text.
@@ -12572,11 +12606,18 @@
   }
 
   /**
+   * The launcher button; app.launch() is only referenced once app exists below, but this closure
+   * isn't called until the button is clicked, well after that.
+   * @type {ClaudePlusLauncher}
+   */
+  const launcher = new ClaudePlusLauncher(() => app.launch().catch(error => console.error(LOG_PREFIX, 'failed to start', error)));
+
+  /**
    * The app, not started until the launcher button is clicked.
    * @type {ClaudePlusApp}
    */
-  const app = new ClaudePlusApp();
+  const app = new ClaudePlusApp(launcher);
 
-  new ClaudePlusLauncher(() => app.launch().catch(error => console.error(LOG_PREFIX, 'failed to start', error))).mount();
+  launcher.mount();
 
 })();
