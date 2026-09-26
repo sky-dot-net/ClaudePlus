@@ -6,7 +6,6 @@
   height: var(--claude-plus-toolbar-height);
   z-index: var(--claude-plus-layer-toolbar);
   background: var(--claude-plus-color-bar);
-  border-bottom: 1px solid var(--claude-plus-color-border-strong);
   display: flex;
   align-items: center;
   gap: 14px;
