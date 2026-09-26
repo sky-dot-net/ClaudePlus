@@ -13,6 +13,7 @@ import { KeyboardShortcuts } from '../ui/KeyboardShortcuts.js';
 import { LAYOUT } from '../config/LAYOUT.js';
 import { LOG_PREFIX } from '../config/LOG_PREFIX.js';
 import { LayoutLibrary } from '../dock/LayoutLibrary.js';
+import { ModelCatalog } from '../models/ModelCatalog.js';
 import { PanelFactory } from '../dock/PanelFactory.js';
 import { Preferences } from '../core/Preferences.js';
 import { RateLimitMonitor } from '../stats/RateLimitMonitor.js';
@@ -21,6 +22,7 @@ import { STORAGE_KEYS } from '../config/STORAGE_KEYS.js';
 import { SettingsTransfer } from '../settings/SettingsTransfer.js';
 import { StatsIndex } from '../stats/StatsIndex.js';
 import { StyleRegistry } from '../styles/StyleRegistry.js';
+import { Theme } from '../settings/Theme.js';
 import { Toolbar } from '../ui/Toolbar.js';
 import { WidgetExtractor } from '../chat/widgets/WidgetExtractor.js';
 import { conversationIdFromPath } from '../routing/conversationIdFromPath.js';
@@ -149,9 +151,12 @@ export class ClaudePlusApp {
   #mountInterface() {
     document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: ClaudePlusApp.#interfaceStylesheet() }));
     const preferences = new Preferences();
+    const theme = new Theme(preferences);
     const api = new ClaudeApi();
     const database = new IndexedDbStore({ name: DATABASE.name, version: DATABASE.version, upgrade: ClaudePlusApp.#createMissingStores });
-    const settings = new ComposerSettings(preferences);
+    const modelCatalog = new ModelCatalog(preferences);
+    modelCatalog.refresh();
+    const settings = new ComposerSettings(preferences, modelCatalog);
     const directory = new ConversationDirectory(api);
     const stats = new StatsIndex(api, database);
     const activity = new ActivityTracker(database);
@@ -163,12 +168,12 @@ export class ClaudePlusApp {
     paneManager.restorePanes(conversationIdFromPath(location.pathname));
 
     const panelFactory = new PanelFactory({ directory, router, paneManager, stats, activity, rateLimits, preferences });
-    const composer = new ComposerPanel({ paneManager, settings, stats, exporter: new ConversationExporter(api, paneManager) });
+    const composer = new ComposerPanel({ paneManager, settings, stats, exporter: new ConversationExporter(api, paneManager), modelCatalog });
     const workspace = ClaudePlusApp.#createWorkspace({ preferences, paneManager, panelFactory, composer });
     paneManager.attachWorkspace(workspace);
     panelFactory.attachWorkspace(workspace);
     const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
-    new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), onHide: () => this.hide() }).mount();
+    new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, onHide: () => this.hide() }).mount();
     workspace.mount();
     ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
     new KeyboardShortcuts(workspace).install();

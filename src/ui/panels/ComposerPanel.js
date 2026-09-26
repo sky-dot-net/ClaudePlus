@@ -1,7 +1,5 @@
 import { ComposerOptionsView } from '../composer/ComposerOptionsView.js';
-import { EFFORTS } from '../../config/EFFORTS.js';
 import { ExportMenuButton } from '../composer/ExportMenuButton.js';
-import { MODELS } from '../../config/MODELS.js';
 import { Panel } from './Panel.js';
 import { StagedFileList } from '../composer/StagedFileList.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
@@ -43,6 +41,12 @@ export class ComposerPanel extends Panel {
   #exporter;
 
   /**
+   * The selectable models and effort levels.
+   * @type {ModelCatalog}
+   */
+  #modelCatalog;
+
+  /**
    * The model option controls; created once the body is built.
    * @type {?ComposerOptionsView}
    */
@@ -73,13 +77,15 @@ export class ComposerPanel extends Panel {
    * @param {ComposerSettings} services.settings Shared model options.
    * @param {StatsIndex} services.stats Conversation statistics, to hide the files/sources buttons when empty.
    * @param {ConversationExporter} services.exporter Exports the active chat.
+   * @param {ModelCatalog} services.modelCatalog The selectable models and effort levels.
    */
-  constructor({ paneManager, settings, stats, exporter }) {
+  constructor({ paneManager, settings, stats, exporter, modelCatalog }) {
     super('Message');
     this.#paneManager = paneManager;
     this.#settings = settings;
     this.#stats = stats;
     this.#exporter = exporter;
+    this.#modelCatalog = modelCatalog;
   }
 
   /**
@@ -89,12 +95,13 @@ export class ComposerPanel extends Panel {
   createBodyHtml() {
     return `
       <div class="claude-plus-composer__options">
-        <select data-name="modelSelect">${optionsHtml(MODELS, '')}</select>
-        <select data-name="effortSelect">${optionsHtml(EFFORTS, '')}</select>
+        <select data-name="modelSelect">${optionsHtml(this.#modelCatalog.models, '')}</select>
+        <select data-name="effortSelect">${optionsHtml(this.#modelCatalog.efforts, '')}</select>
         <label class="claude-plus-composer__thinking-toggle"><input type="checkbox" data-name="thinkingCheckbox" /> Extended thinking</label>
         <div class="claude-plus-fill-remaining"></div>
         <button class="claude-plus-toolbar__button" data-name="filesButton" title="Files in the active chat">📁</button>
         <button class="claude-plus-toolbar__button" data-name="sourcesButton" title="Web sources of the active chat">🌐</button>
+        <button class="claude-plus-toolbar__button" data-name="statsButton" title="Stats for the active chat">📈</button>
         <button class="claude-plus-toolbar__button" data-name="exportButton" title="Export the active chat">Export ▾</button>
       </div>
       <div class="claude-plus-staged-files" data-name="stagedFiles" hidden></div>
@@ -107,7 +114,7 @@ export class ComposerPanel extends Panel {
    * @returns {void}
    */
   bindEvents() {
-    const { promptInput, stopButton, filesButton, sourcesButton, exportButton, stagedFiles } = this.elements;
+    const { promptInput, stopButton, filesButton, sourcesButton, statsButton, exportButton, stagedFiles } = this.elements;
     this.#optionsView = new ComposerOptionsView(this.elements, this.#settings);
     this.#exportButton = new ExportMenuButton(exportButton, this.#exporter);
     this.#stagedFiles = new StagedFileList(stagedFiles, file => this.#paneManager.focusedSession.uploadFile(file));
@@ -118,7 +125,9 @@ export class ComposerPanel extends Panel {
     stopButton.addEventListener('click', () => this.#paneManager.focusedSession.stopReply());
     filesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('files'));
     sourcesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('sources'));
+    statsButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('stats'));
     this.listenTo(this.#settings, 'settings', () => this.#optionsView.showSettings());
+    this.listenTo(this.#modelCatalog, 'catalog', () => this.#optionsView.refreshChoices(this.#modelCatalog));
     this.listenTo(this.#paneManager, 'focus', () => this.#followActiveChat());
     this.listenTo(this.#paneManager, 'paneConversations', () => this.render());
     this.listenTo(this.#stats, 'aggregate', () => this.render());

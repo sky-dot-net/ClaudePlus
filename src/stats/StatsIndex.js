@@ -89,6 +89,23 @@ export class StatsIndex extends EventEmitter {
   }
 
   /**
+   * A conversation's cached summary, for a view scoped to just that conversation rather than the
+   * whole aggregate.
+   * @param {string} conversationId Conversation id.
+   * @returns {Promise<?ConversationSummary>} The summary, or null when it isn't indexed yet or
+   * looks invalid.
+   */
+  async summaryFor(conversationId) {
+    try {
+      const summary = await this.#database.read(DATABASE.stores.conversationSummaries, conversationId);
+      return SummaryValidator.isValid(summary) ? summary : null;
+    } catch (error) {
+      console.warn(LOG_PREFIX, 'reading a conversation summary failed', error);
+      return null;
+    }
+  }
+
+  /**
    * Stores a conversation's summary if it changed, then recomputes the aggregate. Failures are logged.
    * @param {ApiConversation} conversation The conversation.
    * @returns {Promise<void>} Resolves once done.

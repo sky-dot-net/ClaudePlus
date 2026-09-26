@@ -1,0 +1,6 @@
+.claude-plus-conversation-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px;
+}

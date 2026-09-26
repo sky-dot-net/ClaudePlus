@@ -1,4 +1,5 @@
 import { THINKING_MODES } from '../../config/THINKING_MODES.js';
+import { optionsHtml } from '../html/optionsHtml.js';
 
 /**
  * The composer's model, effort and extended thinking controls, kept in sync with the shared
@@ -45,6 +46,18 @@ export class ComposerOptionsView {
     modelSelect.addEventListener('change', () => { settings.model = modelSelect.value; });
     effortSelect.addEventListener('change', () => { settings.effort = effortSelect.value; });
     thinkingCheckbox.addEventListener('change', () => { settings.thinkingMode = thinkingCheckbox.checked ? THINKING_MODES.extended : THINKING_MODES.off; });
+    this.showSettings();
+  }
+
+  /**
+   * Rebuilds the model and effort options from a freshly extracted catalog, then reapplies the
+   * current settings (falling back to the new default when the previously selected id disappeared).
+   * @param {ModelCatalog} modelCatalog The selectable models and effort levels.
+   * @returns {void}
+   */
+  refreshChoices(modelCatalog) {
+    this.#modelSelect.innerHTML = optionsHtml(modelCatalog.models, this.#settings.model);
+    this.#effortSelect.innerHTML = optionsHtml(modelCatalog.efforts, this.#settings.effort);
     this.showSettings();
   }
 

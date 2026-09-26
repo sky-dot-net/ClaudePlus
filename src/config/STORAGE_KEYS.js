@@ -12,4 +12,6 @@ export const STORAGE_KEYS = Object.freeze({
   savedLayouts: 'claudePlus.savedLayouts',
   subPaneEdges: 'claudePlus.subPaneEdges',
   tablePrefix: 'claudePlus.table.',
+  modelCatalog: 'claudePlus.modelCatalog',
+  theme: 'claudePlus.theme',
 });

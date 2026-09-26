@@ -70,6 +70,9 @@
    * counted as a response time. copyFeedbackMs: how long the copy button shows a check mark.
    * downloadUrlLifetimeMs: how long a download's object URL stays valid after the download starts.
    * widgetExtractPollMs: how often the widget extractor checks its hidden iframe for the rendered card.
+   * modelCatalogPollMs: how often the model catalog extractor checks its hidden iframe.
+   * modelCatalogTimeoutMs: time budget for extracting the model/effort catalog before giving up.
+   * modelCatalogTtlMs: how long an extracted catalog is trusted before it's refreshed again.
    * @type {Readonly<Record<string, number>>}
    */
   const TIMING = Object.freeze({
@@ -82,6 +85,9 @@
     copyFeedbackMs: 1_000,
     downloadUrlLifetimeMs: 10_000,
     widgetExtractPollMs: 500,
+    modelCatalogPollMs: 300,
+    modelCatalogTimeoutMs: 20_000,
+    modelCatalogTtlMs: 12 * 60 * 60 * 1000,
   });
 
   /**
@@ -252,6 +258,272 @@
      */
     #keepUnsavedTime(day, durationMs) {
       if (day === this.#countedDay) this.#unsavedMs += durationMs;
+    }
+  }
+
+  /**
+   * Collects the stylesheets of all components. Every component registers its own stylesheet when
+   * its module is evaluated, so the app injects one combined stylesheet without knowing the components.
+   */
+  class StyleRegistry {
+    /**
+     * Registered stylesheets, in registration order.
+     * @type {string[]}
+     */
+    static #stylesheets = [];
+
+    /**
+     * Adds a component's stylesheet.
+     * @param {string} css The stylesheet text.
+     * @returns {void}
+     */
+    static register(css) {
+      StyleRegistry.#stylesheets.push(css);
+    }
+
+    /**
+     * All registered stylesheets joined into one.
+     * @returns {string} The combined stylesheet text.
+     */
+    static get combinedCss() {
+      return StyleRegistry.#stylesheets.join('\n');
+    }
+  }
+
+  /**
+   * Characters escaped for HTML output and their entities.
+   * @type {Readonly<Record<string, string>>}
+   */
+  const HTML_ENTITIES = Object.freeze({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' });
+
+  /**
+   * Escapes a value for safe insertion into HTML text or attribute values.
+   * @param {*} value Value to escape; null and undefined become an empty string.
+   * @returns {string} The escaped string.
+   */
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => HTML_ENTITIES[character]);
+  }
+
+  /**
+   * The header shared by every dockable sub-pane: a title, dock-edge arrows and a close button.
+   */
+  class SubPaneHeader {
+    /**
+     * HTML of the header.
+     * @param {string} title Header title.
+     * @returns {string} The header element's HTML.
+     */
+    static html(title) {
+      return `
+      <header class="claude-plus-subpane__header">
+        <span class="claude-plus-subpane__title">${escapeHtml(title)}</span>
+        <button class="claude-plus-subpane__button" data-edge="left" title="Dock left">←</button>
+        <button class="claude-plus-subpane__button" data-edge="top" title="Dock top">↑</button>
+        <button class="claude-plus-subpane__button" data-edge="right" title="Dock right">→</button>
+        <button class="claude-plus-subpane__button" data-action="close" title="Close">×</button>
+      </header>`;
+    }
+
+    /**
+     * Runs the clicked header button: a dock arrow or close.
+     * @param {MouseEvent} event Click inside the header.
+     * @param {function(): void} onClose Close callback.
+     * @param {function(string): void} onMove Redock callback, called with 'left', 'top' or 'right'.
+     * @returns {void}
+     */
+    static onClick(event, onClose, onMove) {
+      const button = event.target.closest('button');
+      if (!button) return;
+      if (button.dataset.edge) onMove(button.dataset.edge);
+      else onClose();
+    }
+  }
+
+  /**
+   * Arithmetic mean of a list of numbers.
+   * @param {number[]} values The numbers.
+   * @returns {number} The mean, or 0 for an empty list.
+   */
+  function average(values) {
+    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  }
+
+  /**
+   * Creates an element and assigns properties to it.
+   * @param {string} tagName Tag name.
+   * @param {object} properties Element properties to set, e.g. className, textContent, innerHTML, title, hidden.
+   * @returns {HTMLElement} The new element.
+   */
+  function createElement(tagName, properties) {
+    return Object.assign(document.createElement(tagName), properties);
+  }
+
+  var stylesheet$p = ".claude-plus-empty-state {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-style: italic;\r\n  padding: 6px 0;\r\n}\r\n\r\n.claude-plus-empty-state--padded {\r\n  padding: 24px;\r\n}\r\n";
+
+  StyleRegistry.register(stylesheet$p);
+
+  /**
+   * HTML for an empty-state message.
+   * @param {string} message The message.
+   * @returns {string} A div with the message.
+   */
+  function emptyStateHtml(message) {
+    return `<div class="claude-plus-empty-state">${escapeHtml(message)}</div>`;
+  }
+
+  /**
+   * Entries of a count map, highest count first.
+   * @param {Object<string, number>} counts The count map.
+   * @returns {Array<[string, number]>} [key, count] pairs sorted by descending count.
+   */
+  function entriesByDescendingCount(counts) {
+    return Object.entries(counts).sort((first, second) => second[1] - first[1]);
+  }
+
+  /**
+   * Formats a duration compactly, e.g. "2h 5m", "3m 12s" or "40s".
+   * @param {number} durationMs Duration in milliseconds; negative values count as zero.
+   * @returns {string} The formatted duration.
+   */
+  function formatDuration(durationMs) {
+    const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    return `${seconds}s`;
+  }
+
+  var stylesheet$o = ".claude-plus-value-row {\r\n  display: flex;\r\n  justify-content: space-between;\r\n  padding: 2px 0;\r\n  gap: 8px;\r\n}\r\n\r\n.claude-plus-value-row span {\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
+
+  StyleRegistry.register(stylesheet$o);
+
+  /**
+   * HTML for a label/value row.
+   * @param {string} label Row label.
+   * @param {string|number} value Row value.
+   * @returns {string} The row.
+   */
+  function valueRowHtml(label, value) {
+    return `<div class="claude-plus-value-row"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>`;
+  }
+
+  var stylesheet$n = ".claude-plus-conversation-stats {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n";
+
+  StyleRegistry.register(stylesheet$n);
+
+  /**
+   * A sub-pane showing usage stats scoped to just the pane's own conversation (turns, average
+   * response time, estimated tokens, tool calls), rather than the totals across every chat that the
+   * global Stats panel shows. It can be docked to the pane's left, top or right edge and closed.
+   */
+  class ConversationStatsSubPane {
+    /**
+     * Session whose conversation is shown.
+     * @type {ChatSession}
+     */
+    #session;
+
+    /**
+     * Conversation statistics.
+     * @type {StatsIndex}
+     */
+    #stats;
+
+    /**
+     * The sub-pane's root element.
+     * @type {HTMLElement}
+     */
+    #element;
+
+    /**
+     * Undoes the subscriptions.
+     * @type {Array<function(): void>}
+     */
+    #unsubscribers = [];
+
+    /**
+     * Builds the sub-pane.
+     * @param {object} options Sub-pane options.
+     * @param {ChatSession} options.session Session whose conversation is shown.
+     * @param {StatsIndex} options.stats Conversation statistics.
+     * @param {function(): void} options.onClose Called when × is clicked.
+     * @param {function(string): void} options.onMove Called with 'left', 'top' or 'right' when an arrow is clicked.
+     */
+    constructor({ session, stats, onClose, onMove }) {
+      this.#session = session;
+      this.#stats = stats;
+      this.#element = createElement('section', { className: 'claude-plus-subpane' });
+      this.#element.addEventListener('click', event => this.#onClick(event, onClose, onMove));
+      this.#unsubscribers.push(stats.subscribe('aggregate', () => this.render()), session.subscribe('openConversation', () => this.render()));
+      this.render();
+    }
+
+    /**
+     * The sub-pane's root element.
+     * @returns {HTMLElement} The element.
+     */
+    get element() {
+      return this.#element;
+    }
+
+    /**
+     * Shows the open conversation's own stats, if it has any indexed yet.
+     * @returns {Promise<void>} Resolves once rendered.
+     */
+    async render() {
+      const conversationId = this.#session.openConversationId;
+      this.#renderHeaderAndBody(conversationId ? null : emptyStateHtml('Start or open a chat to see its stats.'));
+      if (!conversationId) return;
+      const summary = await this.#stats.summaryFor(conversationId);
+      if (this.#session.openConversationId !== conversationId) return;
+      this.#renderHeaderAndBody(summary ? ConversationStatsSubPane.#summaryHtml(summary) : emptyStateHtml('Not indexed yet — send a message or wait a moment.'));
+    }
+
+    /**
+     * Removes the sub-pane.
+     * @returns {void}
+     */
+    dispose() {
+      this.#unsubscribers.forEach(unsubscribe => unsubscribe());
+      this.#element.remove();
+    }
+
+    /**
+     * Runs a header click; other clicks are ignored.
+     * @param {MouseEvent} event Click inside the sub-pane.
+     * @param {function(): void} onClose Close callback.
+     * @param {function(string): void} onMove Redock callback.
+     * @returns {void}
+     */
+    #onClick(event, onClose, onMove) {
+      if (event.target.closest('header')) SubPaneHeader.onClick(event, onClose, onMove);
+    }
+
+    /**
+     * Replaces the sub-pane's content with the header and a body.
+     * @param {string} bodyHtml The body's HTML.
+     * @returns {void}
+     */
+    #renderHeaderAndBody(bodyHtml) {
+      this.#element.innerHTML = `${SubPaneHeader.html('📈 Stats for this chat')}<div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-conversation-stats">${bodyHtml}</div>`;
+    }
+
+    /**
+     * HTML of a conversation's stats: turns, response time, estimated tokens and a tool call ranking.
+     * @param {ConversationSummary} summary The conversation's summary.
+     * @returns {string} The HTML.
+     */
+    static #summaryHtml(summary) {
+      const responseTimes = summary.responseTimesMs;
+      const toolRanking = entriesByDescendingCount(summary.toolCallCounts);
+      const rankingHtml = toolRanking.map(([toolName, count]) => valueRowHtml(toolName, count)).join('') || emptyStateHtml('No tool calls in this chat yet.');
+      return `
+      <div class="claude-plus-panel__section">${valueRowHtml('Turns', summary.promptCount)}${valueRowHtml('Avg response time', responseTimes.length ? formatDuration(average(responseTimes)) : '–')}</div>
+      <div class="claude-plus-panel__section">${valueRowHtml('Est. tokens in / out', `~${summary.estimatedTokensIn.toLocaleString()} in / ~${summary.estimatedTokensOut.toLocaleString()} out`)}</div>
+      <details class="claude-plus-panel__section" open><summary>Tool calls (${toolRanking.reduce((sum, [, count]) => sum + count, 0)})</summary>${rankingHtml}</details>`;
     }
   }
 
@@ -575,6 +847,8 @@
     savedLayouts: 'claudePlus.savedLayouts',
     subPaneEdges: 'claudePlus.subPaneEdges',
     tablePrefix: 'claudePlus.table.',
+    modelCatalog: 'claudePlus.modelCatalog',
+    theme: 'claudePlus.theme',
   });
 
   /**
@@ -673,35 +947,6 @@
   }
 
   /**
-   * Collects the stylesheets of all components. Every component registers its own stylesheet when
-   * its module is evaluated, so the app injects one combined stylesheet without knowing the components.
-   */
-  class StyleRegistry {
-    /**
-     * Registered stylesheets, in registration order.
-     * @type {string[]}
-     */
-    static #stylesheets = [];
-
-    /**
-     * Adds a component's stylesheet.
-     * @param {string} css The stylesheet text.
-     * @returns {void}
-     */
-    static register(css) {
-      StyleRegistry.#stylesheets.push(css);
-    }
-
-    /**
-     * All registered stylesheets joined into one.
-     * @returns {string} The combined stylesheet text.
-     */
-    static get combinedCss() {
-      return StyleRegistry.#stylesheets.join('\n');
-    }
-  }
-
-  /**
    * Result limits. sidebarPageSize / backfillPageSize: conversations requested per API page.
    * listedSources: web sources listed at once. rankedOutlets: outlets in the ranking.
    * toolResultCharacters: characters of a tool result shown. provisionalTitleLength: characters of
@@ -725,44 +970,6 @@
     comboboxEntries: 200,
     searchResults: 300,
   });
-
-  /**
-   * Creates an element and assigns properties to it.
-   * @param {string} tagName Tag name.
-   * @param {object} properties Element properties to set, e.g. className, textContent, innerHTML, title, hidden.
-   * @returns {HTMLElement} The new element.
-   */
-  function createElement(tagName, properties) {
-    return Object.assign(document.createElement(tagName), properties);
-  }
-
-  /**
-   * Characters escaped for HTML output and their entities.
-   * @type {Readonly<Record<string, string>>}
-   */
-  const HTML_ENTITIES = Object.freeze({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' });
-
-  /**
-   * Escapes a value for safe insertion into HTML text or attribute values.
-   * @param {*} value Value to escape; null and undefined become an empty string.
-   * @returns {string} The escaped string.
-   */
-  function escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>"']/g, character => HTML_ENTITIES[character]);
-  }
-
-  var stylesheet$n = ".claude-plus-empty-state {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-style: italic;\r\n  padding: 6px 0;\r\n}\r\n\r\n.claude-plus-empty-state--padded {\r\n  padding: 24px;\r\n}\r\n";
-
-  StyleRegistry.register(stylesheet$n);
-
-  /**
-   * HTML for an empty-state message.
-   * @param {string} message The message.
-   * @returns {string} A div with the message.
-   */
-  function emptyStateHtml(message) {
-    return `<div class="claude-plus-empty-state">${escapeHtml(message)}</div>`;
-  }
 
   var stylesheet$m = ".claude-plus-value-combobox {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  max-height: 240px;\r\n  overflow-y: auto;\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-value-combobox__entry {\r\n  padding: 4px 8px;\r\n  border-radius: 4px;\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-value-combobox__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
 
@@ -1205,41 +1412,6 @@
     #rowHtml(row, visibleColumns) {
       const cells = visibleColumns.map(column => `<td class="claude-plus-column-table__cell claude-plus-column-table__cell--${column.id}">${column.cellHtml(row)}</td>`);
       return `<tr ${this.#rowAttributes(row)}>${cells.join('')}</tr>`;
-    }
-  }
-
-  /**
-   * The header shared by every dockable sub-pane: a title, dock-edge arrows and a close button.
-   */
-  class SubPaneHeader {
-    /**
-     * HTML of the header.
-     * @param {string} title Header title.
-     * @returns {string} The header element's HTML.
-     */
-    static html(title) {
-      return `
-      <header class="claude-plus-subpane__header">
-        <span class="claude-plus-subpane__title">${escapeHtml(title)}</span>
-        <button class="claude-plus-subpane__button" data-edge="left" title="Dock left">←</button>
-        <button class="claude-plus-subpane__button" data-edge="top" title="Dock top">↑</button>
-        <button class="claude-plus-subpane__button" data-edge="right" title="Dock right">→</button>
-        <button class="claude-plus-subpane__button" data-action="close" title="Close">×</button>
-      </header>`;
-    }
-
-    /**
-     * Runs the clicked header button: a dock arrow or close.
-     * @param {MouseEvent} event Click inside the header.
-     * @param {function(): void} onClose Close callback.
-     * @param {function(string): void} onMove Redock callback, called with 'left', 'top' or 'right'.
-     * @returns {void}
-     */
-    static onClick(event, onClose, onMove) {
-      const button = event.target.closest('button');
-      if (!button) return;
-      if (button.dataset.edge) onMove(button.dataset.edge);
-      else onClose();
     }
   }
 
@@ -2012,7 +2184,7 @@
     }
   }
 
-  var stylesheet$i = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  align-self: flex-end;\n  text-align: right;\n}\n\n.claude-plus-message--human:not(.claude-plus-message--editing) {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__attachments {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message__bubble {\n  background: var(--claude-plus-color-message-human-bg);\n  border-radius: 14px;\n  padding: 8px 12px;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 6px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
+  var stylesheet$i = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  align-self: flex-end;\n  text-align: right;\n}\n\n.claude-plus-message--human:not(.claude-plus-message--editing) {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__attachments {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message__bubble {\n  background: var(--claude-plus-color-message-human-bg);\n  border-radius: 14px;\n  padding: 8px 12px;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  font-family: var(--claude-plus-message-font-family, inherit);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 6px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
 
   StyleRegistry.register(stylesheet$i);
 
@@ -2968,9 +3140,10 @@
     #messageListView = null;
 
     /**
-     * Open sub-panes by kind: 'files' and 'sources' are ConversationSubPane, 'toolSteps' (a
-     * message's thinking and tool-call steps) is a MessageToolStepsPane.
-     * @type {Map<string, ConversationSubPane|MessageToolStepsPane>}
+     * Open sub-panes by kind: 'files' and 'sources' are ConversationSubPane, 'stats' (this
+     * conversation's own usage stats) is a ConversationStatsSubPane, 'toolSteps' (a message's
+     * thinking and tool-call steps) is a MessageToolStepsPane.
+     * @type {Map<string, ConversationSubPane|ConversationStatsSubPane|MessageToolStepsPane>}
      */
     #subPanes = new Map();
 
@@ -3060,7 +3233,7 @@
 
     /**
      * Opens a sub-pane on the right edge, or closes it if one of that kind is already open.
-     * @param {string} kind 'files' or 'sources'.
+     * @param {string} kind 'files', 'sources' or 'stats'.
      * @returns {void}
      */
     openSubPane(kind) {
@@ -3068,7 +3241,25 @@
         this.#closeSubPane(kind);
         return;
       }
-      const subPane = new ConversationSubPane({
+      this.#subPanes.set(kind, this.#createSubPane(kind));
+      this.#dockSubPane(kind, this.#storedSubPaneEdge(kind));
+    }
+
+    /**
+     * Builds a sub-pane of a kind: the conversation-scoped stats view, or the files/sources table.
+     * @param {string} kind 'files', 'sources' or 'stats'.
+     * @returns {ConversationSubPane|ConversationStatsSubPane} The sub-pane.
+     */
+    #createSubPane(kind) {
+      if (kind === 'stats') {
+        return new ConversationStatsSubPane({
+          session: this.#session,
+          stats: this.#stats,
+          onClose: () => this.#closeSubPane(kind),
+          onMove: edge => this.#dockSubPane(kind, edge),
+        });
+      }
+      return new ConversationSubPane({
         kind,
         session: this.#session,
         stats: this.#stats,
@@ -3076,8 +3267,6 @@
         onClose: closedKind => this.#closeSubPane(closedKind),
         onMove: (movedKind, edge) => this.#dockSubPane(movedKind, edge),
       });
-      this.#subPanes.set(kind, subPane);
-      this.#dockSubPane(kind, this.#storedSubPaneEdge(kind));
     }
 
     /**
@@ -5124,6 +5313,16 @@
   const THINKING_MODES = Object.freeze({ off: 'off', extended: 'extended' });
 
   /**
+   * HTML for the options of a select element.
+   * @param {ReadonlyArray<ChoiceOption>} options The options.
+   * @param {string} selectedId Value of the option to preselect.
+   * @returns {string} The option elements.
+   */
+  function optionsHtml(options, selectedId) {
+    return options.map(option => `<option value="${escapeHtml(option.id)}"${option.id === selectedId ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
+  }
+
+  /**
    * The composer's model, effort and extended thinking controls, kept in sync with the shared
    * composer settings in both directions.
    */
@@ -5172,6 +5371,18 @@
     }
 
     /**
+     * Rebuilds the model and effort options from a freshly extracted catalog, then reapplies the
+     * current settings (falling back to the new default when the previously selected id disappeared).
+     * @param {ModelCatalog} modelCatalog The selectable models and effort levels.
+     * @returns {void}
+     */
+    refreshChoices(modelCatalog) {
+      this.#modelSelect.innerHTML = optionsHtml(modelCatalog.models, this.#settings.model);
+      this.#effortSelect.innerHTML = optionsHtml(modelCatalog.efforts, this.#settings.effort);
+      this.showSettings();
+    }
+
+    /**
      * Shows the current shared options in the controls.
      * @returns {void}
      */
@@ -5181,18 +5392,6 @@
       this.#thinkingCheckbox.checked = this.#settings.thinkingMode === THINKING_MODES.extended;
     }
   }
-
-  /**
-   * Selectable effort levels; the first is the default.
-   * @type {ReadonlyArray<ChoiceOption>}
-   */
-  const EFFORTS = Object.freeze([
-    { id: 'low', label: 'Low effort' },
-    { id: 'medium', label: 'Medium effort' },
-    { id: 'high', label: 'High effort' },
-    { id: 'extra', label: 'Extra effort' },
-    { id: 'max', label: 'Max effort' },
-  ]);
 
   var stylesheet$c = ".claude-plus-dialog-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.5);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-dialog {\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 8px;\r\n  padding: 16px;\r\n  max-width: 360px;\r\n  font-size: 13px;\r\n}\r\n\r\n.claude-plus-dialog__message {\r\n  margin: 0 0 14px;\r\n  line-height: 1.4;\r\n}\r\n\r\n.claude-plus-dialog__input {\r\n  width: 100%;\r\n  box-sizing: border-box;\r\n  margin: 0 0 14px;\r\n  padding: 6px 8px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font: inherit;\r\n}\r\n\r\n.claude-plus-dialog__actions {\r\n  display: flex;\r\n  justify-content: flex-end;\r\n  gap: 8px;\r\n}\r\n";
 
@@ -5854,17 +6053,6 @@
     }
   }
 
-  /**
-   * Selectable models; the first is the default.
-   * @type {ReadonlyArray<ChoiceOption>}
-   */
-  const MODELS = Object.freeze([
-    { id: 'claude-sonnet-5', label: 'Sonnet 5' },
-    { id: 'claude-opus-5-5', label: 'Opus 5.5' },
-    { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
-    { id: 'claude-fable-5-1', label: 'Fable 5.1' },
-  ]);
-
   var stylesheet$a = ".claude-plus-staged-files {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 3px 4px 3px 3px;\r\n  font-size: 12px;\r\n  max-width: 200px;\r\n}\r\n\r\n.claude-plus-staged-file--uploading {\r\n  opacity: 0.6;\r\n}\r\n\r\n.claude-plus-staged-file__thumb {\r\n  width: 20px;\r\n  height: 20px;\r\n  border-radius: 4px;\r\n  object-fit: cover;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__icon {\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__name {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-staged-file__remove {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 0 2px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__remove:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$a);
@@ -6007,16 +6195,6 @@
     }
   }
 
-  /**
-   * HTML for the options of a select element.
-   * @param {ReadonlyArray<ChoiceOption>} options The options.
-   * @param {string} selectedId Value of the option to preselect.
-   * @returns {string} The option elements.
-   */
-  function optionsHtml(options, selectedId) {
-    return options.map(option => `<option value="${escapeHtml(option.id)}"${option.id === selectedId ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
-  }
-
   var stylesheet$9 = ".claude-plus-composer__options {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 8px;\r\n  align-items: center;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-composer__options select {\r\n  padding: 4px 6px;\r\n}\r\n\r\n.claude-plus-composer__thinking-toggle {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-panel .claude-plus-composer__input {\r\n  flex: 1;\r\n  resize: none;\r\n  min-height: 40px;\r\n  border-radius: 8px;\r\n  padding: 8px;\r\n  font-size: 14px;\r\n}\r\n\r\n.claude-plus-primary-button.claude-plus-composer__stop-button {\r\n  flex-shrink: 0;\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$9);
@@ -6054,6 +6232,12 @@
     #exporter;
 
     /**
+     * The selectable models and effort levels.
+     * @type {ModelCatalog}
+     */
+    #modelCatalog;
+
+    /**
      * The model option controls; created once the body is built.
      * @type {?ComposerOptionsView}
      */
@@ -6084,13 +6268,15 @@
      * @param {ComposerSettings} services.settings Shared model options.
      * @param {StatsIndex} services.stats Conversation statistics, to hide the files/sources buttons when empty.
      * @param {ConversationExporter} services.exporter Exports the active chat.
+     * @param {ModelCatalog} services.modelCatalog The selectable models and effort levels.
      */
-    constructor({ paneManager, settings, stats, exporter }) {
+    constructor({ paneManager, settings, stats, exporter, modelCatalog }) {
       super('Message');
       this.#paneManager = paneManager;
       this.#settings = settings;
       this.#stats = stats;
       this.#exporter = exporter;
+      this.#modelCatalog = modelCatalog;
     }
 
     /**
@@ -6100,12 +6286,13 @@
     createBodyHtml() {
       return `
       <div class="claude-plus-composer__options">
-        <select data-name="modelSelect">${optionsHtml(MODELS, '')}</select>
-        <select data-name="effortSelect">${optionsHtml(EFFORTS, '')}</select>
+        <select data-name="modelSelect">${optionsHtml(this.#modelCatalog.models, '')}</select>
+        <select data-name="effortSelect">${optionsHtml(this.#modelCatalog.efforts, '')}</select>
         <label class="claude-plus-composer__thinking-toggle"><input type="checkbox" data-name="thinkingCheckbox" /> Extended thinking</label>
         <div class="claude-plus-fill-remaining"></div>
         <button class="claude-plus-toolbar__button" data-name="filesButton" title="Files in the active chat">📁</button>
         <button class="claude-plus-toolbar__button" data-name="sourcesButton" title="Web sources of the active chat">🌐</button>
+        <button class="claude-plus-toolbar__button" data-name="statsButton" title="Stats for the active chat">📈</button>
         <button class="claude-plus-toolbar__button" data-name="exportButton" title="Export the active chat">Export ▾</button>
       </div>
       <div class="claude-plus-staged-files" data-name="stagedFiles" hidden></div>
@@ -6118,7 +6305,7 @@
      * @returns {void}
      */
     bindEvents() {
-      const { promptInput, stopButton, filesButton, sourcesButton, exportButton, stagedFiles } = this.elements;
+      const { promptInput, stopButton, filesButton, sourcesButton, statsButton, exportButton, stagedFiles } = this.elements;
       this.#optionsView = new ComposerOptionsView(this.elements, this.#settings);
       this.#exportButton = new ExportMenuButton(exportButton, this.#exporter);
       this.#stagedFiles = new StagedFileList(stagedFiles, file => this.#paneManager.focusedSession.uploadFile(file));
@@ -6129,7 +6316,9 @@
       stopButton.addEventListener('click', () => this.#paneManager.focusedSession.stopReply());
       filesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('files'));
       sourcesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('sources'));
+      statsButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('stats'));
       this.listenTo(this.#settings, 'settings', () => this.#optionsView.showSettings());
+      this.listenTo(this.#modelCatalog, 'catalog', () => this.#optionsView.refreshChoices(this.#modelCatalog));
       this.listenTo(this.#paneManager, 'focus', () => this.#followActiveChat());
       this.listenTo(this.#paneManager, 'paneConversations', () => this.render());
       this.listenTo(this.#stats, 'aggregate', () => this.render());
@@ -6263,44 +6452,52 @@
     #preferences;
 
     /**
+     * The selectable models and effort levels.
+     * @type {ModelCatalog}
+     */
+    #modelCatalog;
+
+    /**
      * Creates the settings on top of a preference store.
      * @param {Preferences} preferences Backing storage.
+     * @param {ModelCatalog} modelCatalog The selectable models and effort levels.
      */
-    constructor(preferences) {
+    constructor(preferences, modelCatalog) {
       super();
       this.#preferences = preferences;
+      this.#modelCatalog = modelCatalog;
     }
 
     /**
      * Selected model id.
-     * @returns {string} An id from MODELS.
+     * @returns {string} An id from the model catalog.
      */
     get model() {
-      return this.#readAllowed(STORAGE_KEYS.model, MODELS.map(option => option.id));
+      return this.#readAllowed(STORAGE_KEYS.model, this.#modelCatalog.models.map(option => option.id));
     }
 
     /**
-     * Selects a model; ids not in MODELS are ignored.
+     * Selects a model; ids not in the model catalog are ignored.
      * @param {string} modelId Model id.
      */
     set model(modelId) {
-      this.#writeIfAllowed(STORAGE_KEYS.model, modelId, MODELS.map(option => option.id));
+      this.#writeIfAllowed(STORAGE_KEYS.model, modelId, this.#modelCatalog.models.map(option => option.id));
     }
 
     /**
      * Selected effort level.
-     * @returns {string} An id from EFFORTS.
+     * @returns {string} An id from the model catalog.
      */
     get effort() {
-      return this.#readAllowed(STORAGE_KEYS.effort, EFFORTS.map(option => option.id));
+      return this.#readAllowed(STORAGE_KEYS.effort, this.#modelCatalog.efforts.map(option => option.id));
     }
 
     /**
-     * Selects an effort level; ids not in EFFORTS are ignored.
+     * Selects an effort level; ids not in the model catalog are ignored.
      * @param {string} effortId Effort id.
      */
     set effort(effortId) {
-      this.#writeIfAllowed(STORAGE_KEYS.effort, effortId, EFFORTS.map(option => option.id));
+      this.#writeIfAllowed(STORAGE_KEYS.effort, effortId, this.#modelCatalog.efforts.map(option => option.id));
     }
 
     /**
@@ -8601,6 +8798,307 @@
     }
   }
 
+  /**
+   * Selectable effort levels; the first is the default.
+   * @type {ReadonlyArray<ChoiceOption>}
+   */
+  const EFFORTS = Object.freeze([
+    { id: 'low', label: 'Low effort' },
+    { id: 'medium', label: 'Medium effort' },
+    { id: 'high', label: 'High effort' },
+    { id: 'xhigh', label: 'Extra effort' },
+    { id: 'max', label: 'Max effort' },
+  ]);
+
+  /**
+   * Selectable models; the first is the default.
+   * @type {ReadonlyArray<ChoiceOption>}
+   */
+  const MODELS = Object.freeze([
+    { id: 'claude-sonnet-5', label: 'Sonnet 5' },
+    { id: 'claude-opus-5-5', label: 'Opus 5.5' },
+    { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+    { id: 'claude-fable-5-1', label: 'Fable 5.1' },
+  ]);
+
+  /**
+   * Waits for a given time.
+   * @param {number} durationMs Milliseconds to wait.
+   * @returns {Promise<void>} Resolves after the delay.
+   */
+  function wait(durationMs) {
+    return new Promise(resolve => setTimeout(resolve, durationMs));
+  }
+
+  /**
+   * Effort labels for known ids, since claude.ai's effort submenu doesn't render its options as
+   * cleanly labelled text as the model list does. An id outside this map still works, with a label
+   * derived from the id itself.
+   * @type {Readonly<Record<string, string>>}
+   */
+  const KNOWN_EFFORT_LABELS = Object.freeze({ low: 'Low effort', medium: 'Medium effort', high: 'High effort', xhigh: 'Extra effort', max: 'Max effort' });
+
+  /**
+   * Reads the live model and effort lists straight from claude.ai's own composer, run fresh and
+   * self-contained in a hidden same-origin iframe: the same "never touch the page's own native app
+   * instance" approach used to extract widgets. claude.ai doesn't expose this as an API either - its
+   * own dropdown list is compiled into its client bundle - so the only way to stay in sync with a
+   * roster that changes regularly is to read the choices it renders for itself.
+   */
+  class ModelCatalogSource {
+    /**
+     * Extracts the current model and effort lists.
+     * @returns {Promise<{models: ChoiceOption[], efforts: ChoiceOption[]}>} The lists.
+     * @throws {Error} When the composer or its option menus don't appear within the timeout.
+     */
+    static async extract() {
+      const iframe = ModelCatalogSource.#createHiddenIframe();
+      document.body.append(iframe);
+      try {
+        return await ModelCatalogSource.#readFromFrame(iframe);
+      } finally {
+        iframe.remove();
+      }
+    }
+
+    /**
+     * Creates a hidden iframe pointed at a fresh chat, ready to append.
+     * @returns {HTMLIFrameElement} The iframe.
+     */
+    static #createHiddenIframe() {
+      return createElement('iframe', { src: 'https://claude.ai/new', style: 'position:fixed; top:-9999px; left:-9999px; width:900px; height:900px; border:0;' });
+    }
+
+    /**
+     * Opens the model dropdown and its effort submenu in turn and reads each one's options.
+     * @param {HTMLIFrameElement} iframe The extraction iframe.
+     * @returns {Promise<{models: ChoiceOption[], efforts: ChoiceOption[]}>} The lists.
+     * @throws {Error} When a step doesn't appear within the timeout.
+     */
+    static async #readFromFrame(iframe) {
+      const deadline = Date.now() + TIMING.modelCatalogTimeoutMs;
+      const dropdownTrigger = await ModelCatalogSource.#waitFor(iframe, doc => doc.querySelector('[data-testid="model-selector-dropdown"]'), deadline);
+      dropdownTrigger.click();
+      const models = await ModelCatalogSource.#waitForOptions(iframe, '[data-model-id]', deadline, ModelCatalogSource.#modelOption);
+      const effortTrigger = await ModelCatalogSource.#waitFor(iframe, doc => ModelCatalogSource.#effortMenuTrigger(doc), deadline);
+      effortTrigger.click();
+      const efforts = await ModelCatalogSource.#waitForOptions(iframe, '[data-effort-id]', deadline, ModelCatalogSource.#effortOption);
+      if (!models.length) throw new Error('model list did not render within the timeout');
+      return { models, efforts };
+    }
+
+    /**
+     * The effort submenu's own trigger item, found by its label rather than a fixed id.
+     * @param {Document} doc The iframe's document.
+     * @returns {?HTMLElement} The trigger, or null when not rendered yet.
+     */
+    static #effortMenuTrigger(doc) {
+      return [...doc.querySelectorAll('[role="menuitem"]')].find(item => /^Effort\b/.test(item.textContent.trim())) ?? null;
+    }
+
+    /**
+     * Polls the iframe's document until a query returns a truthy result or the deadline passes.
+     * @param {HTMLIFrameElement} iframe The extraction iframe.
+     * @param {function(Document): *} query Reads the desired value from the document.
+     * @param {number} deadline Epoch ms after which to give up.
+     * @returns {Promise<*>} The query's result.
+     * @throws {Error} When the deadline passes without a result.
+     */
+    static async #waitFor(iframe, query, deadline) {
+      while (Date.now() < deadline) {
+        const doc = ModelCatalogSource.#documentOf(iframe);
+        const result = doc ? query(doc) : null;
+        if (result) return result;
+        await wait(TIMING.modelCatalogPollMs);
+      }
+      throw new Error('claude.ai did not render the expected control within the timeout');
+    }
+
+    /**
+     * Polls for a menu's options to appear, mapping each to a choice once they do.
+     * @param {HTMLIFrameElement} iframe The extraction iframe.
+     * @param {string} selector Selector matching each option element.
+     * @param {number} deadline Epoch ms after which to give up (returns whatever is found by then).
+     * @param {function(HTMLElement): ChoiceOption} toOption Reads one option element's choice.
+     * @returns {Promise<ChoiceOption[]>} The options, in the order rendered; empty past the deadline.
+     */
+    static async #waitForOptions(iframe, selector, deadline, toOption) {
+      while (Date.now() < deadline) {
+        const doc = ModelCatalogSource.#documentOf(iframe);
+        const items = doc ? [...doc.querySelectorAll(selector)] : [];
+        if (items.length) return items.map(toOption);
+        await wait(TIMING.modelCatalogPollMs);
+      }
+      return [];
+    }
+
+    /**
+     * A model menu item's choice: its id and its clean display label, without the description or
+     * "requires usage credits" badge that share the same item.
+     * @param {HTMLElement} item The menu item.
+     * @returns {ChoiceOption} The choice.
+     */
+    static #modelOption(item) {
+      const truncated = item.querySelectorAll('.truncate');
+      const label = (truncated[1] ?? truncated[0])?.textContent?.trim();
+      return { id: item.getAttribute('data-model-id'), label: label || item.getAttribute('data-model-id') };
+    }
+
+    /**
+     * An effort menu item's choice: its id, labelled from the known map or derived from the id.
+     * @param {HTMLElement} item The menu item.
+     * @returns {ChoiceOption} The choice.
+     */
+    static #effortOption(item) {
+      const id = item.getAttribute('data-effort-id');
+      return { id, label: KNOWN_EFFORT_LABELS[id] ?? `${id.charAt(0).toUpperCase()}${id.slice(1)} effort` };
+    }
+
+    /**
+     * The iframe's document, or null while it can't be read (not yet navigated, still loading).
+     * @param {HTMLIFrameElement} iframe The extraction iframe.
+     * @returns {?Document} The document, or null.
+     */
+    static #documentOf(iframe) {
+      try {
+        return iframe.contentDocument;
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  /**
+   * The selectable models and effort levels, kept in sync with claude.ai's own roster instead of a
+   * list hardcoded here that would go stale as models are added or retired. Starts from the small
+   * built-in fallback (or a cached extraction, if one isn't stale yet), then refreshes in the
+   * background; refresh() is safe to call repeatedly, since a fresh-enough cache or an already
+   * running extraction is reused rather than repeated.
+   * @fires ModelCatalog#catalog The live lists changed.
+   */
+  class ModelCatalog extends EventEmitter {
+    /**
+     * Cache storage.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * Current model list.
+     * @type {ChoiceOption[]}
+     */
+    #models = MODELS;
+
+    /**
+     * Current effort list.
+     * @type {ChoiceOption[]}
+     */
+    #efforts = EFFORTS;
+
+    /**
+     * When the current lists were last extracted; null for the built-in fallback.
+     * @type {?number}
+     */
+    #fetchedAt = null;
+
+    /**
+     * A refresh already in flight, reused by a concurrent call instead of starting another.
+     * @type {?Promise<void>}
+     */
+    #refreshPromise = null;
+
+    /**
+     * Creates the catalog on top of a cache, applying it immediately if it isn't stale.
+     * @param {Preferences} preferences Cache storage.
+     */
+    constructor(preferences) {
+      super();
+      this.#preferences = preferences;
+      this.#loadCached();
+    }
+
+    /**
+     * Selectable models; the first is the default.
+     * @returns {ChoiceOption[]} The list.
+     */
+    get models() {
+      return this.#models;
+    }
+
+    /**
+     * Selectable effort levels; the first is the default.
+     * @returns {ChoiceOption[]} The list.
+     */
+    get efforts() {
+      return this.#efforts;
+    }
+
+    /**
+     * Extracts the live lists if the current ones are stale (or were never extracted), then caches
+     * and publishes them. A failure is logged and leaves the previous lists in place.
+     * @returns {Promise<void>} Resolves once refreshed, reused, or failed.
+     */
+    refresh() {
+      if (!this.#isStale()) return Promise.resolve();
+      this.#refreshPromise ??= this.#runRefresh().finally(() => { this.#refreshPromise = null; });
+      return this.#refreshPromise;
+    }
+
+    /**
+     * Runs one extraction and applies it, or logs and keeps the previous lists on failure.
+     * @returns {Promise<void>} Resolves once applied or failed.
+     */
+    async #runRefresh() {
+      try {
+        const { models, efforts } = await ModelCatalogSource.extract();
+        this.#apply(models, efforts.length ? efforts : this.#efforts, Date.now());
+        this.#preferences.writeJson(STORAGE_KEYS.modelCatalog, { fetchedAt: this.#fetchedAt, models: this.#models, efforts: this.#efforts });
+      } catch (error) {
+        console.warn(LOG_PREFIX, 'extracting the live model list failed; keeping the previous list', error);
+      }
+    }
+
+    /**
+     * Applies a cached catalog if it looks valid.
+     * @returns {void}
+     */
+    #loadCached() {
+      const cached = this.#preferences.readJson(STORAGE_KEYS.modelCatalog);
+      if (ModelCatalog.#looksValid(cached)) this.#apply(cached.models, cached.efforts, cached.fetchedAt);
+    }
+
+    /**
+     * Whether the current lists are stale enough to warrant a fresh extraction.
+     * @returns {boolean} True for the built-in fallback or a cache past its TTL.
+     */
+    #isStale() {
+      return this.#fetchedAt === null || Date.now() - this.#fetchedAt > TIMING.modelCatalogTtlMs;
+    }
+
+    /**
+     * Replaces the current lists and publishes the change.
+     * @param {ChoiceOption[]} models New model list.
+     * @param {ChoiceOption[]} efforts New effort list.
+     * @param {number} fetchedAt When this list was extracted.
+     * @returns {void}
+     */
+    #apply(models, efforts, fetchedAt) {
+      this.#models = models;
+      this.#efforts = efforts;
+      this.#fetchedAt = fetchedAt;
+      this.publish('catalog');
+    }
+
+    /**
+     * Whether a cached value looks like a usable catalog.
+     * @param {*} cached The parsed cache entry.
+     * @returns {boolean} True when it carries non-empty model and effort arrays.
+     */
+    static #looksValid(cached) {
+      return Boolean(cached) && Array.isArray(cached.models) && cached.models.length > 0 && Array.isArray(cached.efforts) && cached.efforts.length > 0;
+    }
+  }
+
   var stylesheet$4 = ".claude-plus-folder {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-folder:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-breadcrumb {\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  margin-bottom: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-breadcrumb__back-link {\r\n  color: var(--claude-plus-color-accent);\r\n  cursor: pointer;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$4);
@@ -9177,39 +9675,6 @@
   }
 
   /**
-   * Arithmetic mean of a list of numbers.
-   * @param {number[]} values The numbers.
-   * @returns {number} The mean, or 0 for an empty list.
-   */
-  function average(values) {
-    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
-  }
-
-  /**
-   * Entries of a count map, highest count first.
-   * @param {Object<string, number>} counts The count map.
-   * @returns {Array<[string, number]>} [key, count] pairs sorted by descending count.
-   */
-  function entriesByDescendingCount(counts) {
-    return Object.entries(counts).sort((first, second) => second[1] - first[1]);
-  }
-
-  /**
-   * Formats a duration compactly, e.g. "2h 5m", "3m 12s" or "40s".
-   * @param {number} durationMs Duration in milliseconds; negative values count as zero.
-   * @returns {string} The formatted duration.
-   */
-  function formatDuration(durationMs) {
-    const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    if (minutes > 0) return `${minutes}m ${seconds}s`;
-    return `${seconds}s`;
-  }
-
-  /**
    * Formats a usage window's utilization as a percentage rounded to two decimals.
    * @param {?UsageWindow} usageWindow The window, or null when unknown.
    * @returns {string} The percentage, or "–" when unknown.
@@ -9217,20 +9682,6 @@
   function formatUtilization(usageWindow) {
     if (!usageWindow) return '–';
     return `${Math.round((usageWindow.utilization || 0) * 100) / 100}%`;
-  }
-
-  var stylesheet$2 = ".claude-plus-value-row {\r\n  display: flex;\r\n  justify-content: space-between;\r\n  padding: 2px 0;\r\n  gap: 8px;\r\n}\r\n\r\n.claude-plus-value-row span {\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
-
-  StyleRegistry.register(stylesheet$2);
-
-  /**
-   * HTML for a label/value row.
-   * @param {string} label Row label.
-   * @param {string|number} value Row value.
-   * @returns {string} The row.
-   */
-  function valueRowHtml(label, value) {
-    return `<div class="claude-plus-value-row"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>`;
   }
 
   /**
@@ -10295,15 +10746,6 @@
   }
 
   /**
-   * Waits for a given time.
-   * @param {number} durationMs Milliseconds to wait.
-   * @returns {Promise<void>} Resolves after the delay.
-   */
-  function wait(durationMs) {
-    return new Promise(resolve => setTimeout(resolve, durationMs));
-  }
-
-  /**
    * Per-conversation summaries cached in IndexedDB, plus their aggregate.
    * @fires StatsIndex#aggregate The aggregate was recomputed.
    * @fires StatsIndex#backfill Backfill progress changed.
@@ -10380,6 +10822,23 @@
         this.publish('aggregate');
       } catch (error) {
         console.warn(LOG_PREFIX, 'reading stats failed', error);
+      }
+    }
+
+    /**
+     * A conversation's cached summary, for a view scoped to just that conversation rather than the
+     * whole aggregate.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<?ConversationSummary>} The summary, or null when it isn't indexed yet or
+     * looks invalid.
+     */
+    async summaryFor(conversationId) {
+      try {
+        const summary = await this.#database.read(DATABASE.stores.conversationSummaries, conversationId);
+        return SummaryValidator.isValid(summary) ? summary : null;
+      } catch (error) {
+        console.warn(LOG_PREFIX, 'reading a conversation summary failed', error);
+        return null;
       }
     }
 
@@ -10527,6 +10986,93 @@
   }
 
   /**
+   * The key colors themeable in the Settings screen; every other color derives from the app's
+   * built-in stylesheet. Each default is a plain hex color, so it can seed a native color input.
+   * @type {ReadonlyArray<{key: string, cssVar: string, label: string, default: string}>}
+   */
+  const THEME_COLOR_FIELDS = Object.freeze([
+    { key: 'background', cssVar: '--claude-plus-color-background', label: 'Background', default: '#1a1918' },
+    { key: 'raised', cssVar: '--claude-plus-color-raised', label: 'Panels', default: '#262523' },
+    { key: 'text', cssVar: '--claude-plus-color-text', label: 'Text', default: '#ececec' },
+    { key: 'accent', cssVar: '--claude-plus-color-accent', label: 'Accent', default: '#d97757' },
+  ]);
+
+  /**
+   * The app's colors and fonts, stored as one JSON preference and applied as CSS custom properties
+   * on the document root, so the built-in stylesheet (which already reads those properties) repaints
+   * without any component needing to know theming exists.
+   */
+  class Theme {
+    /**
+     * Theme storage.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * Creates the theme and applies whatever is currently stored (or the defaults).
+     * @param {Preferences} preferences Theme storage.
+     */
+    constructor(preferences) {
+      this.#preferences = preferences;
+      this.apply();
+    }
+
+    /**
+     * The current settings, filled in with defaults for anything not customized.
+     * @returns {{colors: Object<string, string>, uiFontFamily: string, chatFontFamily: string}} The settings.
+     */
+    get settings() {
+      const stored = this.#preferences.readJson(STORAGE_KEYS.theme) ?? {};
+      const colors = Object.fromEntries(THEME_COLOR_FIELDS.map(field => [field.key, stored.colors?.[field.key] || field.default]));
+      return { colors, uiFontFamily: stored.uiFontFamily || '', chatFontFamily: stored.chatFontFamily || '' };
+    }
+
+    /**
+     * Stores new settings and applies them.
+     * @param {{colors: Object<string, string>, uiFontFamily: string, chatFontFamily: string}} settings The settings.
+     * @returns {void}
+     */
+    save(settings) {
+      this.#preferences.writeJson(STORAGE_KEYS.theme, settings);
+      this.apply();
+    }
+
+    /**
+     * Clears every customization and reapplies the defaults.
+     * @returns {void}
+     */
+    reset() {
+      this.#preferences.remove(STORAGE_KEYS.theme);
+      this.apply();
+    }
+
+    /**
+     * Sets the CSS custom properties the stylesheet reads from the current settings.
+     * @returns {void}
+     */
+    apply() {
+      const { colors, uiFontFamily, chatFontFamily } = this.settings;
+      const root = document.documentElement.style;
+      THEME_COLOR_FIELDS.forEach(field => root.setProperty(field.cssVar, colors[field.key]));
+      Theme.#setOrClear(root, '--claude-plus-font-family', uiFontFamily);
+      Theme.#setOrClear(root, '--claude-plus-message-font-family', chatFontFamily);
+    }
+
+    /**
+     * Sets a custom property to a value, or clears it back to the stylesheet's own default when blank.
+     * @param {CSSStyleDeclaration} style The root element's inline style.
+     * @param {string} cssVar Custom property name.
+     * @param {string} value New value, or an empty string to clear it.
+     * @returns {void}
+     */
+    static #setOrClear(style, cssVar, value) {
+      if (value) style.setProperty(cssVar, value);
+      else style.removeProperty(cssVar);
+    }
+  }
+
+  /**
    * Asks for a line of text; the themed replacement of prompt(). Enter confirms.
    */
   class PromptDialog extends ActionDialog {
@@ -10604,6 +11150,233 @@
     }
   }
 
+  var stylesheet$2 = ".claude-plus-settings-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-settings-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 420px;\n  max-width: 90vw;\n  max-height: 85vh;\n  overflow-y: auto;\n  font-size: 13px;\n}\n\n.claude-plus-settings-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n}\n\n.claude-plus-settings-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-settings-dialog__section {\n  padding: 12px 0;\n  border-top: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-settings-dialog__section:first-of-type {\n  border-top: none;\n}\n\n.claude-plus-settings-dialog__section h3 {\n  margin: 0 0 8px;\n  font-size: 12px;\n  text-transform: uppercase;\n  letter-spacing: 0.04em;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__row {\n  display: flex;\n  gap: 8px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-settings-dialog__layout-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 6px 0;\n}\n\n.claude-plus-settings-dialog__layout-name {\n  flex: 1;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-settings-dialog__colors {\n  display: flex;\n  gap: 14px;\n  flex-wrap: wrap;\n  margin-bottom: 12px;\n}\n\n.claude-plus-settings-dialog__color-field {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__color-field input[type='color'] {\n  width: 36px;\n  height: 28px;\n  padding: 0;\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  background: none;\n  cursor: pointer;\n}\n\n.claude-plus-settings-dialog__field {\n  display: block;\n  margin-bottom: 10px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__field input[type='text'] {\n  display: block;\n  width: 100%;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 6px 8px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font: inherit;\n}\n";
+
+  StyleRegistry.register(stylesheet$2);
+
+  /**
+   * The Settings screen: saved layouts, settings import/export and a small theming section (key
+   * colors and the interface/chat fonts). Theme changes apply live as they're made; there is no
+   * separate save step for them.
+   */
+  class SettingsDialog extends Dialog {
+    /**
+     * Saved layouts.
+     * @type {LayoutLibrary}
+     */
+    #layoutLibrary;
+
+    /**
+     * Settings export and import.
+     * @type {SettingsTransfer}
+     */
+    #settingsTransfer;
+
+    /**
+     * Colors and fonts.
+     * @type {Theme}
+     */
+    #theme;
+
+    /**
+     * The dialog's named elements, set once the content is built.
+     * @type {?Object<string, HTMLElement>}
+     */
+    #elements = null;
+
+    /**
+     * Creates the dialog without showing it.
+     * @param {LayoutLibrary} layoutLibrary Saved layouts.
+     * @param {SettingsTransfer} settingsTransfer Settings export and import.
+     * @param {Theme} theme Colors and fonts.
+     */
+    constructor(layoutLibrary, settingsTransfer, theme) {
+      super();
+      this.#layoutLibrary = layoutLibrary;
+      this.#settingsTransfer = settingsTransfer;
+      this.#theme = theme;
+    }
+
+    /**
+     * Opens the Settings screen.
+     * @param {LayoutLibrary} layoutLibrary Saved layouts.
+     * @param {SettingsTransfer} settingsTransfer Settings export and import.
+     * @param {Theme} theme Colors and fonts.
+     * @returns {Promise<void>} Resolves once closed.
+     */
+    static open(layoutLibrary, settingsTransfer, theme) {
+      return new SettingsDialog(layoutLibrary, settingsTransfer, theme).show();
+    }
+
+    /**
+     * CSS class of the dimmed overlay centering the screen.
+     * @returns {string} The class name.
+     */
+    get overlayClassName() {
+      return 'claude-plus-settings-overlay';
+    }
+
+    /**
+     * Builds the screen: layout, import/export and theming sections.
+     * @returns {HTMLElement[]} The screen.
+     */
+    createContent() {
+      const box = createElement('div', { className: 'claude-plus-settings-dialog', innerHTML: SettingsDialog.#bodyHtml() });
+      this.#elements = collectNamedElements(box);
+      this.#bindEvents();
+      this.#renderLayouts();
+      this.#renderThemeFields();
+      return [box];
+    }
+
+    /**
+     * The screen's static markup.
+     * @returns {string} The HTML.
+     */
+    static #bodyHtml() {
+      return `
+      <div class="claude-plus-settings-dialog__header">
+        <h2>Settings</h2>
+        <button class="claude-plus-toolbar__close-button" data-name="closeButton" title="Close">✕</button>
+      </div>
+      <section class="claude-plus-settings-dialog__section">
+        <h3>Layout</h3>
+        <div class="claude-plus-settings-dialog__row">
+          <button class="claude-plus-toolbar__button" data-name="saveLayoutButton">Save current layout…</button>
+        </div>
+        <div data-name="layoutList"></div>
+      </section>
+      <section class="claude-plus-settings-dialog__section">
+        <h3>Import / export</h3>
+        <div class="claude-plus-settings-dialog__row">
+          <button class="claude-plus-toolbar__button" data-name="exportButton">Export settings (JSON)</button>
+          <button class="claude-plus-toolbar__button" data-name="importButton">Import settings…</button>
+        </div>
+      </section>
+      <section class="claude-plus-settings-dialog__section">
+        <h3>Theme</h3>
+        <div class="claude-plus-settings-dialog__colors" data-name="colorFields"></div>
+        <label class="claude-plus-settings-dialog__field">Interface font<input type="text" data-name="uiFontInput" placeholder="System default"></label>
+        <label class="claude-plus-settings-dialog__field">Chat font<input type="text" data-name="chatFontInput" placeholder="Same as interface"></label>
+        <div class="claude-plus-settings-dialog__row">
+          <button class="claude-plus-toolbar__button" data-name="resetThemeButton">Reset to defaults</button>
+        </div>
+      </section>`;
+    }
+
+    /**
+     * Wires every control. The saved-layouts list uses one delegated listener since its rows change.
+     * @returns {void}
+     */
+    #bindEvents() {
+      const elements = this.#elements;
+      elements.closeButton.addEventListener('click', () => this.close());
+      elements.saveLayoutButton.addEventListener('click', () => this.#saveLayout());
+      elements.layoutList.addEventListener('click', event => this.#onLayoutListClick(event));
+      elements.exportButton.addEventListener('click', () => this.#settingsTransfer.exportSettings());
+      elements.importButton.addEventListener('click', () => this.#settingsTransfer.chooseFileAndImport());
+      elements.uiFontInput.addEventListener('input', () => this.#saveThemeFromFields());
+      elements.chatFontInput.addEventListener('input', () => this.#saveThemeFromFields());
+      elements.resetThemeButton.addEventListener('click', () => this.#resetTheme());
+    }
+
+    /**
+     * Asks for a layout name and saves the current layout under it; a blank name cancels.
+     * @returns {Promise<void>} Resolves once saved or cancelled.
+     */
+    async #saveLayout() {
+      const name = await PromptDialog.ask('Name of this layout:', '', 'Save');
+      if (!name || !name.trim()) return;
+      this.#layoutLibrary.save(name.trim());
+      this.#renderLayouts();
+    }
+
+    /**
+     * Loads or deletes the layout of a row whose button was clicked.
+     * @param {MouseEvent} event The click.
+     * @returns {void}
+     */
+    #onLayoutListClick(event) {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+      const name = button.closest('[data-layout-name]').dataset.layoutName;
+      if (button.dataset.action === 'load') {
+        this.#layoutLibrary.load(name);
+        this.close();
+      } else {
+        this.#layoutLibrary.remove(name);
+        this.#renderLayouts();
+      }
+    }
+
+    /**
+     * Lists every saved layout with Load and Delete buttons.
+     * @returns {void}
+     */
+    #renderLayouts() {
+      const names = this.#layoutLibrary.names();
+      this.#elements.layoutList.innerHTML = names.length ? names.map(SettingsDialog.#layoutRowHtml).join('') : emptyStateHtml('No saved layouts yet.');
+    }
+
+    /**
+     * HTML of one saved layout's row.
+     * @param {string} name Layout name.
+     * @returns {string} The row.
+     */
+    static #layoutRowHtml(name) {
+      const escapedName = escapeHtml(name);
+      return `<div class="claude-plus-settings-dialog__layout-row" data-layout-name="${escapedName}">
+      <span class="claude-plus-settings-dialog__layout-name">${escapedName}</span>
+      <button class="claude-plus-toolbar__button" data-action="load">Load</button>
+      <button class="claude-plus-toolbar__button" data-action="delete">Delete</button>
+    </div>`;
+    }
+
+    /**
+     * Shows the current theme in the color swatches and font fields.
+     * @returns {void}
+     */
+    #renderThemeFields() {
+      const { colors, uiFontFamily, chatFontFamily } = this.#theme.settings;
+      this.#elements.colorFields.innerHTML = THEME_COLOR_FIELDS.map(field => SettingsDialog.#colorFieldHtml(field, colors[field.key])).join('');
+      this.#elements.colorFields.querySelectorAll('input[type="color"]').forEach(input => input.addEventListener('input', () => this.#saveThemeFromFields()));
+      this.#elements.uiFontInput.value = uiFontFamily;
+      this.#elements.chatFontInput.value = chatFontFamily;
+    }
+
+    /**
+     * HTML of one color swatch field.
+     * @param {{key: string, label: string}} field The color field.
+     * @param {string} value Its current hex value.
+     * @returns {string} The field.
+     */
+    static #colorFieldHtml(field, value) {
+      return `<label class="claude-plus-settings-dialog__color-field">
+      <input type="color" data-color-key="${field.key}" value="${escapeHtml(value)}">
+      <span>${escapeHtml(field.label)}</span>
+    </label>`;
+    }
+
+    /**
+     * Saves and applies the theme from the current field values.
+     * @returns {void}
+     */
+    #saveThemeFromFields() {
+      const colorInputs = [...this.#elements.colorFields.querySelectorAll('input[type="color"]')];
+      const colors = Object.fromEntries(colorInputs.map(input => [input.dataset.colorKey, input.value]));
+      this.#theme.save({ colors, uiFontFamily: this.#elements.uiFontInput.value.trim(), chatFontFamily: this.#elements.chatFontInput.value.trim() });
+    }
+
+    /**
+     * Clears every theme customization and refreshes the fields to show the defaults.
+     * @returns {void}
+     */
+    #resetTheme() {
+      this.#theme.reset();
+      this.#renderThemeFields();
+    }
+  }
+
   var stylesheet$1 = ".claude-plus-toolbar {\r\n  position: fixed;\r\n  top: 0;\r\n  left: 0;\r\n  right: 0;\r\n  height: var(--claude-plus-toolbar-height);\r\n  z-index: var(--claude-plus-layer-toolbar);\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 14px;\r\n  padding: 0 10px;\r\n  font-size: 12px;\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-toolbar__title {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-toolbar__button {\r\n  background: var(--claude-plus-color-button);\r\n  border: none;\r\n  color: var(--claude-plus-color-text);\r\n  padding: 5px 10px;\r\n  border-radius: 6px;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-toolbar__button:hover {\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-toolbar__button:disabled {\r\n  opacity: 0.5;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-toolbar__font-size {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-toolbar__font-size input[type=range] {\r\n  width: 100px;\r\n}\r\n\r\n.claude-plus-toolbar__close-button {\r\n  background: var(--claude-plus-color-error);\r\n  border: none;\r\n  color: #fff;\r\n  width: 22px;\r\n  height: 22px;\r\n  padding: 0;\r\n  border-radius: 50%;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n  line-height: 1;\r\n}\r\n\r\n.claude-plus-toolbar__close-button:hover {\r\n  filter: brightness(1.15);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$1);
@@ -10644,6 +11417,12 @@
     #settingsTransfer;
 
     /**
+     * Colors and fonts.
+     * @type {Theme}
+     */
+    #theme;
+
+    /**
      * Called when the hide button is clicked.
      * @type {function(): void}
      */
@@ -10668,13 +11447,15 @@
      * @param {DockWorkspace} services.workspace Workspace to reset.
      * @param {LayoutLibrary} services.layoutLibrary Saved layouts.
      * @param {SettingsTransfer} services.settingsTransfer Settings export and import.
+     * @param {Theme} services.theme Colors and fonts.
      * @param {function(): void} services.onHide Called when the hide button is clicked.
      */
-    constructor({ preferences, workspace, layoutLibrary, settingsTransfer, onHide }) {
+    constructor({ preferences, workspace, layoutLibrary, settingsTransfer, theme, onHide }) {
       this.#preferences = preferences;
       this.#workspace = workspace;
       this.#layoutLibrary = layoutLibrary;
       this.#settingsTransfer = settingsTransfer;
+      this.#theme = theme;
       this.#onHide = onHide;
       const storedSize = Number.parseFloat(preferences.read(STORAGE_KEYS.messageFontSize));
       const { minimum, maximum, fallback } = Toolbar.#FONT_SIZE;
@@ -10698,14 +11479,14 @@
         </label>
         <div class="claude-plus-fill-remaining"></div>
         <button class="claude-plus-toolbar__button" data-name="layoutsButton">Layouts ▾</button>
-        <button class="claude-plus-toolbar__button" data-name="settingsButton">Settings ▾</button>
+        <button class="claude-plus-toolbar__button" data-name="settingsButton">Settings</button>
         <button class="claude-plus-toolbar__button" data-name="resetLayoutButton">Reset layout</button>
         <button class="claude-plus-toolbar__close-button" data-name="hideButton" title="Hide ClaudePlus (nothing is lost, click the lightbulb to bring it back)">✕</button>`,
       });
       const elements = collectNamedElements(toolbar);
       elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
       elements.layoutsButton.addEventListener('click', () => this.#showLayoutsMenu(elements.layoutsButton));
-      elements.settingsButton.addEventListener('click', () => this.#showSettingsMenu(elements.settingsButton));
+      elements.settingsButton.addEventListener('click', () => SettingsDialog.open(this.#layoutLibrary, this.#settingsTransfer, this.#theme));
       elements.resetLayoutButton.addEventListener('click', () => this.#workspace.resetLayout());
       elements.hideButton.addEventListener('click', () => this.#onHide());
       this.#applyFontSize(elements.fontSizeLabel);
@@ -10750,22 +11531,6 @@
     async #askNameAndSave() {
       const name = await PromptDialog.ask('Name of this layout:', '', 'Save');
       if (name && name.trim()) this.#layoutLibrary.save(name.trim());
-    }
-
-    /**
-     * Opens the settings menu: export and import.
-     * @param {HTMLElement} button The settings button.
-     * @returns {void}
-     */
-    #showSettingsMenu(button) {
-      const actions = {
-        export: () => this.#settingsTransfer.exportSettings(),
-        import: () => this.#settingsTransfer.chooseFileAndImport(),
-      };
-      this.#openMenuBelow(button, [
-        { id: 'export', label: 'Export settings (JSON)' },
-        { id: 'import', label: 'Import settings…' },
-      ], entryId => actions[entryId]());
     }
 
     /**
@@ -11467,9 +12232,12 @@
     #mountInterface() {
       document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: ClaudePlusApp.#interfaceStylesheet() }));
       const preferences = new Preferences();
+      const theme = new Theme(preferences);
       const api = new ClaudeApi();
       const database = new IndexedDbStore({ name: DATABASE.name, version: DATABASE.version, upgrade: ClaudePlusApp.#createMissingStores });
-      const settings = new ComposerSettings(preferences);
+      const modelCatalog = new ModelCatalog(preferences);
+      modelCatalog.refresh();
+      const settings = new ComposerSettings(preferences, modelCatalog);
       const directory = new ConversationDirectory(api);
       const stats = new StatsIndex(api, database);
       const activity = new ActivityTracker(database);
@@ -11481,12 +12249,12 @@
       paneManager.restorePanes(conversationIdFromPath(location.pathname));
 
       const panelFactory = new PanelFactory({ directory, router, paneManager, stats, activity, rateLimits, preferences });
-      const composer = new ComposerPanel({ paneManager, settings, stats, exporter: new ConversationExporter(api, paneManager) });
+      const composer = new ComposerPanel({ paneManager, settings, stats, exporter: new ConversationExporter(api, paneManager), modelCatalog });
       const workspace = ClaudePlusApp.#createWorkspace({ preferences, paneManager, panelFactory, composer });
       paneManager.attachWorkspace(workspace);
       panelFactory.attachWorkspace(workspace);
       const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
-      new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), onHide: () => this.hide() }).mount();
+      new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, onHide: () => this.hide() }).mount();
       workspace.mount();
       ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
       new KeyboardShortcuts(workspace).install();

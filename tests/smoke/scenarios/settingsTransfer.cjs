@@ -11,7 +11,7 @@ const path = require('node:path');
 async function settingsTransfer(run) {
   const { page } = run;
   await page.click('[data-name="settingsButton"]');
-  const [download] = await Promise.all([page.waitForEvent('download'), page.click('.claude-plus-popup-menu__entry[data-entry-id="export"]')]);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('.claude-plus-settings-dialog [data-name="exportButton"]')]);
   const exported = JSON.parse(fileSystem.readFileSync(await download.path(), 'utf8'));
   const settingKeys = Object.keys(exported.settings);
   const hasExpectedKeys = 'claudePlus.savedLayouts' in exported.settings && 'claudePlus.table.conversations' in exported.settings;
@@ -19,8 +19,7 @@ async function settingsTransfer(run) {
   exported.settings['claudePlus.messageFontSize'] = '19';
   const importPath = path.join(fileSystem.mkdtempSync(path.join(operatingSystem.tmpdir(), 'claude-plus-smoke-')), 'import-settings.json');
   fileSystem.writeFileSync(importPath, JSON.stringify(exported));
-  await page.click('[data-name="settingsButton"]');
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('.claude-plus-popup-menu__entry[data-entry-id="import"]')]);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('.claude-plus-settings-dialog [data-name="importButton"]')]);
   await chooser.setFiles(importPath);
   await page.waitForSelector('.claude-plus-dialog .claude-plus-primary-button');
   await Promise.all([page.waitForNavigation(), page.click('.claude-plus-dialog .claude-plus-primary-button')]);

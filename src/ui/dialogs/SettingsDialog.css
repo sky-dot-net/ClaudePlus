@@ -1,0 +1,117 @@
+.claude-plus-settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--claude-plus-layer-drag-label);
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.claude-plus-settings-dialog {
+  background: var(--claude-plus-color-raised);
+  border: 1px solid var(--claude-plus-color-border-strong);
+  border-radius: 8px;
+  padding: 16px;
+  width: 420px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+.claude-plus-settings-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.claude-plus-settings-dialog__header h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.claude-plus-settings-dialog__section {
+  padding: 12px 0;
+  border-top: 1px solid var(--claude-plus-color-border);
+}
+
+.claude-plus-settings-dialog__section:first-of-type {
+  border-top: none;
+}
+
+.claude-plus-settings-dialog__section h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--claude-plus-color-text-muted);
+}
+
+.claude-plus-settings-dialog__row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.claude-plus-settings-dialog__layout-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.claude-plus-settings-dialog__layout-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claude-plus-settings-dialog__colors {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.claude-plus-settings-dialog__color-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--claude-plus-color-text-muted);
+}
+
+.claude-plus-settings-dialog__color-field input[type='color'] {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--claude-plus-color-border-strong);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+
+.claude-plus-settings-dialog__field {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--claude-plus-color-text-muted);
+}
+
+.claude-plus-settings-dialog__field input[type='text'] {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: var(--claude-plus-color-bar);
+  border: 1px solid var(--claude-plus-color-border-strong);
+  border-radius: 6px;
+  color: var(--claude-plus-color-text);
+  font: inherit;
+}

@@ -1,6 +1,4 @@
-import { EFFORTS } from '../config/EFFORTS.js';
 import { EventEmitter } from '../core/EventEmitter.js';
-import { MODELS } from '../config/MODELS.js';
 import { STORAGE_KEYS } from '../config/STORAGE_KEYS.js';
 import { THINKING_MODES } from '../config/THINKING_MODES.js';
 
@@ -17,44 +15,52 @@ export class ComposerSettings extends EventEmitter {
   #preferences;
 
   /**
+   * The selectable models and effort levels.
+   * @type {ModelCatalog}
+   */
+  #modelCatalog;
+
+  /**
    * Creates the settings on top of a preference store.
    * @param {Preferences} preferences Backing storage.
+   * @param {ModelCatalog} modelCatalog The selectable models and effort levels.
    */
-  constructor(preferences) {
+  constructor(preferences, modelCatalog) {
     super();
     this.#preferences = preferences;
+    this.#modelCatalog = modelCatalog;
   }
 
   /**
    * Selected model id.
-   * @returns {string} An id from MODELS.
+   * @returns {string} An id from the model catalog.
    */
   get model() {
-    return this.#readAllowed(STORAGE_KEYS.model, MODELS.map(option => option.id));
+    return this.#readAllowed(STORAGE_KEYS.model, this.#modelCatalog.models.map(option => option.id));
   }
 
   /**
-   * Selects a model; ids not in MODELS are ignored.
+   * Selects a model; ids not in the model catalog are ignored.
    * @param {string} modelId Model id.
    */
   set model(modelId) {
-    this.#writeIfAllowed(STORAGE_KEYS.model, modelId, MODELS.map(option => option.id));
+    this.#writeIfAllowed(STORAGE_KEYS.model, modelId, this.#modelCatalog.models.map(option => option.id));
   }
 
   /**
    * Selected effort level.
-   * @returns {string} An id from EFFORTS.
+   * @returns {string} An id from the model catalog.
    */
   get effort() {
-    return this.#readAllowed(STORAGE_KEYS.effort, EFFORTS.map(option => option.id));
+    return this.#readAllowed(STORAGE_KEYS.effort, this.#modelCatalog.efforts.map(option => option.id));
   }
 
   /**
-   * Selects an effort level; ids not in EFFORTS are ignored.
+   * Selects an effort level; ids not in the model catalog are ignored.
    * @param {string} effortId Effort id.
    */
   set effort(effortId) {
-    this.#writeIfAllowed(STORAGE_KEYS.effort, effortId, EFFORTS.map(option => option.id));
+    this.#writeIfAllowed(STORAGE_KEYS.effort, effortId, this.#modelCatalog.efforts.map(option => option.id));
   }
 
   /**

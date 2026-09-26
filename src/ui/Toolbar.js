@@ -1,6 +1,7 @@
 import { PopupMenu } from './PopupMenu.js';
 import { PromptDialog } from './dialogs/PromptDialog.js';
 import { STORAGE_KEYS } from '../config/STORAGE_KEYS.js';
+import { SettingsDialog } from './dialogs/SettingsDialog.js';
 import { StyleRegistry } from '../styles/StyleRegistry.js';
 import { clamp } from '../math/clamp.js';
 import { collectNamedElements } from '../dom/collectNamedElements.js';
@@ -45,6 +46,12 @@ export class Toolbar {
   #settingsTransfer;
 
   /**
+   * Colors and fonts.
+   * @type {Theme}
+   */
+  #theme;
+
+  /**
    * Called when the hide button is clicked.
    * @type {function(): void}
    */
@@ -69,13 +76,15 @@ export class Toolbar {
    * @param {DockWorkspace} services.workspace Workspace to reset.
    * @param {LayoutLibrary} services.layoutLibrary Saved layouts.
    * @param {SettingsTransfer} services.settingsTransfer Settings export and import.
+   * @param {Theme} services.theme Colors and fonts.
    * @param {function(): void} services.onHide Called when the hide button is clicked.
    */
-  constructor({ preferences, workspace, layoutLibrary, settingsTransfer, onHide }) {
+  constructor({ preferences, workspace, layoutLibrary, settingsTransfer, theme, onHide }) {
     this.#preferences = preferences;
     this.#workspace = workspace;
     this.#layoutLibrary = layoutLibrary;
     this.#settingsTransfer = settingsTransfer;
+    this.#theme = theme;
     this.#onHide = onHide;
     const storedSize = Number.parseFloat(preferences.read(STORAGE_KEYS.messageFontSize));
     const { minimum, maximum, fallback } = Toolbar.#FONT_SIZE;
@@ -99,14 +108,14 @@ export class Toolbar {
         </label>
         <div class="claude-plus-fill-remaining"></div>
         <button class="claude-plus-toolbar__button" data-name="layoutsButton">Layouts ▾</button>
-        <button class="claude-plus-toolbar__button" data-name="settingsButton">Settings ▾</button>
+        <button class="claude-plus-toolbar__button" data-name="settingsButton">Settings</button>
         <button class="claude-plus-toolbar__button" data-name="resetLayoutButton">Reset layout</button>
         <button class="claude-plus-toolbar__close-button" data-name="hideButton" title="Hide ClaudePlus (nothing is lost, click the lightbulb to bring it back)">✕</button>`,
     });
     const elements = collectNamedElements(toolbar);
     elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
     elements.layoutsButton.addEventListener('click', () => this.#showLayoutsMenu(elements.layoutsButton));
-    elements.settingsButton.addEventListener('click', () => this.#showSettingsMenu(elements.settingsButton));
+    elements.settingsButton.addEventListener('click', () => SettingsDialog.open(this.#layoutLibrary, this.#settingsTransfer, this.#theme));
     elements.resetLayoutButton.addEventListener('click', () => this.#workspace.resetLayout());
     elements.hideButton.addEventListener('click', () => this.#onHide());
     this.#applyFontSize(elements.fontSizeLabel);
@@ -151,22 +160,6 @@ export class Toolbar {
   async #askNameAndSave() {
     const name = await PromptDialog.ask('Name of this layout:', '', 'Save');
     if (name && name.trim()) this.#layoutLibrary.save(name.trim());
-  }
-
-  /**
-   * Opens the settings menu: export and import.
-   * @param {HTMLElement} button The settings button.
-   * @returns {void}
-   */
-  #showSettingsMenu(button) {
-    const actions = {
-      export: () => this.#settingsTransfer.exportSettings(),
-      import: () => this.#settingsTransfer.chooseFileAndImport(),
-    };
-    this.#openMenuBelow(button, [
-      { id: 'export', label: 'Export settings (JSON)' },
-      { id: 'import', label: 'Import settings…' },
-    ], entryId => actions[entryId]());
   }
 
   /**

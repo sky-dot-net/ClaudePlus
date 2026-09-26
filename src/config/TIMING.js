@@ -6,6 +6,9 @@
  * counted as a response time. copyFeedbackMs: how long the copy button shows a check mark.
  * downloadUrlLifetimeMs: how long a download's object URL stays valid after the download starts.
  * widgetExtractPollMs: how often the widget extractor checks its hidden iframe for the rendered card.
+ * modelCatalogPollMs: how often the model catalog extractor checks its hidden iframe.
+ * modelCatalogTimeoutMs: time budget for extracting the model/effort catalog before giving up.
+ * modelCatalogTtlMs: how long an extracted catalog is trusted before it's refreshed again.
  * @type {Readonly<Record<string, number>>}
  */
 export const TIMING = Object.freeze({
@@ -18,4 +21,7 @@ export const TIMING = Object.freeze({
   copyFeedbackMs: 1_000,
   downloadUrlLifetimeMs: 10_000,
   widgetExtractPollMs: 500,
+  modelCatalogPollMs: 300,
+  modelCatalogTimeoutMs: 20_000,
+  modelCatalogTtlMs: 12 * 60 * 60 * 1000,
 });

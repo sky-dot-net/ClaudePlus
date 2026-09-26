@@ -1,3 +1,4 @@
+import { ConversationStatsSubPane } from './ConversationStatsSubPane.js';
 import { ConversationSubPane } from './ConversationSubPane.js';
 import { MessageListView } from './MessageListView.js';
 import { MessageToolStepsPane } from './MessageToolStepsPane.js';
@@ -70,9 +71,10 @@ export class ChatPanel extends Panel {
   #messageListView = null;
 
   /**
-   * Open sub-panes by kind: 'files' and 'sources' are ConversationSubPane, 'toolSteps' (a
-   * message's thinking and tool-call steps) is a MessageToolStepsPane.
-   * @type {Map<string, ConversationSubPane|MessageToolStepsPane>}
+   * Open sub-panes by kind: 'files' and 'sources' are ConversationSubPane, 'stats' (this
+   * conversation's own usage stats) is a ConversationStatsSubPane, 'toolSteps' (a message's
+   * thinking and tool-call steps) is a MessageToolStepsPane.
+   * @type {Map<string, ConversationSubPane|ConversationStatsSubPane|MessageToolStepsPane>}
    */
   #subPanes = new Map();
 
@@ -162,7 +164,7 @@ export class ChatPanel extends Panel {
 
   /**
    * Opens a sub-pane on the right edge, or closes it if one of that kind is already open.
-   * @param {string} kind 'files' or 'sources'.
+   * @param {string} kind 'files', 'sources' or 'stats'.
    * @returns {void}
    */
   openSubPane(kind) {
@@ -170,7 +172,25 @@ export class ChatPanel extends Panel {
       this.#closeSubPane(kind);
       return;
     }
-    const subPane = new ConversationSubPane({
+    this.#subPanes.set(kind, this.#createSubPane(kind));
+    this.#dockSubPane(kind, this.#storedSubPaneEdge(kind));
+  }
+
+  /**
+   * Builds a sub-pane of a kind: the conversation-scoped stats view, or the files/sources table.
+   * @param {string} kind 'files', 'sources' or 'stats'.
+   * @returns {ConversationSubPane|ConversationStatsSubPane} The sub-pane.
+   */
+  #createSubPane(kind) {
+    if (kind === 'stats') {
+      return new ConversationStatsSubPane({
+        session: this.#session,
+        stats: this.#stats,
+        onClose: () => this.#closeSubPane(kind),
+        onMove: edge => this.#dockSubPane(kind, edge),
+      });
+    }
+    return new ConversationSubPane({
       kind,
       session: this.#session,
       stats: this.#stats,
@@ -178,8 +198,6 @@ export class ChatPanel extends Panel {
       onClose: closedKind => this.#closeSubPane(closedKind),
       onMove: (movedKind, edge) => this.#dockSubPane(movedKind, edge),
     });
-    this.#subPanes.set(kind, subPane);
-    this.#dockSubPane(kind, this.#storedSubPaneEdge(kind));
   }
 
   /**
