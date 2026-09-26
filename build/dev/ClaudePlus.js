@@ -3074,7 +3074,7 @@
     }
   }
 
-  var stylesheet$f = ".claude-plus-panel--active-among-several {\r\n  box-shadow: inset 0 0 0 1px var(--claude-plus-color-active-chat);\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
+  var stylesheet$f = ".claude-plus-panel--active-among-several {\r\n  box-shadow: inset 0 0 0 1px var(--claude-plus-color-active-chat);\r\n}\r\n\r\n.claude-plus-panel--inactive-among-several {\r\n  box-shadow: inset 0 0 0 1px var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$f);
 
@@ -3354,14 +3354,16 @@
     }
 
     /**
-     * Marks the pane while it is the active chat, and shows the green border only while more than
-     * one chat pane is visible.
+     * Marks the pane while it is the active chat, and borders every chat pane (green for the active
+     * one, a faint theme-aware border for the rest) only while more than one is visible.
      * @returns {void}
      */
     #renderFocus() {
       const isActive = this.#paneManager.focusedPaneId === this.#paneId;
+      const hasSeveral = this.#paneManager.hasSeveralVisiblePanes;
       this.element.classList.toggle('claude-plus-panel--focused', isActive);
-      this.element.classList.toggle('claude-plus-panel--active-among-several', isActive && this.#paneManager.hasSeveralVisiblePanes);
+      this.element.classList.toggle('claude-plus-panel--active-among-several', isActive && hasSeveral);
+      this.element.classList.toggle('claude-plus-panel--inactive-among-several', !isActive && hasSeveral);
     }
   }
 
@@ -11036,6 +11038,19 @@
   ]);
 
   /**
+   * Whether a hex color reads as dark, by perceived brightness (the YIQ formula) rather than raw
+   * component averages, so the answer matches what the eye actually sees.
+   * @param {string} hexColor A color in "#rrggbb" form.
+   * @returns {boolean} True when it reads as dark.
+   */
+  function isDarkColor(hexColor) {
+    const red = Number.parseInt(hexColor.slice(1, 3), 16);
+    const green = Number.parseInt(hexColor.slice(3, 5), 16);
+    const blue = Number.parseInt(hexColor.slice(5, 7), 16);
+    return (red * 299 + green * 587 + blue * 114) / 1000 < 128;
+  }
+
+  /**
    * The app's colors and fonts, stored as one JSON preference and applied as CSS custom properties
    * on the document root, so the built-in stylesheet (which already reads those properties) repaints
    * without any component needing to know theming exists.
@@ -11093,8 +11108,19 @@
       const { colors, uiFontFamily, chatFontFamily } = this.settings;
       const root = document.documentElement.style;
       THEME_COLOR_FIELDS.forEach(field => root.setProperty(field.cssVar, colors[field.key]));
+      root.setProperty('--claude-plus-color-inactive-border', Theme.#inactiveBorderColor(colors.background));
       Theme.#setOrClear(root, '--claude-plus-font-family', uiFontFamily);
       Theme.#setOrClear(root, '--claude-plus-message-font-family', chatFontFamily);
+    }
+
+    /**
+     * A faint border color that reads against the background: white on a dark background, black on
+     * a light one, so an inactive chat pane's border stays visible whatever the theme.
+     * @param {string} backgroundColor The current background color.
+     * @returns {string} The border color.
+     */
+    static #inactiveBorderColor(backgroundColor) {
+      return isDarkColor(backgroundColor) ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.16)';
     }
 
     /**

@@ -1,5 +1,6 @@
 import { STORAGE_KEYS } from '../config/STORAGE_KEYS.js';
 import { THEME_COLOR_FIELDS } from '../config/THEME_COLOR_FIELDS.js';
+import { isDarkColor } from '../color/isDarkColor.js';
 
 /**
  * The app's colors and fonts, stored as one JSON preference and applied as CSS custom properties
@@ -59,8 +60,19 @@ export class Theme {
     const { colors, uiFontFamily, chatFontFamily } = this.settings;
     const root = document.documentElement.style;
     THEME_COLOR_FIELDS.forEach(field => root.setProperty(field.cssVar, colors[field.key]));
+    root.setProperty('--claude-plus-color-inactive-border', Theme.#inactiveBorderColor(colors.background));
     Theme.#setOrClear(root, '--claude-plus-font-family', uiFontFamily);
     Theme.#setOrClear(root, '--claude-plus-message-font-family', chatFontFamily);
+  }
+
+  /**
+   * A faint border color that reads against the background: white on a dark background, black on
+   * a light one, so an inactive chat pane's border stays visible whatever the theme.
+   * @param {string} backgroundColor The current background color.
+   * @returns {string} The border color.
+   */
+  static #inactiveBorderColor(backgroundColor) {
+    return isDarkColor(backgroundColor) ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.16)';
   }
 
   /**

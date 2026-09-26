@@ -2,6 +2,10 @@
   box-shadow: inset 0 0 0 1px var(--claude-plus-color-active-chat);
 }
 
+.claude-plus-panel--inactive-among-several {
+  box-shadow: inset 0 0 0 1px var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
+}
+
 .claude-plus-chat-layout {
   display: flex;
   gap: 8px;

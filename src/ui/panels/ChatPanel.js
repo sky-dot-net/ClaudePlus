@@ -285,13 +285,15 @@ export class ChatPanel extends Panel {
   }
 
   /**
-   * Marks the pane while it is the active chat, and shows the green border only while more than
-   * one chat pane is visible.
+   * Marks the pane while it is the active chat, and borders every chat pane (green for the active
+   * one, a faint theme-aware border for the rest) only while more than one is visible.
    * @returns {void}
    */
   #renderFocus() {
     const isActive = this.#paneManager.focusedPaneId === this.#paneId;
+    const hasSeveral = this.#paneManager.hasSeveralVisiblePanes;
     this.element.classList.toggle('claude-plus-panel--focused', isActive);
-    this.element.classList.toggle('claude-plus-panel--active-among-several', isActive && this.#paneManager.hasSeveralVisiblePanes);
+    this.element.classList.toggle('claude-plus-panel--active-among-several', isActive && hasSeveral);
+    this.element.classList.toggle('claude-plus-panel--inactive-among-several', !isActive && hasSeveral);
   }
 }
