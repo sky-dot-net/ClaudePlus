@@ -51,8 +51,10 @@ export class ModelCatalogSource {
     const deadline = Date.now() + TIMING.modelCatalogTimeoutMs;
     const dropdownTrigger = await ModelCatalogSource.#waitFor(iframe, doc => doc.querySelector('[data-testid="model-selector-dropdown"]'), deadline);
     dropdownTrigger.click();
+    await ModelCatalogSource.#waitFor(iframe, doc => doc.querySelector('[data-model-id]'), deadline);
+    await ModelCatalogSource.#expandMoreModels(iframe);
     const models = await ModelCatalogSource.#waitForOptions(iframe, '[data-model-id]', deadline, ModelCatalogSource.#modelOption);
-    const effortTrigger = await ModelCatalogSource.#waitFor(iframe, doc => ModelCatalogSource.#effortMenuTrigger(doc), deadline);
+    const effortTrigger = await ModelCatalogSource.#waitFor(iframe, doc => ModelCatalogSource.#menuItemStartingWith(doc, 'Effort'), deadline);
     effortTrigger.click();
     const efforts = await ModelCatalogSource.#waitForOptions(iframe, '[data-effort-id]', deadline, ModelCatalogSource.#effortOption);
     if (!models.length) throw new Error('model list did not render within the timeout');
@@ -60,12 +62,28 @@ export class ModelCatalogSource {
   }
 
   /**
-   * The effort submenu's own trigger item, found by its label rather than a fixed id.
-   * @param {Document} doc The iframe's document.
-   * @returns {?HTMLElement} The trigger, or null when not rendered yet.
+   * Clicks the "More models" entry if the menu has one, revealing the rest of the roster beyond
+   * its short top-level list; a menu without one (a plan with only the short list) is left as is.
+   * @param {HTMLIFrameElement} iframe The extraction iframe.
+   * @returns {Promise<void>} Resolves once clicked (if present) and given a moment to expand.
    */
-  static #effortMenuTrigger(doc) {
-    return [...doc.querySelectorAll('[role="menuitem"]')].find(item => /^Effort\b/.test(item.textContent.trim())) ?? null;
+  static async #expandMoreModels(iframe) {
+    const moreTrigger = ModelCatalogSource.#menuItemStartingWith(ModelCatalogSource.#documentOf(iframe), 'More models');
+    if (!moreTrigger) return;
+    moreTrigger.click();
+    await wait(TIMING.modelCatalogPollMs);
+  }
+
+  /**
+   * A menu item whose trimmed text starts with a label, such as the "Effort" or "More models"
+   * entries, which also carry their current value or a hint in the same text node.
+   * @param {?Document} doc The iframe's document, or null while it can't be read yet.
+   * @param {string} label The label prefix.
+   * @returns {?HTMLElement} The item, or null when not rendered yet.
+   */
+  static #menuItemStartingWith(doc, label) {
+    if (!doc) return null;
+    return [...doc.querySelectorAll('[role="menuitem"]')].find(item => item.textContent.trim().startsWith(label)) ?? null;
   }
 
   /**
