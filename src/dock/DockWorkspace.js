@@ -1,4 +1,5 @@
 import { AddPanelMenu } from './AddPanelMenu.js';
+import { ChatPaneManager } from '../chat/ChatPaneManager.js';
 import { DividerRenderer } from './DividerRenderer.js';
 import { DockTree } from './DockTree.js';
 import { DropTargetResolver } from './DropTargetResolver.js';
@@ -292,6 +293,7 @@ export class DockWorkspace {
     return new ZoneChromeRenderer({
       titleOf: panelId => this.#panels.titleOf(panelId),
       canClose: panelId => this.#panels.canClose(panelId),
+      isChatPane: panelId => ChatPaneManager.isPaneId(panelId),
       onTabPress: (event, panelId) => this.#onTabPress(event, panelId),
       onTabActivate: (leafId, panelId) => this.#activateTab(leafId, panelId),
       onTabClose: panelId => this.#panels.close(panelId),

@@ -70,8 +70,10 @@ export class ZoneChromeRenderer {
    */
   #createTab(leaf, panelId) {
     const title = this.#callbacks.titleOf(panelId);
-    const className = panelId === leaf.activeTab ? 'claude-plus-tab claude-plus-tab--active' : 'claude-plus-tab';
-    const tab = createElement('div', { className, title });
+    const classNames = ['claude-plus-tab'];
+    if (panelId === leaf.activeTab) classNames.push('claude-plus-tab--active');
+    if (this.#callbacks.isChatPane(panelId)) classNames.push('claude-plus-tab--chat');
+    const tab = createElement('div', { className: classNames.join(' '), title });
     tab.append(createElement('span', { className: 'claude-plus-tab__label', textContent: title }));
     tab.addEventListener('mousedown', event => this.#callbacks.onTabPress(event, panelId));
     tab.addEventListener('click', () => this.#callbacks.onTabActivate(leaf.id, panelId));

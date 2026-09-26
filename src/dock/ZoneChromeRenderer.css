@@ -51,6 +51,10 @@
   white-space: nowrap;
 }
 
+.claude-plus-tab--chat .claude-plus-tab__label {
+  font-weight: 600;
+}
+
 .claude-plus-tab__close-button {
   flex-shrink: 0;
   margin-left: 8px;
