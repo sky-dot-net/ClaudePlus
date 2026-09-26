@@ -18,6 +18,7 @@
   align-items: center;
   background: var(--claude-plus-color-bar);
   overflow-x: auto;
+  overflow-y: hidden;
   box-sizing: border-box;
   pointer-events: auto;
 }
