@@ -15,12 +15,16 @@
 .claude-plus-tab-strip {
   position: fixed;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   background: var(--claude-plus-color-bar);
   border-bottom: 1px solid var(--claude-plus-color-border);
   overflow-x: auto;
   box-sizing: border-box;
   pointer-events: auto;
+}
+
+.claude-plus-tab-strip--seamless {
+  border-bottom: none;
 }
 
 .claude-plus-tab {
