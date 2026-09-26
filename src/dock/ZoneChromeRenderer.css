@@ -17,27 +17,22 @@
   display: flex;
   align-items: center;
   background: var(--claude-plus-color-bar);
-  border-bottom: 1px solid var(--claude-plus-color-border);
   overflow-x: auto;
   box-sizing: border-box;
   pointer-events: auto;
 }
 
 /*
- * The strip's own border-bottom runs the whole width, colored to match the zone's chat border
- * kind, so it continues past the bordered tab: under its other tabs, the "+" button and any empty
- * space. Only the bordered tab itself (below) needs to look different, by painting a matching-
- * background line of its own directly over its own stretch of this one.
+ * The strip itself carries no border-bottom: a child can never paint over a pixel that belongs to
+ * its parent's own border (borders live outside the content-box children are confined to), so a
+ * gap in the strip's own border could never actually open under a child. Instead, every element
+ * in the strip - each tab, the "+" button, the trailing filler - draws this same 1px line itself,
+ * all sized to the identical height below so their lines stay pixel-aligned with each other. Only
+ * the active tab of a bordered zone omits its own line, which is a real gap since nothing else
+ * occupies that stretch, rather than something painted over.
  */
-.claude-plus-tab-strip--chat-active {
-  border-bottom-color: var(--claude-plus-color-active-chat);
-}
-
-.claude-plus-tab-strip--chat-inactive {
-  border-bottom-color: var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
-}
-
 .claude-plus-tab {
+  height: calc(var(--claude-plus-tab-strip-height) - 1px);
   padding: 5px 12px;
   font-size: 12px;
   color: var(--claude-plus-color-text-muted);
@@ -48,31 +43,35 @@
   user-select: none;
 }
 
+.claude-plus-tab-strip__border--neutral {
+  border-bottom: 1px solid var(--claude-plus-color-border);
+}
+
+.claude-plus-tab-strip__border--active {
+  border-bottom: 1px solid var(--claude-plus-color-active-chat);
+}
+
+.claude-plus-tab-strip__border--inactive {
+  border-bottom: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
+}
+
 .claude-plus-tab--active {
   color: var(--claude-plus-color-text);
   border-bottom: 2px solid var(--claude-plus-color-accent);
 }
 
-/*
- * Sized to the strip's exact height (rather than the shorter, centered height a plain tab gets) so
- * its own border-bottom lands exactly over the strip's, at the same pixel row: a line the same
- * color as its own background there reads as no line at all, opening a gap in the strip's border
- * exactly where this tab sits, joining it seamlessly to the content below.
- */
 .claude-plus-tab--active.claude-plus-tab--border-active {
-  height: var(--claude-plus-tab-strip-height);
   border-left: 1px solid var(--claude-plus-color-active-chat);
   border-top: 1px solid var(--claude-plus-color-active-chat);
   border-right: 1px solid var(--claude-plus-color-active-chat);
-  border-bottom: 1px solid var(--claude-plus-color-bar);
+  border-bottom: none;
 }
 
 .claude-plus-tab--active.claude-plus-tab--border-inactive {
-  height: var(--claude-plus-tab-strip-height);
   border-left: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
   border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
   border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
-  border-bottom: 1px solid var(--claude-plus-color-bar);
+  border-bottom: none;
 }
 
 .claude-plus-tab {
@@ -106,14 +105,22 @@
 }
 
 .claude-plus-tab-strip__add-button {
+  height: calc(var(--claude-plus-tab-strip-height) - 1px);
   padding: 5px 10px;
   cursor: pointer;
   color: var(--claude-plus-color-text-faint);
+  box-sizing: border-box;
   user-select: none;
 }
 
 .claude-plus-tab-strip__add-button:hover {
   color: var(--claude-plus-color-text);
+}
+
+.claude-plus-tab-strip__filler {
+  height: calc(var(--claude-plus-tab-strip-height) - 1px);
+  flex: 1;
+  box-sizing: border-box;
 }
 
 .claude-plus-table-host {

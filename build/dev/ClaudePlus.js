@@ -7678,7 +7678,7 @@
     }
   }
 
-  var stylesheet$6 = ".claude-plus-zone-chrome-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-zone-chrome);\r\n}\r\n\r\n.claude-plus-zone-frame {\r\n  position: fixed;\r\n  background: var(--claude-plus-color-background);\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-tab-strip {\r\n  position: fixed;\r\n  display: flex;\r\n  align-items: center;\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border);\r\n  overflow-x: auto;\r\n  box-sizing: border-box;\r\n  pointer-events: auto;\r\n}\r\n\r\n/*\r\n * The strip's own border-bottom runs the whole width, colored to match the zone's chat border\r\n * kind, so it continues past the bordered tab: under its other tabs, the \"+\" button and any empty\r\n * space. Only the bordered tab itself (below) needs to look different, by painting a matching-\r\n * background line of its own directly over its own stretch of this one.\r\n */\r\n.claude-plus-tab-strip--chat-active {\r\n  border-bottom-color: var(--claude-plus-color-active-chat);\r\n}\r\n\r\n.claude-plus-tab-strip--chat-inactive {\r\n  border-bottom-color: var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n}\r\n\r\n.claude-plus-tab {\r\n  padding: 5px 12px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n  border-right: 1px solid var(--claude-plus-color-border-faint);\r\n  box-sizing: border-box;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab--active {\r\n  color: var(--claude-plus-color-text);\r\n  border-bottom: 2px solid var(--claude-plus-color-accent);\r\n}\r\n\r\n/*\r\n * Sized to the strip's exact height (rather than the shorter, centered height a plain tab gets) so\r\n * its own border-bottom lands exactly over the strip's, at the same pixel row: a line the same\r\n * color as its own background there reads as no line at all, opening a gap in the strip's border\r\n * exactly where this tab sits, joining it seamlessly to the content below.\r\n */\r\n.claude-plus-tab--active.claude-plus-tab--border-active {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  border-left: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: 1px solid var(--claude-plus-color-active-chat);\r\n  border-right: 1px solid var(--claude-plus-color-active-chat);\r\n  border-bottom: 1px solid var(--claude-plus-color-bar);\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-inactive {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  border-left: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-bottom: 1px solid var(--claude-plus-color-bar);\r\n}\r\n\r\n.claude-plus-tab {\r\n  display: flex;\r\n  align-items: center;\r\n  min-width: 0;\r\n  max-width: 220px;\r\n}\r\n\r\n.claude-plus-tab__label {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-tab--chat .claude-plus-tab__label {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-tab__close-button {\r\n  flex-shrink: 0;\r\n  margin-left: 8px;\r\n  padding: 0 3px;\r\n  border-radius: 3px;\r\n  color: var(--claude-plus-color-text-faint);\r\n}\r\n\r\n.claude-plus-tab__close-button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__add-button {\r\n  padding: 5px 10px;\r\n  cursor: pointer;\r\n  color: var(--claude-plus-color-text-faint);\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__add-button:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-table-host {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n";
+  var stylesheet$6 = ".claude-plus-zone-chrome-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-zone-chrome);\r\n}\r\n\r\n.claude-plus-zone-frame {\r\n  position: fixed;\r\n  background: var(--claude-plus-color-background);\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-tab-strip {\r\n  position: fixed;\r\n  display: flex;\r\n  align-items: center;\r\n  background: var(--claude-plus-color-bar);\r\n  overflow-x: auto;\r\n  box-sizing: border-box;\r\n  pointer-events: auto;\r\n}\r\n\r\n/*\r\n * The strip itself carries no border-bottom: a child can never paint over a pixel that belongs to\r\n * its parent's own border (borders live outside the content-box children are confined to), so a\r\n * gap in the strip's own border could never actually open under a child. Instead, every element\r\n * in the strip - each tab, the \"+\" button, the trailing filler - draws this same 1px line itself,\r\n * all sized to the identical height below so their lines stay pixel-aligned with each other. Only\r\n * the active tab of a bordered zone omits its own line, which is a real gap since nothing else\r\n * occupies that stretch, rather than something painted over.\r\n */\r\n.claude-plus-tab {\r\n  height: calc(var(--claude-plus-tab-strip-height) - 1px);\r\n  padding: 5px 12px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n  border-right: 1px solid var(--claude-plus-color-border-faint);\r\n  box-sizing: border-box;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__border--neutral {\r\n  border-bottom: 1px solid var(--claude-plus-color-border);\r\n}\r\n\r\n.claude-plus-tab-strip__border--active {\r\n  border-bottom: 1px solid var(--claude-plus-color-active-chat);\r\n}\r\n\r\n.claude-plus-tab-strip__border--inactive {\r\n  border-bottom: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n}\r\n\r\n.claude-plus-tab--active {\r\n  color: var(--claude-plus-color-text);\r\n  border-bottom: 2px solid var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-active {\r\n  border-left: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: 1px solid var(--claude-plus-color-active-chat);\r\n  border-right: 1px solid var(--claude-plus-color-active-chat);\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-inactive {\r\n  border-left: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-tab {\r\n  display: flex;\r\n  align-items: center;\r\n  min-width: 0;\r\n  max-width: 220px;\r\n}\r\n\r\n.claude-plus-tab__label {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-tab--chat .claude-plus-tab__label {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-tab__close-button {\r\n  flex-shrink: 0;\r\n  margin-left: 8px;\r\n  padding: 0 3px;\r\n  border-radius: 3px;\r\n  color: var(--claude-plus-color-text-faint);\r\n}\r\n\r\n.claude-plus-tab__close-button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__add-button {\r\n  height: calc(var(--claude-plus-tab-strip-height) - 1px);\r\n  padding: 5px 10px;\r\n  cursor: pointer;\r\n  color: var(--claude-plus-color-text-faint);\r\n  box-sizing: border-box;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__add-button:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__filler {\r\n  height: calc(var(--claude-plus-tab-strip-height) - 1px);\r\n  flex: 1;\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-table-host {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$6);
 
@@ -7732,22 +7732,27 @@
     render({ leaf, rect }) {
       const borderKind = this.#callbacks.chatBorderKindOf(leaf.activeTab);
       const frame = createElement('div', { className: 'claude-plus-zone-frame' });
-      const tabStrip = createElement('div', { className: ZoneChromeRenderer.#tabStripClassName(borderKind) });
+      const tabStrip = createElement('div', { className: 'claude-plus-tab-strip' });
       placeElement(frame, rect);
       placeElement(tabStrip, { ...rect, height: LAYOUT.tabStripHeight });
-      tabStrip.append(...leaf.tabs.map(panelId => this.#createTab(leaf, panelId, borderKind)), this.#createAddPanelButton(leaf.id));
+      tabStrip.append(
+        ...leaf.tabs.map(panelId => this.#createTab(leaf, panelId, borderKind)),
+        this.#createAddPanelButton(leaf.id, borderKind),
+        ZoneChromeRenderer.#createFiller(borderKind),
+      );
       this.#layer.append(frame, tabStrip);
     }
 
     /**
-     * A tab strip's class names: the base one, plus a modifier coloring its own border-bottom to
-     * match its active tab's chat border kind (if any), so that border continues under the zone's
-     * other tabs and its "+" button instead of stopping where the bordered tab does.
+     * The border-bottom modifier every element along the strip shares, so their lines - a plain
+     * tab's, the "+" button's, the trailing filler's - stay one continuous, matching-colored border
+     * except where the active tab of a bordered zone leaves a real gap in it (see the CSS: only
+     * that one tab omits this class, replacing it with its own bordered-flap look instead).
      * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
-     * @returns {string} The class names.
+     * @returns {string} The class name.
      */
-    static #tabStripClassName(borderKind) {
-      return borderKind ? `claude-plus-tab-strip claude-plus-tab-strip--chat-${borderKind}` : 'claude-plus-tab-strip';
+    static #stripBorderClassName(borderKind) {
+      return `claude-plus-tab-strip__border--${borderKind ?? 'neutral'}`;
     }
 
     /**
@@ -7771,15 +7776,15 @@
 
     /**
      * A tab's class names: the base one, plus modifiers for being the strip's active tab, a chat
-     * pane, and (only for a zone's active tab with a chat border) its own bordered-flap look, so
-     * only that one tab is affected, not the strip's other tabs or its "+" button.
+     * pane, its shared border-bottom color, and (only for a zone's active tab with a chat border)
+     * its own bordered-flap look, which replaces that shared border with a real gap instead.
      * @param {string} panelId Panel id.
      * @param {boolean} isActiveTab Whether this is the strip's active tab.
      * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
      * @returns {string} The class names.
      */
     #tabClassName(panelId, isActiveTab, borderKind) {
-      const classNames = ['claude-plus-tab'];
+      const classNames = ['claude-plus-tab', ZoneChromeRenderer.#stripBorderClassName(borderKind)];
       if (isActiveTab) classNames.push('claude-plus-tab--active');
       if (this.#callbacks.isChatPane(panelId)) classNames.push('claude-plus-tab--chat');
       if (isActiveTab && borderKind) classNames.push(`claude-plus-tab--border-${borderKind}`);
@@ -7804,12 +7809,24 @@
     /**
      * Creates the "+" button that offers panels to add to a zone.
      * @param {string} leafId Zone id.
+     * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
      * @returns {HTMLElement} The button.
      */
-    #createAddPanelButton(leafId) {
-      const button = createElement('div', { className: 'claude-plus-tab-strip__add-button', textContent: '+', title: 'Add a chat or panel to this zone' });
+    #createAddPanelButton(leafId, borderKind) {
+      const className = `claude-plus-tab-strip__add-button ${ZoneChromeRenderer.#stripBorderClassName(borderKind)}`;
+      const button = createElement('div', { className, textContent: '+', title: 'Add a chat or panel to this zone' });
       button.addEventListener('click', event => this.#callbacks.onAddClick(event, leafId));
       return button;
+    }
+
+    /**
+     * Creates the strip's trailing filler, carrying the shared border-bottom onward across any
+     * space left of the strip once its tabs and "+" button don't fill it.
+     * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
+     * @returns {HTMLElement} The filler.
+     */
+    static #createFiller(borderKind) {
+      return createElement('div', { className: `claude-plus-tab-strip__filler ${ZoneChromeRenderer.#stripBorderClassName(borderKind)}` });
     }
   }
 

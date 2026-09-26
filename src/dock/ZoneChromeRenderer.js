@@ -56,22 +56,27 @@ export class ZoneChromeRenderer {
   render({ leaf, rect }) {
     const borderKind = this.#callbacks.chatBorderKindOf(leaf.activeTab);
     const frame = createElement('div', { className: 'claude-plus-zone-frame' });
-    const tabStrip = createElement('div', { className: ZoneChromeRenderer.#tabStripClassName(borderKind) });
+    const tabStrip = createElement('div', { className: 'claude-plus-tab-strip' });
     placeElement(frame, rect);
     placeElement(tabStrip, { ...rect, height: LAYOUT.tabStripHeight });
-    tabStrip.append(...leaf.tabs.map(panelId => this.#createTab(leaf, panelId, borderKind)), this.#createAddPanelButton(leaf.id));
+    tabStrip.append(
+      ...leaf.tabs.map(panelId => this.#createTab(leaf, panelId, borderKind)),
+      this.#createAddPanelButton(leaf.id, borderKind),
+      ZoneChromeRenderer.#createFiller(borderKind),
+    );
     this.#layer.append(frame, tabStrip);
   }
 
   /**
-   * A tab strip's class names: the base one, plus a modifier coloring its own border-bottom to
-   * match its active tab's chat border kind (if any), so that border continues under the zone's
-   * other tabs and its "+" button instead of stopping where the bordered tab does.
+   * The border-bottom modifier every element along the strip shares, so their lines - a plain
+   * tab's, the "+" button's, the trailing filler's - stay one continuous, matching-colored border
+   * except where the active tab of a bordered zone leaves a real gap in it (see the CSS: only
+   * that one tab omits this class, replacing it with its own bordered-flap look instead).
    * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
-   * @returns {string} The class names.
+   * @returns {string} The class name.
    */
-  static #tabStripClassName(borderKind) {
-    return borderKind ? `claude-plus-tab-strip claude-plus-tab-strip--chat-${borderKind}` : 'claude-plus-tab-strip';
+  static #stripBorderClassName(borderKind) {
+    return `claude-plus-tab-strip__border--${borderKind ?? 'neutral'}`;
   }
 
   /**
@@ -95,15 +100,15 @@ export class ZoneChromeRenderer {
 
   /**
    * A tab's class names: the base one, plus modifiers for being the strip's active tab, a chat
-   * pane, and (only for a zone's active tab with a chat border) its own bordered-flap look, so
-   * only that one tab is affected, not the strip's other tabs or its "+" button.
+   * pane, its shared border-bottom color, and (only for a zone's active tab with a chat border)
+   * its own bordered-flap look, which replaces that shared border with a real gap instead.
    * @param {string} panelId Panel id.
    * @param {boolean} isActiveTab Whether this is the strip's active tab.
    * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
    * @returns {string} The class names.
    */
   #tabClassName(panelId, isActiveTab, borderKind) {
-    const classNames = ['claude-plus-tab'];
+    const classNames = ['claude-plus-tab', ZoneChromeRenderer.#stripBorderClassName(borderKind)];
     if (isActiveTab) classNames.push('claude-plus-tab--active');
     if (this.#callbacks.isChatPane(panelId)) classNames.push('claude-plus-tab--chat');
     if (isActiveTab && borderKind) classNames.push(`claude-plus-tab--border-${borderKind}`);
@@ -128,11 +133,23 @@ export class ZoneChromeRenderer {
   /**
    * Creates the "+" button that offers panels to add to a zone.
    * @param {string} leafId Zone id.
+   * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
    * @returns {HTMLElement} The button.
    */
-  #createAddPanelButton(leafId) {
-    const button = createElement('div', { className: 'claude-plus-tab-strip__add-button', textContent: '+', title: 'Add a chat or panel to this zone' });
+  #createAddPanelButton(leafId, borderKind) {
+    const className = `claude-plus-tab-strip__add-button ${ZoneChromeRenderer.#stripBorderClassName(borderKind)}`;
+    const button = createElement('div', { className, textContent: '+', title: 'Add a chat or panel to this zone' });
     button.addEventListener('click', event => this.#callbacks.onAddClick(event, leafId));
     return button;
+  }
+
+  /**
+   * Creates the strip's trailing filler, carrying the shared border-bottom onward across any
+   * space left of the strip once its tabs and "+" button don't fill it.
+   * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
+   * @returns {HTMLElement} The filler.
+   */
+  static #createFiller(borderKind) {
+    return createElement('div', { className: `claude-plus-tab-strip__filler ${ZoneChromeRenderer.#stripBorderClassName(borderKind)}` });
   }
 }
