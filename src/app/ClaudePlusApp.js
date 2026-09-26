@@ -103,12 +103,12 @@ export class ClaudePlusApp {
   }
 
   /**
-   * The stylesheet of the whole UI: the theme variables, the toolbar height from the layout
-   * configuration, then the stylesheets every component registered.
+   * The stylesheet of the whole UI: the theme variables, the toolbar and tab strip heights from
+   * the layout configuration, then the stylesheets every component registered.
    * @returns {string} The stylesheet text.
    */
   static #interfaceStylesheet() {
-    const layoutVariables = `:root { --claude-plus-toolbar-height: ${LAYOUT.toolbarHeight}px; }`;
+    const layoutVariables = `:root { --claude-plus-toolbar-height: ${LAYOUT.toolbarHeight}px; --claude-plus-tab-strip-height: ${LAYOUT.tabStripHeight}px; }`;
     return [themeStylesheet, layoutVariables, StyleRegistry.combinedCss].join('\n');
   }
 

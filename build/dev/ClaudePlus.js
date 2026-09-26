@@ -7678,7 +7678,7 @@
     }
   }
 
-  var stylesheet$6 = ".claude-plus-zone-chrome-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-zone-chrome);\r\n}\r\n\r\n.claude-plus-zone-frame {\r\n  position: fixed;\r\n  background: var(--claude-plus-color-background);\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-tab-strip {\r\n  position: fixed;\r\n  display: flex;\r\n  align-items: stretch;\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border);\r\n  overflow-x: auto;\r\n  box-sizing: border-box;\r\n  pointer-events: auto;\r\n}\r\n\r\n.claude-plus-tab-strip--seamless {\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-tab {\r\n  padding: 5px 12px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n  border-right: 1px solid var(--claude-plus-color-border-faint);\r\n  box-sizing: border-box;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab--active {\r\n  color: var(--claude-plus-color-text);\r\n  border-bottom: 2px solid var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-active {\r\n  border-left: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: 1px solid var(--claude-plus-color-active-chat);\r\n  border-right: 1px solid var(--claude-plus-color-active-chat);\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-inactive {\r\n  border-left: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-tab {\r\n  display: flex;\r\n  align-items: center;\r\n  min-width: 0;\r\n  max-width: 220px;\r\n}\r\n\r\n.claude-plus-tab__label {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-tab--chat .claude-plus-tab__label {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-tab__close-button {\r\n  flex-shrink: 0;\r\n  margin-left: 8px;\r\n  padding: 0 3px;\r\n  border-radius: 3px;\r\n  color: var(--claude-plus-color-text-faint);\r\n}\r\n\r\n.claude-plus-tab__close-button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__add-button {\r\n  padding: 5px 10px;\r\n  cursor: pointer;\r\n  color: var(--claude-plus-color-text-faint);\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__add-button:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-table-host {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n";
+  var stylesheet$6 = ".claude-plus-zone-chrome-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-zone-chrome);\r\n}\r\n\r\n.claude-plus-zone-frame {\r\n  position: fixed;\r\n  background: var(--claude-plus-color-background);\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-tab-strip {\r\n  position: fixed;\r\n  display: flex;\r\n  align-items: center;\r\n  background: var(--claude-plus-color-bar);\r\n  border-bottom: 1px solid var(--claude-plus-color-border);\r\n  overflow-x: auto;\r\n  box-sizing: border-box;\r\n  pointer-events: auto;\r\n}\r\n\r\n.claude-plus-tab {\r\n  padding: 5px 12px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n  border-right: 1px solid var(--claude-plus-color-border-faint);\r\n  box-sizing: border-box;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab--active {\r\n  color: var(--claude-plus-color-text);\r\n  border-bottom: 2px solid var(--claude-plus-color-accent);\r\n}\r\n\r\n/*\r\n * The strip keeps its own border-bottom running underneath every tab, including these two, so\r\n * only they need special treatment: filling the strip's full height (rather than the shorter,\r\n * centered height every plain tab gets) with an opaque background lets them paint over that exact\r\n * stretch of the strip's border, seamlessly joining the tab to the content below instead of\r\n * leaving a gap where a border used to be.\r\n */\r\n.claude-plus-tab--active.claude-plus-tab--border-active {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  background: var(--claude-plus-color-bar);\r\n  border-left: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: 1px solid var(--claude-plus-color-active-chat);\r\n  border-right: 1px solid var(--claude-plus-color-active-chat);\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-inactive {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  background: var(--claude-plus-color-bar);\r\n  border-left: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-tab {\r\n  display: flex;\r\n  align-items: center;\r\n  min-width: 0;\r\n  max-width: 220px;\r\n}\r\n\r\n.claude-plus-tab__label {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-tab--chat .claude-plus-tab__label {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-tab__close-button {\r\n  flex-shrink: 0;\r\n  margin-left: 8px;\r\n  padding: 0 3px;\r\n  border-radius: 3px;\r\n  color: var(--claude-plus-color-text-faint);\r\n}\r\n\r\n.claude-plus-tab__close-button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__add-button {\r\n  padding: 5px 10px;\r\n  cursor: pointer;\r\n  color: var(--claude-plus-color-text-faint);\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__add-button:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-table-host {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$6);
 
@@ -7732,22 +7732,11 @@
     render({ leaf, rect }) {
       const borderKind = this.#callbacks.chatBorderKindOf(leaf.activeTab);
       const frame = createElement('div', { className: 'claude-plus-zone-frame' });
-      const tabStrip = createElement('div', { className: ZoneChromeRenderer.#tabStripClassName(borderKind) });
+      const tabStrip = createElement('div', { className: 'claude-plus-tab-strip' });
       placeElement(frame, rect);
       placeElement(tabStrip, { ...rect, height: LAYOUT.tabStripHeight });
       tabStrip.append(...leaf.tabs.map(panelId => this.#createTab(leaf, panelId, borderKind)), this.#createAddPanelButton(leaf.id));
       this.#layer.append(frame, tabStrip);
-    }
-
-    /**
-     * A tab strip's class names: the base one, plus a modifier dropping its own bottom border when
-     * its active tab already draws a border-free bottom edge of its own (so the strip's neutral
-     * divider doesn't cut across underneath it, breaking the seamless join with the content below).
-     * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
-     * @returns {string} The class names.
-     */
-    static #tabStripClassName(borderKind) {
-      return borderKind ? 'claude-plus-tab-strip claude-plus-tab-strip--seamless' : 'claude-plus-tab-strip';
     }
 
     /**
@@ -7771,9 +7760,8 @@
 
     /**
      * A tab's class names: the base one, plus modifiers for being the strip's active tab, a chat
-     * pane, and (only for a zone's active tab with a chat border) a border on its own left, top and
-     * right, with no bottom border, so it reads as a flap merging into the content below rather than
-     * a whole-strip outline that would also wrap the zone's other tabs and its "+" button.
+     * pane, and (only for a zone's active tab with a chat border) its own bordered-flap look, so
+     * only that one tab is affected, not the strip's other tabs or its "+" button.
      * @param {string} panelId Panel id.
      * @param {boolean} isActiveTab Whether this is the strip's active tab.
      * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
@@ -12311,12 +12299,12 @@
     }
 
     /**
-     * The stylesheet of the whole UI: the theme variables, the toolbar height from the layout
-     * configuration, then the stylesheets every component registered.
+     * The stylesheet of the whole UI: the theme variables, the toolbar and tab strip heights from
+     * the layout configuration, then the stylesheets every component registered.
      * @returns {string} The stylesheet text.
      */
     static #interfaceStylesheet() {
-      const layoutVariables = `:root { --claude-plus-toolbar-height: ${LAYOUT.toolbarHeight}px; }`;
+      const layoutVariables = `:root { --claude-plus-toolbar-height: ${LAYOUT.toolbarHeight}px; --claude-plus-tab-strip-height: ${LAYOUT.tabStripHeight}px; }`;
       return [themeStylesheet, layoutVariables, StyleRegistry.combinedCss].join('\n');
     }
 

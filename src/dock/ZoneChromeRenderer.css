@@ -15,16 +15,12 @@
 .claude-plus-tab-strip {
   position: fixed;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   background: var(--claude-plus-color-bar);
   border-bottom: 1px solid var(--claude-plus-color-border);
   overflow-x: auto;
   box-sizing: border-box;
   pointer-events: auto;
-}
-
-.claude-plus-tab-strip--seamless {
-  border-bottom: none;
 }
 
 .claude-plus-tab {
@@ -43,7 +39,16 @@
   border-bottom: 2px solid var(--claude-plus-color-accent);
 }
 
+/*
+ * The strip keeps its own border-bottom running underneath every tab, including these two, so
+ * only they need special treatment: filling the strip's full height (rather than the shorter,
+ * centered height every plain tab gets) with an opaque background lets them paint over that exact
+ * stretch of the strip's border, seamlessly joining the tab to the content below instead of
+ * leaving a gap where a border used to be.
+ */
 .claude-plus-tab--active.claude-plus-tab--border-active {
+  height: var(--claude-plus-tab-strip-height);
+  background: var(--claude-plus-color-bar);
   border-left: 1px solid var(--claude-plus-color-active-chat);
   border-top: 1px solid var(--claude-plus-color-active-chat);
   border-right: 1px solid var(--claude-plus-color-active-chat);
@@ -51,6 +56,8 @@
 }
 
 .claude-plus-tab--active.claude-plus-tab--border-inactive {
+  height: var(--claude-plus-tab-strip-height);
+  background: var(--claude-plus-color-bar);
   border-left: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
   border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
   border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));

@@ -56,22 +56,11 @@ export class ZoneChromeRenderer {
   render({ leaf, rect }) {
     const borderKind = this.#callbacks.chatBorderKindOf(leaf.activeTab);
     const frame = createElement('div', { className: 'claude-plus-zone-frame' });
-    const tabStrip = createElement('div', { className: ZoneChromeRenderer.#tabStripClassName(borderKind) });
+    const tabStrip = createElement('div', { className: 'claude-plus-tab-strip' });
     placeElement(frame, rect);
     placeElement(tabStrip, { ...rect, height: LAYOUT.tabStripHeight });
     tabStrip.append(...leaf.tabs.map(panelId => this.#createTab(leaf, panelId, borderKind)), this.#createAddPanelButton(leaf.id));
     this.#layer.append(frame, tabStrip);
-  }
-
-  /**
-   * A tab strip's class names: the base one, plus a modifier dropping its own bottom border when
-   * its active tab already draws a border-free bottom edge of its own (so the strip's neutral
-   * divider doesn't cut across underneath it, breaking the seamless join with the content below).
-   * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
-   * @returns {string} The class names.
-   */
-  static #tabStripClassName(borderKind) {
-    return borderKind ? 'claude-plus-tab-strip claude-plus-tab-strip--seamless' : 'claude-plus-tab-strip';
   }
 
   /**
@@ -95,9 +84,8 @@ export class ZoneChromeRenderer {
 
   /**
    * A tab's class names: the base one, plus modifiers for being the strip's active tab, a chat
-   * pane, and (only for a zone's active tab with a chat border) a border on its own left, top and
-   * right, with no bottom border, so it reads as a flap merging into the content below rather than
-   * a whole-strip outline that would also wrap the zone's other tabs and its "+" button.
+   * pane, and (only for a zone's active tab with a chat border) its own bordered-flap look, so
+   * only that one tab is affected, not the strip's other tabs or its "+" button.
    * @param {string} panelId Panel id.
    * @param {boolean} isActiveTab Whether this is the strip's active tab.
    * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
