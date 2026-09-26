@@ -56,22 +56,11 @@ export class ZoneChromeRenderer {
   render({ leaf, rect }) {
     const borderKind = this.#callbacks.chatBorderKindOf(leaf.activeTab);
     const frame = createElement('div', { className: 'claude-plus-zone-frame' });
-    const tabStrip = createElement('div', { className: ZoneChromeRenderer.#tabStripClassName(borderKind) });
+    const tabStrip = createElement('div', { className: 'claude-plus-tab-strip' });
     placeElement(frame, rect);
     placeElement(tabStrip, { ...rect, height: LAYOUT.tabStripHeight });
     tabStrip.append(...leaf.tabs.map(panelId => this.#createTab(leaf, panelId, borderKind)), this.#createAddPanelButton(leaf.id));
     this.#layer.append(frame, tabStrip);
-  }
-
-  /**
-   * A tab strip's class names: the base one, plus a modifier matching its active tab's chat
-   * border kind (if any), so the strip's own border reads as one continuous outline with the
-   * bordered chat pane below it.
-   * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
-   * @returns {string} The class names.
-   */
-  static #tabStripClassName(borderKind) {
-    return borderKind ? `claude-plus-tab-strip claude-plus-tab-strip--chat-${borderKind}` : 'claude-plus-tab-strip';
   }
 
   /**
@@ -95,8 +84,9 @@ export class ZoneChromeRenderer {
 
   /**
    * A tab's class names: the base one, plus modifiers for being the strip's active tab, a chat
-   * pane, and (only for a zone with a chat border) the active tab whose bottom border is removed
-   * to merge with the content below.
+   * pane, and (only for a zone's active tab with a chat border) a border on its own left, top and
+   * right, with no bottom border, so it reads as a flap merging into the content below rather than
+   * a whole-strip outline that would also wrap the zone's other tabs and its "+" button.
    * @param {string} panelId Panel id.
    * @param {boolean} isActiveTab Whether this is the strip's active tab.
    * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
@@ -106,7 +96,7 @@ export class ZoneChromeRenderer {
     const classNames = ['claude-plus-tab'];
     if (isActiveTab) classNames.push('claude-plus-tab--active');
     if (this.#callbacks.isChatPane(panelId)) classNames.push('claude-plus-tab--chat');
-    if (isActiveTab && borderKind) classNames.push('claude-plus-tab--seamless');
+    if (isActiveTab && borderKind) classNames.push(`claude-plus-tab--border-${borderKind}`);
     return classNames.join(' ');
   }
 
