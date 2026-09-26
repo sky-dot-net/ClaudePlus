@@ -56,11 +56,22 @@ export class ZoneChromeRenderer {
   render({ leaf, rect }) {
     const borderKind = this.#callbacks.chatBorderKindOf(leaf.activeTab);
     const frame = createElement('div', { className: 'claude-plus-zone-frame' });
-    const tabStrip = createElement('div', { className: 'claude-plus-tab-strip' });
+    const tabStrip = createElement('div', { className: ZoneChromeRenderer.#tabStripClassName(borderKind) });
     placeElement(frame, rect);
     placeElement(tabStrip, { ...rect, height: LAYOUT.tabStripHeight });
     tabStrip.append(...leaf.tabs.map(panelId => this.#createTab(leaf, panelId, borderKind)), this.#createAddPanelButton(leaf.id));
     this.#layer.append(frame, tabStrip);
+  }
+
+  /**
+   * A tab strip's class names: the base one, plus a modifier coloring its own border-bottom to
+   * match its active tab's chat border kind (if any), so that border continues under the zone's
+   * other tabs and its "+" button instead of stopping where the bordered tab does.
+   * @param {?('active'|'inactive')} borderKind The zone's chat border kind, or null for none.
+   * @returns {string} The class names.
+   */
+  static #tabStripClassName(borderKind) {
+    return borderKind ? `claude-plus-tab-strip claude-plus-tab-strip--chat-${borderKind}` : 'claude-plus-tab-strip';
   }
 
   /**

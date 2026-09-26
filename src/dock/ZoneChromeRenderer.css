@@ -23,6 +23,20 @@
   pointer-events: auto;
 }
 
+/*
+ * The strip's own border-bottom runs the whole width, colored to match the zone's chat border
+ * kind, so it continues past the bordered tab: under its other tabs, the "+" button and any empty
+ * space. Only the bordered tab itself (below) needs to look different, by painting a matching-
+ * background line of its own directly over its own stretch of this one.
+ */
+.claude-plus-tab-strip--chat-active {
+  border-bottom-color: var(--claude-plus-color-active-chat);
+}
+
+.claude-plus-tab-strip--chat-inactive {
+  border-bottom-color: var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
+}
+
 .claude-plus-tab {
   padding: 5px 12px;
   font-size: 12px;
@@ -40,28 +54,25 @@
 }
 
 /*
- * The strip keeps its own border-bottom running underneath every tab, including these two, so
- * only they need special treatment: filling the strip's full height (rather than the shorter,
- * centered height every plain tab gets) with an opaque background lets them paint over that exact
- * stretch of the strip's border, seamlessly joining the tab to the content below instead of
- * leaving a gap where a border used to be.
+ * Sized to the strip's exact height (rather than the shorter, centered height a plain tab gets) so
+ * its own border-bottom lands exactly over the strip's, at the same pixel row: a line the same
+ * color as its own background there reads as no line at all, opening a gap in the strip's border
+ * exactly where this tab sits, joining it seamlessly to the content below.
  */
 .claude-plus-tab--active.claude-plus-tab--border-active {
   height: var(--claude-plus-tab-strip-height);
-  background: var(--claude-plus-color-bar);
   border-left: 1px solid var(--claude-plus-color-active-chat);
   border-top: 1px solid var(--claude-plus-color-active-chat);
   border-right: 1px solid var(--claude-plus-color-active-chat);
-  border-bottom: none;
+  border-bottom: 1px solid var(--claude-plus-color-bar);
 }
 
 .claude-plus-tab--active.claude-plus-tab--border-inactive {
   height: var(--claude-plus-tab-strip-height);
-  background: var(--claude-plus-color-bar);
   border-left: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
   border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
   border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));
-  border-bottom: none;
+  border-bottom: 1px solid var(--claude-plus-color-bar);
 }
 
 .claude-plus-tab {
