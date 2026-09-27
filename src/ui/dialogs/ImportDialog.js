@@ -130,8 +130,9 @@ export class ImportDialog extends Dialog {
         <button class="claude-plus-toolbar__close-button" data-name="closeButton" title="Close">✕</button>
       </div>
       <p>Select the files you extracted from claude.ai's "Export my data" download: conversations.json is required; memory, Artifact, Project and account files are each optional and detected automatically.</p>
-      <div class="claude-plus-import-dialog__row">
+      <div class="claude-plus-import-dialog__drop-zone" data-name="dropZone">
         <button class="claude-plus-toolbar__button" data-name="chooseButton">Choose files…</button>
+        <span>or drag and drop them here</span>
       </div>
       <div data-name="status"></div>
       <div class="claude-plus-import-dialog__categories" data-name="categories" hidden></div>
@@ -156,6 +157,42 @@ export class ImportDialog extends Dialog {
     elements.selectAllButton.addEventListener('click', () => this.#setAllSelected(true));
     elements.selectNoneButton.addEventListener('click', () => this.#setAllSelected(false));
     elements.importButton.addEventListener('click', () => this.#runImport());
+    elements.dropZone.addEventListener('dragover', event => ImportDialog.#onDragOver(event));
+    elements.dropZone.addEventListener('dragenter', () => elements.dropZone.classList.add('claude-plus-import-dialog__drop-zone--active'));
+    elements.dropZone.addEventListener('dragleave', event => this.#onDragLeave(event));
+    elements.dropZone.addEventListener('drop', event => this.#onDrop(event));
+  }
+
+  /**
+   * Allows a drop by preventing the browser's default (opening the file instead of dropping it).
+   * @param {DragEvent} event The drag-over.
+   * @returns {void}
+   */
+  static #onDragOver(event) {
+    event.preventDefault();
+  }
+
+  /**
+   * Clears the drop zone's active styling once the drag actually leaves it, ignoring the events
+   * fired for merely entering a child element.
+   * @param {DragEvent} event The drag-leave.
+   * @returns {void}
+   */
+  #onDragLeave(event) {
+    if (!this.#elements.dropZone.contains(event.relatedTarget)) this.#elements.dropZone.classList.remove('claude-plus-import-dialog__drop-zone--active');
+  }
+
+  /**
+   * Scans the files dropped onto the drop zone, the same as if they'd been chosen.
+   * @param {DragEvent} event The drop.
+   * @returns {Promise<void>} Resolves once the review table is shown or a failure is reported.
+   */
+  #onDrop(event) {
+    event.preventDefault();
+    this.#elements.dropZone.classList.remove('claude-plus-import-dialog__drop-zone--active');
+    const files = [...(event.dataTransfer?.files ?? [])];
+    if (files.length) return this.#onFilesChosen(files);
+    return Promise.resolve();
   }
 
   /**

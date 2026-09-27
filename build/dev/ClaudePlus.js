@@ -12541,7 +12541,7 @@
     }
   }
 
-  var stylesheet$3 = ".claude-plus-import-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-import-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 720px;\n  max-width: 90vw;\n  height: 85vh;\n  box-sizing: border-box;\n  font-size: 13px;\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n}\n\n.claude-plus-import-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-import-dialog__row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin: 12px 0;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__file-count {\n  color: var(--claude-plus-color-text-muted);\n  margin: 0 0 4px;\n}\n\n.claude-plus-import-dialog__detection-list {\n  margin: 0;\n  padding-left: 18px;\n}\n\n.claude-plus-import-dialog__progress {\n  color: var(--claude-plus-color-text-muted);\n  font-style: italic;\n}\n\n.claude-plus-import-dialog__categories {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  flex-shrink: 0;\n  margin-bottom: 4px;\n}\n\n.claude-plus-import-dialog__toggle {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n}\n\n.claude-plus-import-dialog__table-host {\n  flex: 1;\n  min-height: 0;\n  display: flex;\n  flex-direction: column;\n}\n\n.claude-plus-import-dialog__badge {\n  display: inline-block;\n  padding: 1px 8px;\n  border-radius: 10px;\n  font-size: 11px;\n  white-space: nowrap;\n}\n\n.claude-plus-import-dialog__badge--new {\n  background: var(--claude-plus-color-accent);\n  color: var(--claude-plus-color-on-accent, #fff);\n}\n\n.claude-plus-import-dialog__badge--changed {\n  background: var(--claude-plus-color-tool-details);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-import-dialog__badge--renamedOnly {\n  background: var(--claude-plus-color-bar);\n  color: var(--claude-plus-color-text-muted);\n  border: 1px solid var(--claude-plus-color-border-strong);\n}\n\n.claude-plus-import-dialog__badge--unchanged {\n  background: transparent;\n  color: var(--claude-plus-color-text-faint);\n  border: 1px solid var(--claude-plus-color-border);\n}\n";
+  var stylesheet$3 = ".claude-plus-import-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-import-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 720px;\n  max-width: 90vw;\n  height: 85vh;\n  box-sizing: border-box;\n  font-size: 13px;\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n}\n\n.claude-plus-import-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-import-dialog__row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin: 12px 0;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__drop-zone {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 8px;\n  margin: 12px 0;\n  padding: 16px;\n  flex-shrink: 0;\n  border: 1px dashed var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  color: var(--claude-plus-color-text-muted);\n  font-size: 12px;\n}\n\n.claude-plus-import-dialog__drop-zone--active {\n  border-color: var(--claude-plus-color-accent);\n  background: var(--claude-plus-color-tool-details);\n}\n\n.claude-plus-import-dialog__file-count {\n  color: var(--claude-plus-color-text-muted);\n  margin: 0 0 4px;\n}\n\n.claude-plus-import-dialog__detection-list {\n  margin: 0;\n  padding-left: 18px;\n}\n\n.claude-plus-import-dialog__progress {\n  color: var(--claude-plus-color-text-muted);\n  font-style: italic;\n}\n\n.claude-plus-import-dialog__categories {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  flex-shrink: 0;\n  margin-bottom: 4px;\n}\n\n.claude-plus-import-dialog__toggle {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n}\n\n.claude-plus-import-dialog__table-host {\n  flex: 1;\n  min-height: 0;\n  display: flex;\n  flex-direction: column;\n}\n\n.claude-plus-import-dialog__badge {\n  display: inline-block;\n  padding: 1px 8px;\n  border-radius: 10px;\n  font-size: 11px;\n  white-space: nowrap;\n}\n\n.claude-plus-import-dialog__badge--new {\n  background: var(--claude-plus-color-accent);\n  color: var(--claude-plus-color-on-accent, #fff);\n}\n\n.claude-plus-import-dialog__badge--changed {\n  background: var(--claude-plus-color-tool-details);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-import-dialog__badge--renamedOnly {\n  background: var(--claude-plus-color-bar);\n  color: var(--claude-plus-color-text-muted);\n  border: 1px solid var(--claude-plus-color-border-strong);\n}\n\n.claude-plus-import-dialog__badge--unchanged {\n  background: transparent;\n  color: var(--claude-plus-color-text-faint);\n  border: 1px solid var(--claude-plus-color-border);\n}\n";
 
   StyleRegistry.register(stylesheet$3);
 
@@ -12664,8 +12664,9 @@
         <button class="claude-plus-toolbar__close-button" data-name="closeButton" title="Close">✕</button>
       </div>
       <p>Select the files you extracted from claude.ai's "Export my data" download: conversations.json is required; memory, Artifact, Project and account files are each optional and detected automatically.</p>
-      <div class="claude-plus-import-dialog__row">
+      <div class="claude-plus-import-dialog__drop-zone" data-name="dropZone">
         <button class="claude-plus-toolbar__button" data-name="chooseButton">Choose files…</button>
+        <span>or drag and drop them here</span>
       </div>
       <div data-name="status"></div>
       <div class="claude-plus-import-dialog__categories" data-name="categories" hidden></div>
@@ -12690,6 +12691,42 @@
       elements.selectAllButton.addEventListener('click', () => this.#setAllSelected(true));
       elements.selectNoneButton.addEventListener('click', () => this.#setAllSelected(false));
       elements.importButton.addEventListener('click', () => this.#runImport());
+      elements.dropZone.addEventListener('dragover', event => ImportDialog.#onDragOver(event));
+      elements.dropZone.addEventListener('dragenter', () => elements.dropZone.classList.add('claude-plus-import-dialog__drop-zone--active'));
+      elements.dropZone.addEventListener('dragleave', event => this.#onDragLeave(event));
+      elements.dropZone.addEventListener('drop', event => this.#onDrop(event));
+    }
+
+    /**
+     * Allows a drop by preventing the browser's default (opening the file instead of dropping it).
+     * @param {DragEvent} event The drag-over.
+     * @returns {void}
+     */
+    static #onDragOver(event) {
+      event.preventDefault();
+    }
+
+    /**
+     * Clears the drop zone's active styling once the drag actually leaves it, ignoring the events
+     * fired for merely entering a child element.
+     * @param {DragEvent} event The drag-leave.
+     * @returns {void}
+     */
+    #onDragLeave(event) {
+      if (!this.#elements.dropZone.contains(event.relatedTarget)) this.#elements.dropZone.classList.remove('claude-plus-import-dialog__drop-zone--active');
+    }
+
+    /**
+     * Scans the files dropped onto the drop zone, the same as if they'd been chosen.
+     * @param {DragEvent} event The drop.
+     * @returns {Promise<void>} Resolves once the review table is shown or a failure is reported.
+     */
+    #onDrop(event) {
+      event.preventDefault();
+      this.#elements.dropZone.classList.remove('claude-plus-import-dialog__drop-zone--active');
+      const files = [...(event.dataTransfer?.files ?? [])];
+      if (files.length) return this.#onFilesChosen(files);
+      return Promise.resolve();
     }
 
     /**
