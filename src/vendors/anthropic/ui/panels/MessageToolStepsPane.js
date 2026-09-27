@@ -103,7 +103,9 @@ export class MessageToolStepsPane {
    * @returns {string} The HTML.
    */
   static #stepHtml(step) {
-    return step.kind === 'thinking' ? MessageToolStepsPane.#thinkingStepHtml(step) : MessageToolStepsPane.#toolStepHtml(step);
+    if (step.kind === 'thinking') return MessageToolStepsPane.#thinkingStepHtml(step);
+    if (step.kind === 'injectedPrompt') return MessageToolStepsPane.#injectedPromptStepHtml(step);
+    return MessageToolStepsPane.#toolStepHtml(step);
   }
 
   /**
@@ -120,6 +122,20 @@ export class MessageToolStepsPane {
       <details class="claude-plus-tool-step">
         <summary>💭 ${headline}</summary>
         ${restHtml}${rawHtml}
+      </details>`;
+  }
+
+  /**
+   * HTML of an injected-prompt step: a backend-injected system/memory-snapshot reminder, collapsed
+   * behind its raw text like a thinking step's.
+   * @param {{block: ContentBlock}} step The injected-prompt step.
+   * @returns {string} The HTML.
+   */
+  static #injectedPromptStepHtml({ block }) {
+    return `
+      <details class="claude-plus-tool-step">
+        <summary>🧾 Injected system reminder</summary>
+        <pre class="claude-plus-tool-step__pre">${escapeHtml(block.prompt || '')}</pre>
       </details>`;
   }
 

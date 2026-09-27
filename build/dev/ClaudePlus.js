@@ -12,15 +12,38 @@
 
   /**
    * IndexedDB database: conversation summaries keyed by conversation id, active time keyed by day,
-   * and extracted widget cards keyed by a hash of their tool name and data. Each store maps to its
-   * key path.
-   * @type {Readonly<{name: string, version: number, stores: Readonly<Record<string, string>>, keyPaths: Readonly<Record<string, string>>}>}
+   * extracted widget cards keyed by a hash of their tool name and data, and imported-data-export
+   * records. Each store maps to its key path; a key path can be a single field or, for a record with
+   * no single natural id, an array of fields forming a compound key.
+   * @type {Readonly<{name: string, version: number, stores: Readonly<Record<string, string>>, keyPaths: Readonly<Record<string, string|string[]>>}>}
    */
   const DATABASE = Object.freeze({
     name: 'claudePlus',
-    version: 2,
-    stores: Object.freeze({ conversationSummaries: 'conversationSummaries', activity: 'activity', widgetCards: 'widgetCards' }),
-    keyPaths: Object.freeze({ conversationSummaries: 'conversationId', activity: 'day', widgetCards: 'hash' }),
+    version: 3,
+    stores: Object.freeze({
+      conversationSummaries: 'conversationSummaries',
+      activity: 'activity',
+      widgetCards: 'widgetCards',
+      importedConversations: 'importedConversations',
+      importedMemoryFiles: 'importedMemoryFiles',
+      importedArtifacts: 'importedArtifacts',
+      importedProjects: 'importedProjects',
+      importedFeedbackPeriods: 'importedFeedbackPeriods',
+      importedAccountProfiles: 'importedAccountProfiles',
+      importedLoginEvents: 'importedLoginEvents',
+    }),
+    keyPaths: Object.freeze({
+      conversationSummaries: 'conversationId',
+      activity: 'day',
+      widgetCards: 'hash',
+      importedConversations: 'conversationId',
+      importedMemoryFiles: ['accountId', 'path'],
+      importedArtifacts: 'artifactId',
+      importedProjects: 'projectId',
+      importedFeedbackPeriods: ['accountId', 'period'],
+      importedAccountProfiles: 'accountId',
+      importedLoginEvents: ['accountId', 'timestamp', 'ipAddress'],
+    }),
   });
 
   /**
@@ -2113,18 +2136,27 @@
   }
 
   /**
-   * Groups a message's thinking and ordinary tool-call content blocks into a chronological list of
-   * steps — each tool call paired with its result — so a message's "thinking and tool calls"
-   * sub-pane can list what happened without that ever appearing in the chat log itself. A widget
-   * tool call that actually rendered a card (see WidgetToolCall) is excluded here since it shows
-   * inline in the message instead (see MessageContent); one that didn't (still pending, or a failed
-   * attempt superseded by a retry) is kept, same as any other tool call.
+   * Groups a message's thinking, injected-prompt and ordinary tool-call content blocks into a
+   * chronological list of steps — each tool call paired with its result — so a message's "thinking
+   * and tool calls" sub-pane can list what happened without that ever appearing in the chat log
+   * itself. A widget tool call that actually rendered a card (see WidgetToolCall) is excluded here
+   * since it shows inline in the message instead (see MessageContent); one that didn't (still
+   * pending, or a failed attempt superseded by a retry) is kept, same as any other tool call. An
+   * injected_prompt_block (a backend-injected system/memory-snapshot reminder, seen on imported
+   * conversations) is never a message a human wrote or should read inline, so it's listed here too
+   * rather than in the chat log.
    */
   class MessageToolSteps {
     /**
+     * Step kind produced by a content block whose whole block becomes the step, keyed by block type.
+     * @type {ReadonlyMap<string, string>}
+     */
+    static #SIMPLE_STEP_KINDS = new Map([['thinking', 'thinking'], ['injected_prompt_block', 'injectedPrompt']]);
+
+    /**
      * Steps of a message, in the order they happened.
      * @param {?ApiMessage} apiMessage The message; null or content-less for a local-only message.
-     * @returns {Array<{kind: 'thinking', block: ContentBlock}|{kind: 'tool', useBlock: ContentBlock, resultBlock: ?ContentBlock}>}
+     * @returns {Array<{kind: 'thinking', block: ContentBlock}|{kind: 'tool', useBlock: ContentBlock, resultBlock: ?ContentBlock}|{kind: 'injectedPrompt', block: ContentBlock}>}
      * The steps; empty when the message has none.
      */
     static stepsOf(apiMessage) {
@@ -2154,7 +2186,8 @@
      * @returns {void}
      */
     static #addBlock(block, steps, stepByToolUseId, resultByUseId) {
-      if (block.type === 'thinking') steps.push({ kind: 'thinking', block });
+      const simpleKind = MessageToolSteps.#SIMPLE_STEP_KINDS.get(block.type);
+      if (simpleKind) steps.push({ kind: simpleKind, block });
       else if (block.type === 'tool_use' && !WidgetToolCall.isRendered(block, resultByUseId.get(block.id))) MessageToolSteps.#addToolUse(block, steps, stepByToolUseId);
       else if (block.type === 'tool_result') MessageToolSteps.#attachResult(block, stepByToolUseId);
     }
@@ -2743,7 +2776,9 @@
      * @returns {string} The HTML.
      */
     static #stepHtml(step) {
-      return step.kind === 'thinking' ? MessageToolStepsPane.#thinkingStepHtml(step) : MessageToolStepsPane.#toolStepHtml(step);
+      if (step.kind === 'thinking') return MessageToolStepsPane.#thinkingStepHtml(step);
+      if (step.kind === 'injectedPrompt') return MessageToolStepsPane.#injectedPromptStepHtml(step);
+      return MessageToolStepsPane.#toolStepHtml(step);
     }
 
     /**
@@ -2760,6 +2795,20 @@
       <details class="claude-plus-tool-step">
         <summary>💭 ${headline}</summary>
         ${restHtml}${rawHtml}
+      </details>`;
+    }
+
+    /**
+     * HTML of an injected-prompt step: a backend-injected system/memory-snapshot reminder, collapsed
+     * behind its raw text like a thinking step's.
+     * @param {{block: ContentBlock}} step The injected-prompt step.
+     * @returns {string} The HTML.
+     */
+    static #injectedPromptStepHtml({ block }) {
+      return `
+      <details class="claude-plus-tool-step">
+        <summary>🧾 Injected system reminder</summary>
+        <pre class="claude-plus-tool-step__pre">${escapeHtml(block.prompt || '')}</pre>
       </details>`;
     }
 
