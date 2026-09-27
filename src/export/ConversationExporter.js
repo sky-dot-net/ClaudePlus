@@ -1,5 +1,5 @@
 import { AlertDialog } from '../ui/dialogs/AlertDialog.js';
-import { ConversationExportBuilder } from './ConversationExportBuilder.js';
+import { ConversationExportBuilder } from '../vendors/anthropic/export/ConversationExportBuilder.js';
 import { JsonConversationFormat } from './formats/JsonConversationFormat.js';
 import { LOG_PREFIX } from '../config/LOG_PREFIX.js';
 import { MarkdownConversationFormat } from './formats/MarkdownConversationFormat.js';

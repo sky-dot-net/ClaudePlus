@@ -1,10 +1,10 @@
-import { LIMITS } from '../../config/LIMITS.js';
+import { LIMITS } from '../../../../config/LIMITS.js';
 import { MessageToolSteps } from '../../chat/MessageToolSteps.js';
-import { StyleRegistry } from '../../styles/StyleRegistry.js';
-import { SubPaneHeader } from './SubPaneHeader.js';
-import { createElement } from '../../dom/createElement.js';
-import { escapeHtml } from '../../text/escapeHtml.js';
-import stylesheet from './MessageToolStepsPane.css';
+import { StyleRegistry } from '../../../../styles/StyleRegistry.js';
+import { SubPaneHeader } from '../../../../ui/panels/SubPaneHeader.js';
+import { createElement } from '../../../../dom/createElement.js';
+import { escapeHtml } from '../../../../text/escapeHtml.js';
+import stylesheet from '../../../../ui/panels/MessageToolStepsPane.css';
 
 StyleRegistry.register(stylesheet);
 

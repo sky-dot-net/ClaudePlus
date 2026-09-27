@@ -1,14 +1,14 @@
-import { ChatMessage } from './ChatMessage.js';
-import { ConversationTree } from './ConversationTree.js';
+import { ChatMessage } from '../vendors/anthropic/chat/ChatMessage.js';
+import { ConversationTree } from '../vendors/anthropic/chat/ConversationTree.js';
 import { EventEmitter } from '../core/EventEmitter.js';
 import { LOG_PREFIX } from '../config/LOG_PREFIX.js';
 import { NavigationCounter } from './NavigationCounter.js';
-import { ROOT_MESSAGE_UUID } from '../config/ROOT_MESSAGE_UUID.js';
-import { StreamEventApplier } from './StreamEventApplier.js';
+import { ROOT_MESSAGE_UUID } from '../vendors/anthropic/config/ROOT_MESSAGE_UUID.js';
+import { StreamEventApplier } from '../vendors/anthropic/chat/StreamEventApplier.js';
 import { Turn } from './Turn.js';
 import { createErrorNotice } from './createErrorNotice.js';
 import { createLocalMessageId } from './createLocalMessageId.js';
-import { currentBranchMessages } from './currentBranchMessages.js';
+import { currentBranchMessages } from '../vendors/anthropic/chat/currentBranchMessages.js';
 
 /**
  * One chat: the conversation open in a chat pane, its messages and the prompt being sent. Every
@@ -178,7 +178,7 @@ export class ChatSession extends EventEmitter {
     if (!target) return;
     const leafId = ConversationTree.latestLeafFrom(this.#conversation, target.uuid);
     await this.#api.setCurrentLeafMessage(this.#openConversationId, leafId);
-    this.#conversation = { ...this.#conversation, current_leaf_message_uuid: leafId };
+    this.#conversation = ConversationTree.withCurrentLeaf(this.#conversation, leafId);
     this.#setMessages(currentBranchMessages(this.#conversation));
   }
 
@@ -316,7 +316,7 @@ export class ChatSession extends EventEmitter {
   #beginTurn(prompt, parentMessageId, files) {
     const promptMessage = new ChatMessage({
       id: createLocalMessageId(), parentId: parentMessageId, sender: 'human', text: prompt, isPersisted: false,
-      apiMessage: files.length ? { text: prompt, attachments: [], files, content: [] } : null,
+      apiMessage: files.length ? ChatMessage.draftApiMessage(prompt, files) : null,
     });
     const turn = new Turn({
       conversationId: this.targetConversationId,
@@ -345,7 +345,7 @@ export class ChatSession extends EventEmitter {
       parentMessageId: turn.promptMessage.parentId ?? ROOT_MESSAGE_UUID,
       isNew: turn.isNewConversation,
       settings: this.#settings.snapshot(),
-      fileUuids: turn.files.map(file => file.file_uuid),
+      fileUuids: ChatMessage.fileUuidsOf(turn.files),
       signal: turn.abortController.signal,
     });
     for await (const event of events) this.#streamEvents.apply(turn, event);

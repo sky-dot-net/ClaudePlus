@@ -1,6 +1,6 @@
 import { ConversationTree } from '../chat/ConversationTree.js';
 import { MessageContent } from '../chat/MessageContent.js';
-import { UNTITLED } from '../config/UNTITLED.js';
+import { UNTITLED } from '../../../config/UNTITLED.js';
 
 /**
  * Converts an API conversation into the format-neutral ExportedConversation.

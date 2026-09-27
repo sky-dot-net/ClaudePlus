@@ -1,7 +1,7 @@
 import { ConversationStatsSubPane } from './ConversationStatsSubPane.js';
 import { ConversationSubPane } from './ConversationSubPane.js';
 import { MessageListView } from './MessageListView.js';
-import { MessageToolStepsPane } from './MessageToolStepsPane.js';
+import { MessageToolStepsPane } from '../../vendors/anthropic/ui/panels/MessageToolStepsPane.js';
 import { Panel } from './Panel.js';
 import { STORAGE_KEYS } from '../../config/STORAGE_KEYS.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';

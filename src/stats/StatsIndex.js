@@ -1,4 +1,6 @@
-import { ConversationSummarizer } from './ConversationSummarizer.js';
+import { ApiConversationFields } from '../vendors/anthropic/types/ApiConversationFields.js';
+import { ConversationListingFields } from '../vendors/anthropic/types/ConversationListingFields.js';
+import { ConversationSummarizer } from '../vendors/anthropic/stats/ConversationSummarizer.js';
 import { DATABASE } from '../config/DATABASE.js';
 import { EventEmitter } from '../core/EventEmitter.js';
 import { LIMITS } from '../config/LIMITS.js';
@@ -205,8 +207,9 @@ export class StatsIndex extends EventEmitter {
    * @throws {ApiError|DOMException} When fetching or storing fails.
    */
   async #indexListing(listing) {
-    if (!(await this.#isOutdated(listing.uuid, listing.updated_at))) return;
-    await this.#storeSummaryIfOutdated(await this.#api.getConversation(listing.uuid));
+    const listingId = ConversationListingFields.id(listing);
+    if (!(await this.#isOutdated(listingId, ConversationListingFields.updatedAt(listing)))) return;
+    await this.#storeSummaryIfOutdated(await this.#api.getConversation(listingId));
     this.#storedDuringBackfill += 1;
     if (this.#storedDuringBackfill % LIMITS.backfillRefreshInterval === 0) await this.refreshAggregate();
     await wait(TIMING.backfillPauseMs);
@@ -232,7 +235,7 @@ export class StatsIndex extends EventEmitter {
    * @throws {DOMException} When the cache can't be read or written.
    */
   async #storeSummaryIfOutdated(conversation) {
-    if (!(await this.#isOutdated(conversation.uuid, conversation.updated_at))) return false;
+    if (!(await this.#isOutdated(ApiConversationFields.id(conversation), ApiConversationFields.updatedAt(conversation)))) return false;
     await this.#database.write(DATABASE.stores.conversationSummaries, ConversationSummarizer.summarize(conversation));
     return true;
   }

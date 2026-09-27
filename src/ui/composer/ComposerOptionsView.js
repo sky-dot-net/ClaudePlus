@@ -1,4 +1,4 @@
-import { THINKING_MODES } from '../../config/THINKING_MODES.js';
+import { THINKING_MODES } from '../../vendors/anthropic/config/THINKING_MODES.js';
 import { optionsHtml } from '../html/optionsHtml.js';
 
 /**

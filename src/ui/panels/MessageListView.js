@@ -1,7 +1,7 @@
 import { FrameScheduler } from '../../dom/FrameScheduler.js';
 import { ImageViewerDialog } from '../dialogs/ImageViewerDialog.js';
 import { LIMITS } from '../../config/LIMITS.js';
-import { MessageToolSteps } from '../../chat/MessageToolSteps.js';
+import { MessageToolSteps } from '../../vendors/anthropic/chat/MessageToolSteps.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { TIMING } from '../../config/TIMING.js';
 import { escapeHtml } from '../../text/escapeHtml.js';

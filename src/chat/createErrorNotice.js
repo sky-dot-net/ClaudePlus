@@ -1,4 +1,4 @@
-import { ChatMessage } from './ChatMessage.js';
+import { ChatMessage } from '../vendors/anthropic/chat/ChatMessage.js';
 import { createLocalMessageId } from './createLocalMessageId.js';
 
 /**

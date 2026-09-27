@@ -1,5 +1,6 @@
 import { ColumnTable } from '../tables/ColumnTable.js';
 import { ConfirmDialog } from '../dialogs/ConfirmDialog.js';
+import { ConversationListingFields } from '../../vendors/anthropic/types/ConversationListingFields.js';
 import { LOG_PREFIX } from '../../config/LOG_PREFIX.js';
 import { Panel } from './Panel.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
@@ -151,8 +152,8 @@ export class ConversationListPanel extends Panel {
    */
   #columns() {
     return [
-      { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: conversation => (conversation.name || '').toLowerCase(), filterValue: conversation => conversation.name || UNTITLED, cellHtml: conversation => `<span class="claude-plus-conversation__title">${escapeHtml(conversation.name || UNTITLED)}</span>` },
-      { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: conversation => toEpochMs(conversation.updated_at), filterValue: conversation => conversation.updated_at, cellHtml: conversation => escapeHtml(formatDay(conversation.updated_at)) },
+      { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: conversation => (ConversationListingFields.title(conversation) || '').toLowerCase(), filterValue: conversation => ConversationListingFields.title(conversation) || UNTITLED, cellHtml: conversation => `<span class="claude-plus-conversation__title">${escapeHtml(ConversationListingFields.title(conversation) || UNTITLED)}</span>` },
+      { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: conversation => toEpochMs(ConversationListingFields.updatedAt(conversation)), filterValue: conversation => ConversationListingFields.updatedAt(conversation), cellHtml: conversation => escapeHtml(formatDay(ConversationListingFields.updatedAt(conversation))) },
       { id: 'turns', label: 'Turns', sortValue: conversation => this.#indexedCount(conversation, 'promptCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'promptCount') },
       { id: 'files', label: 'Files', sortValue: conversation => this.#indexedCount(conversation, 'fileCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'fileCount') },
       { id: 'actions', label: '', isAlwaysVisible: true, isNotSortable: true, sortValue: () => 0, cellHtml: () => ConversationListPanel.#actionButtonsHtml() },
@@ -166,7 +167,7 @@ export class ConversationListPanel extends Panel {
    * @returns {number} The count, or -1 while the conversation isn't indexed, so unindexed ones sort together.
    */
   #indexedCount(conversation, field) {
-    const counts = this.#stats.aggregate.perConversation.get(conversation.uuid);
+    const counts = this.#stats.aggregate.perConversation.get(ConversationListingFields.id(conversation));
     return counts ? counts[field] : -1;
   }
 
@@ -187,8 +188,9 @@ export class ConversationListPanel extends Panel {
    * @returns {string} The attributes.
    */
   #rowAttributes(conversation) {
-    const modifier = ConversationListPanel.#stateModifier(conversation.uuid, this.#paneManager.focusedSession.openConversationId, this.#paneManager.openConversationIds());
-    return `class="claude-plus-conversation${modifier}" data-conversation-id="${escapeHtml(conversation.uuid)}"`;
+    const conversationId = ConversationListingFields.id(conversation);
+    const modifier = ConversationListPanel.#stateModifier(conversationId, this.#paneManager.focusedSession.openConversationId, this.#paneManager.openConversationIds());
+    return `class="claude-plus-conversation${modifier}" data-conversation-id="${escapeHtml(conversationId)}"`;
   }
 
   /**
@@ -227,7 +229,7 @@ export class ConversationListPanel extends Panel {
    * @returns {boolean} True when it matches or there is no search.
    */
   #matchesSearch(conversation) {
-    return (conversation.name || '').toLowerCase().includes(this.#searchText);
+    return (ConversationListingFields.title(conversation) || '').toLowerCase().includes(this.#searchText);
   }
 
   /**

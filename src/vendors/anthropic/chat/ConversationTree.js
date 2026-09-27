@@ -78,6 +78,16 @@ export class ConversationTree {
   }
 
   /**
+   * A copy of a conversation with its current leaf switched to a different message.
+   * @param {ApiConversation} conversation The conversation.
+   * @param {string} leafId Message id of the new current leaf.
+   * @returns {ApiConversation} The updated conversation.
+   */
+  static withCurrentLeaf(conversation, leafId) {
+    return { ...conversation, current_leaf_message_uuid: leafId };
+  }
+
+  /**
    * Direct children of a message.
    * @param {ApiMessage[]} messages Every message of the conversation.
    * @param {string} parentId Parent message id.

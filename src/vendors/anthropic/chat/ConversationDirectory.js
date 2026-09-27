@@ -1,7 +1,7 @@
-import { EventEmitter } from '../core/EventEmitter.js';
-import { LIMITS } from '../config/LIMITS.js';
-import { LOG_PREFIX } from '../config/LOG_PREFIX.js';
-import { UNTITLED } from '../config/UNTITLED.js';
+import { EventEmitter } from '../../../core/EventEmitter.js';
+import { LIMITS } from '../../../config/LIMITS.js';
+import { LOG_PREFIX } from '../../../config/LOG_PREFIX.js';
+import { UNTITLED } from '../../../config/UNTITLED.js';
 
 /**
  * The shared list of the user's conversations, as shown in the sidebar.

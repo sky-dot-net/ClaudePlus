@@ -1,9 +1,9 @@
-import { ApiError } from './ApiError.js';
+import { ApiError } from '../../../api/ApiError.js';
 import { STREAM_START } from '../config/STREAM_START.js';
-import { ServerSentEventDecoder } from './ServerSentEventDecoder.js';
-import { currentTimezone } from '../time/currentTimezone.js';
-import { gzipJson } from '../browser/gzipJson.js';
-import { readCookie } from '../browser/readCookie.js';
+import { ServerSentEventDecoder } from '../../../api/ServerSentEventDecoder.js';
+import { currentTimezone } from '../../../time/currentTimezone.js';
+import { gzipJson } from '../../../browser/gzipJson.js';
+import { readCookie } from '../../../browser/readCookie.js';
 import { resolveLocale } from '../browser/resolveLocale.js';
 
 /**

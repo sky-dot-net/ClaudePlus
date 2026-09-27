@@ -1,6 +1,6 @@
-import { StyleRegistry } from '../../styles/StyleRegistry.js';
-import { createElement } from '../../dom/createElement.js';
-import stylesheet from './WidgetMount.css';
+import { StyleRegistry } from '../../../../styles/StyleRegistry.js';
+import { createElement } from '../../../../dom/createElement.js';
+import stylesheet from '../../../../chat/widgets/WidgetMount.css';
 
 StyleRegistry.register(stylesheet);
 

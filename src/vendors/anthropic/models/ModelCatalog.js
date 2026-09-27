@@ -1,10 +1,10 @@
 import { EFFORTS } from '../config/EFFORTS.js';
-import { EventEmitter } from '../core/EventEmitter.js';
-import { LOG_PREFIX } from '../config/LOG_PREFIX.js';
+import { EventEmitter } from '../../../core/EventEmitter.js';
+import { LOG_PREFIX } from '../../../config/LOG_PREFIX.js';
 import { MODELS } from '../config/MODELS.js';
 import { ModelCatalogSource } from './ModelCatalogSource.js';
-import { STORAGE_KEYS } from '../config/STORAGE_KEYS.js';
-import { TIMING } from '../config/TIMING.js';
+import { STORAGE_KEYS } from '../../../config/STORAGE_KEYS.js';
+import { TIMING } from '../../../config/TIMING.js';
 
 /**
  * The selectable models and effort levels, kept in sync with claude.ai's own roster instead of a

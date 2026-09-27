@@ -1,11 +1,11 @@
 import { MessageContent } from '../chat/MessageContent.js';
-import { TIMING } from '../config/TIMING.js';
-import { UNTITLED } from '../config/UNTITLED.js';
-import { addToCount } from '../math/addToCount.js';
-import { estimateTokens } from '../text/estimateTokens.js';
-import { hostParts } from '../text/hostParts.js';
-import { lastPathSegment } from '../text/lastPathSegment.js';
-import { toEpochMs } from '../time/toEpochMs.js';
+import { TIMING } from '../../../config/TIMING.js';
+import { UNTITLED } from '../../../config/UNTITLED.js';
+import { addToCount } from '../../../math/addToCount.js';
+import { estimateTokens } from '../../../text/estimateTokens.js';
+import { hostParts } from '../../../text/hostParts.js';
+import { lastPathSegment } from '../../../text/lastPathSegment.js';
+import { toEpochMs } from '../../../time/toEpochMs.js';
 
 /**
  * Computes a ConversationSummary from a full conversation.

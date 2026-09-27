@@ -3671,6 +3671,26 @@
     }
 
     /**
+     * The API message shape for a not-yet-sent prompt that has files attached, so it renders its
+     * uploads the same way a persisted message would before the server has echoed it back.
+     * @param {string} text Prompt text.
+     * @param {UploadedFile[]} files Files uploaded beforehand.
+     * @returns {ApiMessage} The draft API message.
+     */
+    static draftApiMessage(text, files) {
+      return { text, attachments: [], files, content: [] };
+    }
+
+    /**
+     * Ids the server assigned to a set of uploaded files, for a completion request.
+     * @param {UploadedFile[]} files The files.
+     * @returns {string[]} Their ids, in the same order.
+     */
+    static fileUuidsOf(files) {
+      return files.map(file => file.file_uuid);
+    }
+
+    /**
      * Rendered body, cached until the text changes.
      * @returns {string} HTML of the API message's text and tool blocks, or of the plain text for
      * local messages.
@@ -3803,6 +3823,16 @@
         current = ConversationTree.#latestOf(children).uuid;
       }
       return current;
+    }
+
+    /**
+     * A copy of a conversation with its current leaf switched to a different message.
+     * @param {ApiConversation} conversation The conversation.
+     * @param {string} leafId Message id of the new current leaf.
+     * @returns {ApiConversation} The updated conversation.
+     */
+    static withCurrentLeaf(conversation, leafId) {
+      return { ...conversation, current_leaf_message_uuid: leafId };
     }
 
     /**
@@ -4202,7 +4232,7 @@
       if (!target) return;
       const leafId = ConversationTree.latestLeafFrom(this.#conversation, target.uuid);
       await this.#api.setCurrentLeafMessage(this.#openConversationId, leafId);
-      this.#conversation = { ...this.#conversation, current_leaf_message_uuid: leafId };
+      this.#conversation = ConversationTree.withCurrentLeaf(this.#conversation, leafId);
       this.#setMessages(currentBranchMessages(this.#conversation));
     }
 
@@ -4340,7 +4370,7 @@
     #beginTurn(prompt, parentMessageId, files) {
       const promptMessage = new ChatMessage({
         id: createLocalMessageId(), parentId: parentMessageId, sender: 'human', text: prompt, isPersisted: false,
-        apiMessage: files.length ? { text: prompt, attachments: [], files, content: [] } : null,
+        apiMessage: files.length ? ChatMessage.draftApiMessage(prompt, files) : null,
       });
       const turn = new Turn({
         conversationId: this.targetConversationId,
@@ -4369,7 +4399,7 @@
         parentMessageId: turn.promptMessage.parentId ?? ROOT_MESSAGE_UUID,
         isNew: turn.isNewConversation,
         settings: this.#settings.snapshot(),
-        fileUuids: turn.files.map(file => file.file_uuid),
+        fileUuids: ChatMessage.fileUuidsOf(turn.files),
         signal: turn.abortController.signal,
       });
       for await (const event of events) this.#streamEvents.apply(turn, event);
@@ -8434,6 +8464,38 @@
   }
 
   /**
+   * Field access for a ConversationListing, so callers never read its raw API field names directly.
+   */
+  class ConversationListingFields {
+    /**
+     * A listing's id.
+     * @param {ConversationListing} listing The listing.
+     * @returns {string} Its conversation id.
+     */
+    static id(listing) {
+      return listing.uuid;
+    }
+
+    /**
+     * A listing's title.
+     * @param {ConversationListing} listing The listing.
+     * @returns {string} Its title; may be empty.
+     */
+    static title(listing) {
+      return listing.name;
+    }
+
+    /**
+     * When a listing last changed.
+     * @param {ConversationListing} listing The listing.
+     * @returns {string} ISO timestamp of the last change.
+     */
+    static updatedAt(listing) {
+      return listing.updated_at;
+    }
+  }
+
+  /**
    * A timestamp as local date.
    * @param {?string} isoDate ISO timestamp.
    * @returns {string} The formatted date, or an empty string when missing or invalid.
@@ -8587,8 +8649,8 @@
      */
     #columns() {
       return [
-        { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: conversation => (conversation.name || '').toLowerCase(), filterValue: conversation => conversation.name || UNTITLED, cellHtml: conversation => `<span class="claude-plus-conversation__title">${escapeHtml(conversation.name || UNTITLED)}</span>` },
-        { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: conversation => toEpochMs(conversation.updated_at), filterValue: conversation => conversation.updated_at, cellHtml: conversation => escapeHtml(formatDay(conversation.updated_at)) },
+        { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: conversation => (ConversationListingFields.title(conversation) || '').toLowerCase(), filterValue: conversation => ConversationListingFields.title(conversation) || UNTITLED, cellHtml: conversation => `<span class="claude-plus-conversation__title">${escapeHtml(ConversationListingFields.title(conversation) || UNTITLED)}</span>` },
+        { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: conversation => toEpochMs(ConversationListingFields.updatedAt(conversation)), filterValue: conversation => ConversationListingFields.updatedAt(conversation), cellHtml: conversation => escapeHtml(formatDay(ConversationListingFields.updatedAt(conversation))) },
         { id: 'turns', label: 'Turns', sortValue: conversation => this.#indexedCount(conversation, 'promptCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'promptCount') },
         { id: 'files', label: 'Files', sortValue: conversation => this.#indexedCount(conversation, 'fileCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'fileCount') },
         { id: 'actions', label: '', isAlwaysVisible: true, isNotSortable: true, sortValue: () => 0, cellHtml: () => ConversationListPanel.#actionButtonsHtml() },
@@ -8602,7 +8664,7 @@
      * @returns {number} The count, or -1 while the conversation isn't indexed, so unindexed ones sort together.
      */
     #indexedCount(conversation, field) {
-      const counts = this.#stats.aggregate.perConversation.get(conversation.uuid);
+      const counts = this.#stats.aggregate.perConversation.get(ConversationListingFields.id(conversation));
       return counts ? counts[field] : -1;
     }
 
@@ -8623,8 +8685,9 @@
      * @returns {string} The attributes.
      */
     #rowAttributes(conversation) {
-      const modifier = ConversationListPanel.#stateModifier(conversation.uuid, this.#paneManager.focusedSession.openConversationId, this.#paneManager.openConversationIds());
-      return `class="claude-plus-conversation${modifier}" data-conversation-id="${escapeHtml(conversation.uuid)}"`;
+      const conversationId = ConversationListingFields.id(conversation);
+      const modifier = ConversationListPanel.#stateModifier(conversationId, this.#paneManager.focusedSession.openConversationId, this.#paneManager.openConversationIds());
+      return `class="claude-plus-conversation${modifier}" data-conversation-id="${escapeHtml(conversationId)}"`;
     }
 
     /**
@@ -8663,7 +8726,7 @@
      * @returns {boolean} True when it matches or there is no search.
      */
     #matchesSearch(conversation) {
-      return (conversation.name || '').toLowerCase().includes(this.#searchText);
+      return (ConversationListingFields.title(conversation) || '').toLowerCase().includes(this.#searchText);
     }
 
     /**
@@ -9451,7 +9514,7 @@
      * @returns {SearchItem[]} Chats, files, sources and tool uses.
      */
     static #items(aggregate, conversations) {
-      const chats = conversations.map(conversation => SearchEngine.#item('chat', conversation.name || UNTITLED, null, { conversationId: conversation.uuid, conversationTitle: conversation.name || UNTITLED, timestamp: conversation.updated_at }));
+      const chats = conversations.map(conversation => SearchEngine.#item('chat', ConversationListingFields.title(conversation) || UNTITLED, null, { conversationId: ConversationListingFields.id(conversation), conversationTitle: ConversationListingFields.title(conversation) || UNTITLED, timestamp: ConversationListingFields.updatedAt(conversation) }));
       const files = aggregate.folders.flatMap(folder => folder.files).map(file => SearchEngine.#item('file', file.title || file.path, null, file));
       const sources = aggregate.sources.map(source => SearchEngine.#item('source', source.title, `${source.outlet || ''} ${source.url}`, source));
       const tools = [...aggregate.perConversation].flatMap(([conversationId, summary]) => summary.toolNames.map(toolName => SearchEngine.#item('tool', toolName, null, { conversationId, conversationTitle: summary.title, timestamp: summary.updatedAt })));
@@ -10515,6 +10578,29 @@
   }
 
   /**
+   * Field access for an ApiConversation, so callers never read its raw API field names directly.
+   */
+  class ApiConversationFields {
+    /**
+     * A conversation's id.
+     * @param {ApiConversation} conversation The conversation.
+     * @returns {string} Its id.
+     */
+    static id(conversation) {
+      return conversation.uuid;
+    }
+
+    /**
+     * When a conversation last changed.
+     * @param {ApiConversation} conversation The conversation.
+     * @returns {string} ISO timestamp of the last change.
+     */
+    static updatedAt(conversation) {
+      return conversation.updated_at;
+    }
+  }
+
+  /**
    * Adds to a counter in a count map, creating it at zero first.
    * @param {Object<string, number>} counts The count map; modified in place.
    * @param {string} key Counter to increase.
@@ -11061,8 +11147,9 @@
      * @throws {ApiError|DOMException} When fetching or storing fails.
      */
     async #indexListing(listing) {
-      if (!(await this.#isOutdated(listing.uuid, listing.updated_at))) return;
-      await this.#storeSummaryIfOutdated(await this.#api.getConversation(listing.uuid));
+      const listingId = ConversationListingFields.id(listing);
+      if (!(await this.#isOutdated(listingId, ConversationListingFields.updatedAt(listing)))) return;
+      await this.#storeSummaryIfOutdated(await this.#api.getConversation(listingId));
       this.#storedDuringBackfill += 1;
       if (this.#storedDuringBackfill % LIMITS.backfillRefreshInterval === 0) await this.refreshAggregate();
       await wait(TIMING.backfillPauseMs);
@@ -11088,7 +11175,7 @@
      * @throws {DOMException} When the cache can't be read or written.
      */
     async #storeSummaryIfOutdated(conversation) {
-      if (!(await this.#isOutdated(conversation.uuid, conversation.updated_at))) return false;
+      if (!(await this.#isOutdated(ApiConversationFields.id(conversation), ApiConversationFields.updatedAt(conversation)))) return false;
       await this.#database.write(DATABASE.stores.conversationSummaries, ConversationSummarizer.summarize(conversation));
       return true;
     }

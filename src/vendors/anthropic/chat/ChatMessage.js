@@ -69,6 +69,26 @@ export class ChatMessage {
   }
 
   /**
+   * The API message shape for a not-yet-sent prompt that has files attached, so it renders its
+   * uploads the same way a persisted message would before the server has echoed it back.
+   * @param {string} text Prompt text.
+   * @param {UploadedFile[]} files Files uploaded beforehand.
+   * @returns {ApiMessage} The draft API message.
+   */
+  static draftApiMessage(text, files) {
+    return { text, attachments: [], files, content: [] };
+  }
+
+  /**
+   * Ids the server assigned to a set of uploaded files, for a completion request.
+   * @param {UploadedFile[]} files The files.
+   * @returns {string[]} Their ids, in the same order.
+   */
+  static fileUuidsOf(files) {
+    return files.map(file => file.file_uuid);
+  }
+
+  /**
    * Rendered body, cached until the text changes.
    * @returns {string} HTML of the API message's text and tool blocks, or of the plain text for
    * local messages.

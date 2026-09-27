@@ -1,9 +1,9 @@
 import { ATTACHMENT_NAME_FIELDS } from '../config/ATTACHMENT_NAME_FIELDS.js';
-import { Markdown } from '../text/Markdown.js';
-import { StyleRegistry } from '../styles/StyleRegistry.js';
+import { Markdown } from '../../../text/Markdown.js';
+import { StyleRegistry } from '../../../styles/StyleRegistry.js';
 import { WidgetToolCall } from './widgets/WidgetToolCall.js';
-import { escapeHtml } from '../text/escapeHtml.js';
-import stylesheet from './MessageContent.css';
+import { escapeHtml } from '../../../text/escapeHtml.js';
+import stylesheet from '../../../chat/MessageContent.css';
 
 StyleRegistry.register(stylesheet);
 

@@ -1,3 +1,4 @@
+import { ConversationListingFields } from '../vendors/anthropic/types/ConversationListingFields.js';
 import { DateRange } from '../time/DateRange.js';
 import { UNTITLED } from '../config/UNTITLED.js';
 
@@ -59,7 +60,7 @@ export class SearchEngine {
    * @returns {SearchItem[]} Chats, files, sources and tool uses.
    */
   static #items(aggregate, conversations) {
-    const chats = conversations.map(conversation => SearchEngine.#item('chat', conversation.name || UNTITLED, null, { conversationId: conversation.uuid, conversationTitle: conversation.name || UNTITLED, timestamp: conversation.updated_at }));
+    const chats = conversations.map(conversation => SearchEngine.#item('chat', ConversationListingFields.title(conversation) || UNTITLED, null, { conversationId: ConversationListingFields.id(conversation), conversationTitle: ConversationListingFields.title(conversation) || UNTITLED, timestamp: ConversationListingFields.updatedAt(conversation) }));
     const files = aggregate.folders.flatMap(folder => folder.files).map(file => SearchEngine.#item('file', file.title || file.path, null, file));
     const sources = aggregate.sources.map(source => SearchEngine.#item('source', source.title, `${source.outlet || ''} ${source.url}`, source));
     const tools = [...aggregate.perConversation].flatMap(([conversationId, summary]) => summary.toolNames.map(toolName => SearchEngine.#item('tool', toolName, null, { conversationId, conversationTitle: summary.title, timestamp: summary.updatedAt })));

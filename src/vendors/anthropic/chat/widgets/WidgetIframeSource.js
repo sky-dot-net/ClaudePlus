@@ -1,5 +1,5 @@
-import { TIMING } from '../../config/TIMING.js';
-import { createElement } from '../../dom/createElement.js';
+import { TIMING } from '../../../../config/TIMING.js';
+import { createElement } from '../../../../dom/createElement.js';
 
 /**
  * Extracts a widget's real rendered card straight from claude.ai's own React app, run fresh and

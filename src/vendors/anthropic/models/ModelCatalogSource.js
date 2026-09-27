@@ -1,6 +1,6 @@
-import { TIMING } from '../config/TIMING.js';
-import { createElement } from '../dom/createElement.js';
-import { wait } from '../time/wait.js';
+import { TIMING } from '../../../config/TIMING.js';
+import { createElement } from '../../../dom/createElement.js';
+import { wait } from '../../../time/wait.js';
 
 /**
  * Effort labels for known ids, since claude.ai's effort submenu doesn't render its options as

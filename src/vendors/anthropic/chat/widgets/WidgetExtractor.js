@@ -1,6 +1,6 @@
-import { ConcurrencyLimiter } from '../../core/ConcurrencyLimiter.js';
-import { DATABASE } from '../../config/DATABASE.js';
-import { LOG_PREFIX } from '../../config/LOG_PREFIX.js';
+import { ConcurrencyLimiter } from '../../../../core/ConcurrencyLimiter.js';
+import { DATABASE } from '../../../../config/DATABASE.js';
+import { LOG_PREFIX } from '../../../../config/LOG_PREFIX.js';
 import { WidgetHash } from './WidgetHash.js';
 import { WidgetIframeSource } from './WidgetIframeSource.js';
 import { WidgetMount } from './WidgetMount.js';
