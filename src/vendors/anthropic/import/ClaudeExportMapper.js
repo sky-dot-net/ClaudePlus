@@ -1,3 +1,5 @@
+import { MessageContent } from '../chat/MessageContent.js';
+
 /**
  * Maps a raw conversation from claude.ai's data export into the same shape ClaudeApi's live
  * responses already produce, so the existing rendering pipeline (ChatSession, ConversationTree,
@@ -9,13 +11,19 @@ export class ClaudeExportMapper {
    * @param {object} rawConversation A conversations.json entry.
    * @param {Map<string, {html: string}>} artifactsById Imported Artifact content, by artifact id;
    * empty when the frames file wasn't provided.
-   * @returns {{conversationId: string, title: string, messages: ApiMessage[]}} The mapped conversation.
+   * @returns {{conversationId: string, title: string, messages: ApiMessage[], hasReadableContent: boolean}}
+   * The mapped conversation. hasReadableContent is false for a conversation with no messages, or
+   * where not one message has any plain text to show (e.g. a deleted or never-really-started chat
+   * an export still lists) - real, importable data, just nothing a picker UI should bother a human
+   * with by default.
    */
   static mapConversation(rawConversation, artifactsById) {
+    const messages = rawConversation.chat_messages.map(rawMessage => ClaudeExportMapper.#mapMessage(rawMessage, artifactsById));
     return {
       conversationId: rawConversation.uuid,
       title: rawConversation.name,
-      messages: rawConversation.chat_messages.map(rawMessage => ClaudeExportMapper.#mapMessage(rawMessage, artifactsById)),
+      messages,
+      hasReadableContent: messages.some(message => MessageContent.plainText(message).trim().length > 0),
     };
   }
 

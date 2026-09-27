@@ -8545,13 +8545,19 @@
      * @param {object} rawConversation A conversations.json entry.
      * @param {Map<string, {html: string}>} artifactsById Imported Artifact content, by artifact id;
      * empty when the frames file wasn't provided.
-     * @returns {{conversationId: string, title: string, messages: ApiMessage[]}} The mapped conversation.
+     * @returns {{conversationId: string, title: string, messages: ApiMessage[], hasReadableContent: boolean}}
+     * The mapped conversation. hasReadableContent is false for a conversation with no messages, or
+     * where not one message has any plain text to show (e.g. a deleted or never-really-started chat
+     * an export still lists) - real, importable data, just nothing a picker UI should bother a human
+     * with by default.
      */
     static mapConversation(rawConversation, artifactsById) {
+      const messages = rawConversation.chat_messages.map(rawMessage => ClaudeExportMapper.#mapMessage(rawMessage, artifactsById));
       return {
         conversationId: rawConversation.uuid,
         title: rawConversation.name,
-        messages: rawConversation.chat_messages.map(rawMessage => ClaudeExportMapper.#mapMessage(rawMessage, artifactsById)),
+        messages,
+        hasReadableContent: messages.some(message => MessageContent.plainText(message).trim().length > 0),
       };
     }
 
@@ -9190,10 +9196,12 @@
      * @param {File[]} files The files the user selected.
      * @param {function(number): void} [onConversationProgress] Called with the number of
      * conversations classified so far, periodically during the scan.
-     * @returns {Promise<{classified: object, artifactRecords: object[], conversationRows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>, failedCount: number}>}
-     * The raw classification (for apply()), the parsed Artifact records, the conversation rows, and
-     * how many conversations couldn't be read at all (logged, and left out of the rows - a single
-     * unreadable conversation elsewhere in the file never stops the rest from being previewed).
+     * @returns {Promise<{classified: object, artifactRecords: object[], conversationRows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>, failedCount: number, emptySkippedCount: number}>}
+     * The raw classification (for apply()), the parsed Artifact records, the conversation rows, how
+     * many conversations couldn't be read at all (logged, and left out of the rows - a single
+     * unreadable conversation elsewhere in the file never stops the rest from being previewed), and
+     * how many had no readable content and so were left out deliberately (see mapConversation's
+     * hasReadableContent) - a deleted or never-really-started chat an export still lists, not an error.
      * @throws {Error} When no conversations.json was among the selected files.
      */
     async previewClassified(files, onConversationProgress) {
@@ -9201,8 +9209,8 @@
       if (!classified.conversationsFile) throw new Error('No conversations.json was among the selected files.');
       const artifactRecords = classified.artifacts.map(({ artifactJson, htmlByVersionId }) => ClaudeExportParser.artifact(artifactJson, htmlByVersionId));
       const artifactsById = new Map(artifactRecords.map(record => [record.artifactId, record]));
-      const { rows, failedCount } = await this.#previewConversations(classified.conversationsFile, artifactsById, onConversationProgress);
-      return { classified, artifactRecords, conversationRows: rows, failedCount };
+      const { rows, failedCount, emptySkippedCount } = await this.#previewConversations(classified.conversationsFile, artifactsById, onConversationProgress);
+      return { classified, artifactRecords, conversationRows: rows, failedCount, emptySkippedCount };
     }
 
     /**
@@ -9234,46 +9242,55 @@
      * Streams every conversation, classifying each against what's already stored, without writing.
      * @param {File} conversationsFile The conversations.json file.
      * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
-     * @param {function(number): void} [onProgress] Called with the number processed so far (found or failed).
-     * @returns {Promise<{rows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>, failedCount: number}>}
-     * The rows, in file order, and how many conversations failed to preview.
+     * @param {function(number): void} [onProgress] Called with the number processed so far (found, empty or failed).
+     * @returns {Promise<{rows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>, failedCount: number, emptySkippedCount: number}>}
+     * The rows, in file order, how many conversations failed to preview, and how many had no
+     * readable content and were left out deliberately.
      */
     async #previewConversations(conversationsFile, artifactsById, onProgress) {
       const rows = [];
       let failedCount = 0;
+      let emptySkippedCount = 0;
       let processed = 0;
       for await (const rawConversation of StreamingJsonArrayReader.readArray(conversationsFile)) {
-        const row = await this.#previewOneConversation(rawConversation, artifactsById);
-        if (row) rows.push(row);
-        else failedCount += 1;
+        const result = await this.#previewOneConversation(rawConversation, artifactsById);
+        if (result.outcome === 'included') rows.push(result.row);
+        else if (result.outcome === 'failed') failedCount += 1;
+        else emptySkippedCount += 1;
         processed += 1;
         await ImportOrchestrator.#reportProgressIfDue(processed, onProgress);
       }
       onProgress?.(processed);
-      return { rows, failedCount };
+      return { rows, failedCount, emptySkippedCount };
     }
 
     /**
      * Maps and classifies one conversation for preview, without writing anything.
      * @param {object} rawConversation A conversations.json entry.
      * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
-     * @returns {Promise<?{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>}
-     * The row, or null when this conversation couldn't be read (logged, not thrown, so it doesn't stop the rest of the scan).
+     * @returns {Promise<{outcome: 'included', row: {conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}}|{outcome: 'emptySkipped'}|{outcome: 'failed'}>}
+     * The row when it has readable content; 'emptySkipped' when it deliberately doesn't (not an
+     * error); 'failed' when it couldn't be read at all (logged, not thrown, so it doesn't stop the
+     * rest of the scan).
      */
     async #previewOneConversation(rawConversation, artifactsById) {
       try {
         const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
+        if (!mapped.hasReadableContent) return { outcome: 'emptySkipped' };
         const stored = await this.#conversationStore.getRecord(mapped.conversationId);
         return {
-          conversationId: mapped.conversationId,
-          title: mapped.title,
-          updatedAt: rawConversation.updated_at,
-          promptCount: mapped.messages.filter(message => message.sender === 'human').length,
-          classification: ImportMerger.classifyConversation(stored, mapped),
+          outcome: 'included',
+          row: {
+            conversationId: mapped.conversationId,
+            title: mapped.title,
+            updatedAt: rawConversation.updated_at,
+            promptCount: mapped.messages.filter(message => message.sender === 'human').length,
+            classification: ImportMerger.classifyConversation(stored, mapped),
+          },
         };
       } catch (error) {
         console.warn(LOG_PREFIX, 'skipping a conversation that failed to preview', rawConversation?.uuid, error);
-        return null;
+        return { outcome: 'failed' };
       }
     }
 
@@ -12803,8 +12820,8 @@
      * @returns {void}
      */
     #showReview(preview) {
-      const { classified, conversationRows, failedCount } = preview;
-      this.#elements.status.innerHTML = ImportDialog.#categoryCountsHtml(conversationRows, classified, failedCount);
+      const { classified, conversationRows, failedCount, emptySkippedCount } = preview;
+      this.#elements.status.innerHTML = ImportDialog.#categoryCountsHtml(conversationRows, classified, failedCount, emptySkippedCount);
       this.#elements.categories.hidden = false;
       this.#elements.categories.innerHTML = ImportDialog.#categoryToggleHtml(classified);
       this.#selectedIds = new Set(conversationRows.filter(row => ImportDialog.#DEFAULT_SELECTED_CLASSIFICATIONS.has(row.classification)).map(row => row.conversationId));
@@ -12852,13 +12869,15 @@
      * @param {object[]} conversationRows The previewed conversation rows.
      * @param {object} classified The classified files.
      * @param {number} failedCount Conversations that couldn't be read at all.
+     * @param {number} emptySkippedCount Conversations with no readable content, left out on purpose.
      * @returns {string} The summary.
      */
-    static #categoryCountsHtml(conversationRows, classified, failedCount) {
+    static #categoryCountsHtml(conversationRows, classified, failedCount, emptySkippedCount) {
       const present = ImportDialog.#OPTIONAL_CATEGORIES.filter(category => category.isPresent(classified));
       const lines = [`${conversationRows.length} conversation(s)`, ...present.map(category => `${category.count(classified)} ${category.countNoun}`)];
+      const emptyLine = emptySkippedCount > 0 ? `<p class="claude-plus-import-dialog__file-count">${emptySkippedCount} conversation(s) with no readable content (deleted, or never really started) aren't shown below.</p>` : '';
       const failedLine = failedCount > 0 ? `<p class="claude-plus-import-dialog__warning">${failedCount} conversation(s) couldn't be read and are not shown below - see the browser console for details.</p>` : '';
-      return `<p class="claude-plus-import-dialog__file-count">Found: ${lines.join(', ')}.</p>${failedLine}`;
+      return `<p class="claude-plus-import-dialog__file-count">Found: ${lines.join(', ')}.</p>${emptyLine}${failedLine}`;
     }
 
     /**

@@ -239,8 +239,8 @@ export class ImportDialog extends Dialog {
    * @returns {void}
    */
   #showReview(preview) {
-    const { classified, conversationRows, failedCount } = preview;
-    this.#elements.status.innerHTML = ImportDialog.#categoryCountsHtml(conversationRows, classified, failedCount);
+    const { classified, conversationRows, failedCount, emptySkippedCount } = preview;
+    this.#elements.status.innerHTML = ImportDialog.#categoryCountsHtml(conversationRows, classified, failedCount, emptySkippedCount);
     this.#elements.categories.hidden = false;
     this.#elements.categories.innerHTML = ImportDialog.#categoryToggleHtml(classified);
     this.#selectedIds = new Set(conversationRows.filter(row => ImportDialog.#DEFAULT_SELECTED_CLASSIFICATIONS.has(row.classification)).map(row => row.conversationId));
@@ -288,13 +288,15 @@ export class ImportDialog extends Dialog {
    * @param {object[]} conversationRows The previewed conversation rows.
    * @param {object} classified The classified files.
    * @param {number} failedCount Conversations that couldn't be read at all.
+   * @param {number} emptySkippedCount Conversations with no readable content, left out on purpose.
    * @returns {string} The summary.
    */
-  static #categoryCountsHtml(conversationRows, classified, failedCount) {
+  static #categoryCountsHtml(conversationRows, classified, failedCount, emptySkippedCount) {
     const present = ImportDialog.#OPTIONAL_CATEGORIES.filter(category => category.isPresent(classified));
     const lines = [`${conversationRows.length} conversation(s)`, ...present.map(category => `${category.count(classified)} ${category.countNoun}`)];
+    const emptyLine = emptySkippedCount > 0 ? `<p class="claude-plus-import-dialog__file-count">${emptySkippedCount} conversation(s) with no readable content (deleted, or never really started) aren't shown below.</p>` : '';
     const failedLine = failedCount > 0 ? `<p class="claude-plus-import-dialog__warning">${failedCount} conversation(s) couldn't be read and are not shown below - see the browser console for details.</p>` : '';
-    return `<p class="claude-plus-import-dialog__file-count">Found: ${lines.join(', ')}.</p>${failedLine}`;
+    return `<p class="claude-plus-import-dialog__file-count">Found: ${lines.join(', ')}.</p>${emptyLine}${failedLine}`;
   }
 
   /**

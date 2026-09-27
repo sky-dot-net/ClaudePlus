@@ -51,10 +51,12 @@ export class ImportOrchestrator {
    * @param {File[]} files The files the user selected.
    * @param {function(number): void} [onConversationProgress] Called with the number of
    * conversations classified so far, periodically during the scan.
-   * @returns {Promise<{classified: object, artifactRecords: object[], conversationRows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>, failedCount: number}>}
-   * The raw classification (for apply()), the parsed Artifact records, the conversation rows, and
-   * how many conversations couldn't be read at all (logged, and left out of the rows - a single
-   * unreadable conversation elsewhere in the file never stops the rest from being previewed).
+   * @returns {Promise<{classified: object, artifactRecords: object[], conversationRows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>, failedCount: number, emptySkippedCount: number}>}
+   * The raw classification (for apply()), the parsed Artifact records, the conversation rows, how
+   * many conversations couldn't be read at all (logged, and left out of the rows - a single
+   * unreadable conversation elsewhere in the file never stops the rest from being previewed), and
+   * how many had no readable content and so were left out deliberately (see mapConversation's
+   * hasReadableContent) - a deleted or never-really-started chat an export still lists, not an error.
    * @throws {Error} When no conversations.json was among the selected files.
    */
   async previewClassified(files, onConversationProgress) {
@@ -62,8 +64,8 @@ export class ImportOrchestrator {
     if (!classified.conversationsFile) throw new Error('No conversations.json was among the selected files.');
     const artifactRecords = classified.artifacts.map(({ artifactJson, htmlByVersionId }) => ClaudeExportParser.artifact(artifactJson, htmlByVersionId));
     const artifactsById = new Map(artifactRecords.map(record => [record.artifactId, record]));
-    const { rows, failedCount } = await this.#previewConversations(classified.conversationsFile, artifactsById, onConversationProgress);
-    return { classified, artifactRecords, conversationRows: rows, failedCount };
+    const { rows, failedCount, emptySkippedCount } = await this.#previewConversations(classified.conversationsFile, artifactsById, onConversationProgress);
+    return { classified, artifactRecords, conversationRows: rows, failedCount, emptySkippedCount };
   }
 
   /**
@@ -95,46 +97,55 @@ export class ImportOrchestrator {
    * Streams every conversation, classifying each against what's already stored, without writing.
    * @param {File} conversationsFile The conversations.json file.
    * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
-   * @param {function(number): void} [onProgress] Called with the number processed so far (found or failed).
-   * @returns {Promise<{rows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>, failedCount: number}>}
-   * The rows, in file order, and how many conversations failed to preview.
+   * @param {function(number): void} [onProgress] Called with the number processed so far (found, empty or failed).
+   * @returns {Promise<{rows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>, failedCount: number, emptySkippedCount: number}>}
+   * The rows, in file order, how many conversations failed to preview, and how many had no
+   * readable content and were left out deliberately.
    */
   async #previewConversations(conversationsFile, artifactsById, onProgress) {
     const rows = [];
     let failedCount = 0;
+    let emptySkippedCount = 0;
     let processed = 0;
     for await (const rawConversation of StreamingJsonArrayReader.readArray(conversationsFile)) {
-      const row = await this.#previewOneConversation(rawConversation, artifactsById);
-      if (row) rows.push(row);
-      else failedCount += 1;
+      const result = await this.#previewOneConversation(rawConversation, artifactsById);
+      if (result.outcome === 'included') rows.push(result.row);
+      else if (result.outcome === 'failed') failedCount += 1;
+      else emptySkippedCount += 1;
       processed += 1;
       await ImportOrchestrator.#reportProgressIfDue(processed, onProgress);
     }
     onProgress?.(processed);
-    return { rows, failedCount };
+    return { rows, failedCount, emptySkippedCount };
   }
 
   /**
    * Maps and classifies one conversation for preview, without writing anything.
    * @param {object} rawConversation A conversations.json entry.
    * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
-   * @returns {Promise<?{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>}
-   * The row, or null when this conversation couldn't be read (logged, not thrown, so it doesn't stop the rest of the scan).
+   * @returns {Promise<{outcome: 'included', row: {conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}}|{outcome: 'emptySkipped'}|{outcome: 'failed'}>}
+   * The row when it has readable content; 'emptySkipped' when it deliberately doesn't (not an
+   * error); 'failed' when it couldn't be read at all (logged, not thrown, so it doesn't stop the
+   * rest of the scan).
    */
   async #previewOneConversation(rawConversation, artifactsById) {
     try {
       const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
+      if (!mapped.hasReadableContent) return { outcome: 'emptySkipped' };
       const stored = await this.#conversationStore.getRecord(mapped.conversationId);
       return {
-        conversationId: mapped.conversationId,
-        title: mapped.title,
-        updatedAt: rawConversation.updated_at,
-        promptCount: mapped.messages.filter(message => message.sender === 'human').length,
-        classification: ImportMerger.classifyConversation(stored, mapped),
+        outcome: 'included',
+        row: {
+          conversationId: mapped.conversationId,
+          title: mapped.title,
+          updatedAt: rawConversation.updated_at,
+          promptCount: mapped.messages.filter(message => message.sender === 'human').length,
+          classification: ImportMerger.classifyConversation(stored, mapped),
+        },
       };
     } catch (error) {
       console.warn(LOG_PREFIX, 'skipping a conversation that failed to preview', rawConversation?.uuid, error);
-      return null;
+      return { outcome: 'failed' };
     }
   }
 
