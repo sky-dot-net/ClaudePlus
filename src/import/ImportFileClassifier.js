@@ -2,32 +2,46 @@
  * Sorts the files a user selected from an extracted data export into their categories, by content
  * shape rather than filename - conversations.json is the only export file with a predictable name;
  * memories/projects/feedback files are named by uuid, and an Artifact's html is named by version id.
+ * Classification reads only a small prefix of each file, never the whole thing: conversations.json
+ * in a real export can run to hundreds of megabytes, and is kept as a File reference rather than
+ * parsed here, so it can be streamed later (see StreamingJsonArrayReader) instead of ever being
+ * held whole in memory.
  */
 export class ImportFileClassifier {
   /**
-   * Detectors tried in turn against a parsed JSON file; the first match wins.
-   * @type {ReadonlyArray<{matches: function(*): boolean, assign: function(object, *): void}>}
+   * Bytes read from each file to detect its category.
+   * @type {number}
+   */
+  static #PEEK_BYTES = 16384;
+
+  /**
+   * Category detectors tried in turn against a file's leading text; the first match wins. A
+   * detector may also require the file to start with an array (`[`), to tell apart, e.g., a
+   * conversations export (an array of objects with chat_messages) from something else that
+   * happens to mention the same field name.
+   * @type {ReadonlyArray<{key: string, requiresArray: boolean, marker: string}>}
    */
   static #DETECTORS = [
-    { matches: json => Array.isArray(json) && Boolean(json[0]?.chat_messages), assign: (buckets, json) => { buckets.conversationsJson = json; } },
-    { matches: json => Array.isArray(json) && Boolean(json[0]?.full_name), assign: (buckets, json) => { buckets.usersJson = json; } },
-    { matches: json => Boolean(json?.memory_files), assign: (buckets, json) => buckets.memoriesJsons.push(json) },
-    { matches: json => Boolean(json?.reflections), assign: (buckets, json) => buckets.feedbackJsons.push(json) },
-    { matches: json => Boolean(json?.login_events), assign: (buckets, json) => { buckets.loginHistoryJson = json; } },
-    { matches: json => Array.isArray(json?.versions) && Boolean(json?.active_version), assign: (buckets, json) => buckets.artifactJsons.push(json) },
-    { matches: json => Array.isArray(json?.docs) && 'prompt_template' in json, assign: (buckets, json) => buckets.projectsJsons.push(json) },
+    { key: 'conversations', requiresArray: true, marker: '"chat_messages"' },
+    { key: 'users', requiresArray: true, marker: '"full_name"' },
+    { key: 'memories', requiresArray: false, marker: '"memory_files"' },
+    { key: 'feedback', requiresArray: false, marker: '"reflections"' },
+    { key: 'loginHistory', requiresArray: false, marker: '"login_events"' },
+    { key: 'artifact', requiresArray: false, marker: '"active_version"' },
+    { key: 'project', requiresArray: false, marker: '"prompt_template"' },
   ];
 
   /**
    * Classifies a set of selected files.
    * @param {File[]} files The selected files.
-   * @returns {Promise<{conversationsJson: ?Array, memoriesJsons: object[], projectsJsons: object[], feedbackJsons: object[], usersJson: ?Array, loginHistoryJson: ?object, artifacts: Array<{artifactJson: object, htmlByVersionId: Map<string, string>}>}>}
-   * The classified files, ready for ClaudeExportParser/ClaudeExportMapper.
+   * @returns {Promise<{conversationsFile: ?File, memoriesJsons: object[], projectsJsons: object[], feedbackJsons: object[], usersJson: ?Array, loginHistoryJson: ?object, artifacts: Array<{artifactJson: object, htmlByVersionId: Map<string, string>}>}>}
+   * The classified files, ready for ClaudeExportParser/ClaudeExportMapper/StreamingJsonArrayReader.
    */
   static async classify(files) {
     const htmlByBasename = await ImportFileClassifier.#htmlFilesByBasename(files);
-    const buckets = { conversationsJson: null, memoriesJsons: [], projectsJsons: [], feedbackJsons: [], usersJson: null, loginHistoryJson: null, artifactJsons: [] };
-    await Promise.all(files.filter(file => !file.name.endsWith('.html')).map(file => ImportFileClassifier.#classifyOne(file, buckets)));
+    const buckets = { conversationsFile: null, memoriesJsons: [], projectsJsons: [], feedbackJsons: [], usersJson: null, loginHistoryJson: null, artifactJsons: [] };
+    const jsonFiles = files.filter(file => !file.name.endsWith('.html'));
+    await Promise.all(jsonFiles.map(file => ImportFileClassifier.#classifyOne(file, buckets)));
     return { ...buckets, artifacts: buckets.artifactJsons.map(artifactJson => ({ artifactJson, htmlByVersionId: htmlByBasename })) };
   }
 
@@ -52,17 +66,45 @@ export class ImportFileClassifier {
   }
 
   /**
-   * Parses one file as JSON and files it into the matching bucket; a file that parses but matches
-   * no known shape, or doesn't parse as JSON at all, is silently ignored.
+   * Detects one file's category from its leading bytes, then files it into the matching bucket - a
+   * File reference for conversations.json, the fully parsed content for every other, small category.
+   * A file whose category can't be detected is silently ignored.
    * @param {File} file The file.
    * @param {object} buckets Buckets accumulated so far.
    * @returns {Promise<void>} Resolves once classified.
    */
   static async #classifyOne(file, buckets) {
+    const prefix = await file.slice(0, ImportFileClassifier.#PEEK_BYTES).text();
+    const key = ImportFileClassifier.#detect(prefix);
+    if (!key) return;
+    if (key === 'conversations') { buckets.conversationsFile = file; return; }
     const json = await ImportFileClassifier.#parseOrNull(file);
-    if (json === null) return;
-    ImportFileClassifier.#DETECTORS.find(detector => detector.matches(json))?.assign(buckets, json);
+    if (json !== null) ImportFileClassifier.#BUCKET_ASSIGNERS[key](buckets, json);
   }
+
+  /**
+   * Category a file's leading text matches, if any.
+   * @param {string} prefix The file's leading text.
+   * @returns {?string} The detector key, or null when none matches.
+   */
+  static #detect(prefix) {
+    const startsWithArray = prefix.trimStart().startsWith('[');
+    const detector = ImportFileClassifier.#DETECTORS.find(candidate => candidate.requiresArray === startsWithArray && prefix.includes(candidate.marker));
+    return detector?.key ?? null;
+  }
+
+  /**
+   * Files a parsed, non-conversations category into its bucket, by detector key.
+   * @type {Readonly<Record<string, function(object, *): void>>}
+   */
+  static #BUCKET_ASSIGNERS = Object.freeze({
+    users: (buckets, json) => { buckets.usersJson = json; },
+    memories: (buckets, json) => buckets.memoriesJsons.push(json),
+    feedback: (buckets, json) => buckets.feedbackJsons.push(json),
+    loginHistory: (buckets, json) => { buckets.loginHistoryJson = json; },
+    artifact: (buckets, json) => buckets.artifactJsons.push(json),
+    project: (buckets, json) => buckets.projectsJsons.push(json),
+  });
 
   /**
    * A file's content, parsed as JSON.

@@ -8699,32 +8699,46 @@
    * Sorts the files a user selected from an extracted data export into their categories, by content
    * shape rather than filename - conversations.json is the only export file with a predictable name;
    * memories/projects/feedback files are named by uuid, and an Artifact's html is named by version id.
+   * Classification reads only a small prefix of each file, never the whole thing: conversations.json
+   * in a real export can run to hundreds of megabytes, and is kept as a File reference rather than
+   * parsed here, so it can be streamed later (see StreamingJsonArrayReader) instead of ever being
+   * held whole in memory.
    */
   class ImportFileClassifier {
     /**
-     * Detectors tried in turn against a parsed JSON file; the first match wins.
-     * @type {ReadonlyArray<{matches: function(*): boolean, assign: function(object, *): void}>}
+     * Bytes read from each file to detect its category.
+     * @type {number}
+     */
+    static #PEEK_BYTES = 16384;
+
+    /**
+     * Category detectors tried in turn against a file's leading text; the first match wins. A
+     * detector may also require the file to start with an array (`[`), to tell apart, e.g., a
+     * conversations export (an array of objects with chat_messages) from something else that
+     * happens to mention the same field name.
+     * @type {ReadonlyArray<{key: string, requiresArray: boolean, marker: string}>}
      */
     static #DETECTORS = [
-      { matches: json => Array.isArray(json) && Boolean(json[0]?.chat_messages), assign: (buckets, json) => { buckets.conversationsJson = json; } },
-      { matches: json => Array.isArray(json) && Boolean(json[0]?.full_name), assign: (buckets, json) => { buckets.usersJson = json; } },
-      { matches: json => Boolean(json?.memory_files), assign: (buckets, json) => buckets.memoriesJsons.push(json) },
-      { matches: json => Boolean(json?.reflections), assign: (buckets, json) => buckets.feedbackJsons.push(json) },
-      { matches: json => Boolean(json?.login_events), assign: (buckets, json) => { buckets.loginHistoryJson = json; } },
-      { matches: json => Array.isArray(json?.versions) && Boolean(json?.active_version), assign: (buckets, json) => buckets.artifactJsons.push(json) },
-      { matches: json => Array.isArray(json?.docs) && 'prompt_template' in json, assign: (buckets, json) => buckets.projectsJsons.push(json) },
+      { key: 'conversations', requiresArray: true, marker: '"chat_messages"' },
+      { key: 'users', requiresArray: true, marker: '"full_name"' },
+      { key: 'memories', requiresArray: false, marker: '"memory_files"' },
+      { key: 'feedback', requiresArray: false, marker: '"reflections"' },
+      { key: 'loginHistory', requiresArray: false, marker: '"login_events"' },
+      { key: 'artifact', requiresArray: false, marker: '"active_version"' },
+      { key: 'project', requiresArray: false, marker: '"prompt_template"' },
     ];
 
     /**
      * Classifies a set of selected files.
      * @param {File[]} files The selected files.
-     * @returns {Promise<{conversationsJson: ?Array, memoriesJsons: object[], projectsJsons: object[], feedbackJsons: object[], usersJson: ?Array, loginHistoryJson: ?object, artifacts: Array<{artifactJson: object, htmlByVersionId: Map<string, string>}>}>}
-     * The classified files, ready for ClaudeExportParser/ClaudeExportMapper.
+     * @returns {Promise<{conversationsFile: ?File, memoriesJsons: object[], projectsJsons: object[], feedbackJsons: object[], usersJson: ?Array, loginHistoryJson: ?object, artifacts: Array<{artifactJson: object, htmlByVersionId: Map<string, string>}>}>}
+     * The classified files, ready for ClaudeExportParser/ClaudeExportMapper/StreamingJsonArrayReader.
      */
     static async classify(files) {
       const htmlByBasename = await ImportFileClassifier.#htmlFilesByBasename(files);
-      const buckets = { conversationsJson: null, memoriesJsons: [], projectsJsons: [], feedbackJsons: [], usersJson: null, loginHistoryJson: null, artifactJsons: [] };
-      await Promise.all(files.filter(file => !file.name.endsWith('.html')).map(file => ImportFileClassifier.#classifyOne(file, buckets)));
+      const buckets = { conversationsFile: null, memoriesJsons: [], projectsJsons: [], feedbackJsons: [], usersJson: null, loginHistoryJson: null, artifactJsons: [] };
+      const jsonFiles = files.filter(file => !file.name.endsWith('.html'));
+      await Promise.all(jsonFiles.map(file => ImportFileClassifier.#classifyOne(file, buckets)));
       return { ...buckets, artifacts: buckets.artifactJsons.map(artifactJson => ({ artifactJson, htmlByVersionId: htmlByBasename })) };
     }
 
@@ -8749,17 +8763,45 @@
     }
 
     /**
-     * Parses one file as JSON and files it into the matching bucket; a file that parses but matches
-     * no known shape, or doesn't parse as JSON at all, is silently ignored.
+     * Detects one file's category from its leading bytes, then files it into the matching bucket - a
+     * File reference for conversations.json, the fully parsed content for every other, small category.
+     * A file whose category can't be detected is silently ignored.
      * @param {File} file The file.
      * @param {object} buckets Buckets accumulated so far.
      * @returns {Promise<void>} Resolves once classified.
      */
     static async #classifyOne(file, buckets) {
+      const prefix = await file.slice(0, ImportFileClassifier.#PEEK_BYTES).text();
+      const key = ImportFileClassifier.#detect(prefix);
+      if (!key) return;
+      if (key === 'conversations') { buckets.conversationsFile = file; return; }
       const json = await ImportFileClassifier.#parseOrNull(file);
-      if (json === null) return;
-      ImportFileClassifier.#DETECTORS.find(detector => detector.matches(json))?.assign(buckets, json);
+      if (json !== null) ImportFileClassifier.#BUCKET_ASSIGNERS[key](buckets, json);
     }
+
+    /**
+     * Category a file's leading text matches, if any.
+     * @param {string} prefix The file's leading text.
+     * @returns {?string} The detector key, or null when none matches.
+     */
+    static #detect(prefix) {
+      const startsWithArray = prefix.trimStart().startsWith('[');
+      const detector = ImportFileClassifier.#DETECTORS.find(candidate => candidate.requiresArray === startsWithArray && prefix.includes(candidate.marker));
+      return detector?.key ?? null;
+    }
+
+    /**
+     * Files a parsed, non-conversations category into its bucket, by detector key.
+     * @type {Readonly<Record<string, function(object, *): void>>}
+     */
+    static #BUCKET_ASSIGNERS = Object.freeze({
+      users: (buckets, json) => { buckets.usersJson = json; },
+      memories: (buckets, json) => buckets.memoriesJsons.push(json),
+      feedback: (buckets, json) => buckets.feedbackJsons.push(json),
+      loginHistory: (buckets, json) => { buckets.loginHistoryJson = json; },
+      artifact: (buckets, json) => buckets.artifactJsons.push(json),
+      project: (buckets, json) => buckets.projectsJsons.push(json),
+    });
 
     /**
      * A file's content, parsed as JSON.
@@ -8932,10 +8974,174 @@
   }
 
   /**
-   * Runs one import end to end: classifies the selected files, maps and merges each category
-   * against what's already stored, and writes only what actually changed.
+   * Reads a file whose content is one large top-level JSON array of objects, one element at a time,
+   * without ever holding the whole file's text or the whole array in memory - only the current
+   * element's own text, bounded by that one element's size regardless of how large the file is.
+   * Built for conversations.json, which real exports can grow to hundreds of megabytes: a plain
+   * `JSON.parse(await file.text())` would materialize the whole file as text and then again as a
+   * full object graph, and would block the main thread for as long as that takes.
+   */
+  class StreamingJsonArrayReader {
+    /**
+     * Characters that open a nesting level.
+     * @type {ReadonlySet<string>}
+     */
+    static #OPENERS = new Set(['{', '[']);
+
+    /**
+     * Characters that close a nesting level.
+     * @type {ReadonlySet<string>}
+     */
+    static #CLOSERS = new Set(['}', ']']);
+
+    /**
+     * Every element of the array, parsed, one at a time.
+     * @param {File} file A file whose content is a JSON array of objects.
+     * @returns {AsyncGenerator<*>} The elements, parsed, in file order.
+     * @yields {*} Each array element, parsed.
+     */
+    static async *readArray(file) {
+      for await (const text of StreamingJsonArrayReader.#readRawElements(file)) yield JSON.parse(text);
+    }
+
+    /**
+     * The number of elements in the array, without parsing any of them.
+     * @param {File} file A file whose content is a JSON array of objects.
+     * @returns {Promise<number>} The count.
+     */
+    static async countArrayElements(file) {
+      const elements = StreamingJsonArrayReader.#readRawElements(file);
+      let count = 0;
+      for (let step = await elements.next(); !step.done; step = await elements.next()) count += 1;
+      return count;
+    }
+
+    /**
+     * Every top-level element's raw, unparsed text, found by tracking brace/bracket depth and string
+     * state character by character across chunk boundaries.
+     * @param {File} file A file whose content is a JSON array of objects.
+     * @returns {AsyncGenerator<string>} The elements' exact source text, in file order.
+     * @yields {string} Each element's exact source text.
+     */
+    static async *#readRawElements(file) {
+      const reader = file.stream().pipeThrough(new TextDecoderStream()).getReader();
+      try {
+        yield* StreamingJsonArrayReader.#scanChunks(reader);
+      } finally {
+        reader.releaseLock();
+      }
+    }
+
+    /**
+     * Reads decoded text chunks from a stream reader and yields each completed top-level element as
+     * it's found, carrying scan state and any incomplete element's text across chunk boundaries.
+     * @param {ReadableStreamDefaultReader<string>} reader Reader of the decoded text stream.
+     * @returns {AsyncGenerator<string>} The elements' exact source text, in file order.
+     * @yields {string} Each element's exact source text.
+     */
+    static async *#scanChunks(reader) {
+      const state = { depth: 0, inString: false, isEscaped: false, elementStart: -1 };
+      let buffer = '';
+      let step = await reader.read();
+      while (!step.done) {
+        buffer += step.value;
+        const { elements, consumedUpTo } = StreamingJsonArrayReader.#scan(buffer, state);
+        yield* elements;
+        buffer = buffer.slice(consumedUpTo);
+        step = await reader.read();
+      }
+    }
+
+    /**
+     * Scans as much of a buffer as forms complete elements, updating the scan state in place.
+     * @param {string} buffer Text accumulated since the last completed element.
+     * @param {{depth: number, inString: boolean, isEscaped: boolean, elementStart: number}} state
+     * Mutable scan state, carried across calls (and across chunk boundaries).
+     * @returns {{elements: string[], consumedUpTo: number}} Completed elements found, and how much
+     * of the buffer they consumed (the rest carries over to the next call).
+     */
+    static #scan(buffer, state) {
+      const elements = [];
+      let consumedUpTo = 0;
+      for (let index = 0; index < buffer.length; index += 1) {
+        if (StreamingJsonArrayReader.#step(buffer, index, state)) {
+          elements.push(buffer.slice(state.elementStart, index + 1));
+          state.elementStart = -1;
+          consumedUpTo = index + 1;
+        }
+      }
+      return { elements, consumedUpTo };
+    }
+
+    /**
+     * Advances the scan state by one character.
+     * @param {string} buffer The buffer being scanned.
+     * @param {number} index Index of the character to process.
+     * @param {{depth: number, inString: boolean, isEscaped: boolean, elementStart: number}} state
+     * Mutable scan state.
+     * @returns {boolean} True when this character completed a top-level element.
+     */
+    static #step(buffer, index, state) {
+      const char = buffer[index];
+      if (state.inString) return StreamingJsonArrayReader.#stepInString(char, state);
+      if (char === '"') { state.inString = true; return false; }
+      if (StreamingJsonArrayReader.#OPENERS.has(char)) return StreamingJsonArrayReader.#open(index, state);
+      return StreamingJsonArrayReader.#CLOSERS.has(char) && StreamingJsonArrayReader.#close(state);
+    }
+
+    /**
+     * Advances the scan state by one character while inside a string.
+     * @param {string} char The character.
+     * @param {{inString: boolean, isEscaped: boolean}} state Mutable scan state.
+     * @returns {boolean} Always false; a string can't itself complete a top-level element.
+     */
+    static #stepInString(char, state) {
+      if (state.isEscaped) state.isEscaped = false;
+      else if (char === '\\') state.isEscaped = true;
+      else if (char === '"') state.inString = false;
+      return false;
+    }
+
+    /**
+     * Handles an opening brace or bracket: entering the array (depth 0 to 1) starts nothing; entering
+     * an element (depth 1 to 2) marks where it begins.
+     * @param {number} index Index of the opening character.
+     * @param {{depth: number, elementStart: number}} state Mutable scan state.
+     * @returns {boolean} Always false; an opening character can't complete an element.
+     */
+    static #open(index, state) {
+      state.depth += 1;
+      if (state.depth === 2) state.elementStart = index;
+      return false;
+    }
+
+    /**
+     * Handles a closing brace or bracket: leaving an element (depth 2 to 1) completes it.
+     * @param {{depth: number, elementStart: number}} state Mutable scan state.
+     * @returns {boolean} True when this closed a top-level element.
+     */
+    static #close(state) {
+      state.depth -= 1;
+      return state.depth === 1 && state.elementStart >= 0;
+    }
+  }
+
+  /**
+   * Runs an import in two passes over conversations.json, never holding more than one conversation's
+   * full message body in memory at a time so a real export's file - hundreds of megabytes is normal -
+   * never has to be read whole: previewClassified() streams through once to classify every
+   * conversation and build the lightweight rows a picker UI shows, without writing anything; apply()
+   * streams through again and writes only the conversations selected from that preview, plus every
+   * other category.
    */
   class ImportOrchestrator {
+    /**
+     * Conversations processed between yields to the browser's event loop, so a large import never
+     * blocks the tab long enough to look frozen.
+     * @type {number}
+     */
+    static #YIELD_EVERY = 200;
+
     /**
      * Backing storage.
      * @type {IndexedDbStore}
@@ -8960,22 +9166,42 @@
     }
 
     /**
-     * Imports a set of selected files.
+     * Classifies the selected files without writing anything, ready for a picker UI: one row per
+     * conversation, plus counts for every other category.
      * @param {File[]} files The files the user selected.
-     * @returns {Promise<object>} Per-category counts: conversations {new, changed, renamedOnly,
-     * unchanged}, and written/total for memoryFiles, artifacts, projects, feedbackPeriods and
-     * loginEvents; accountProfile is true when a profile was written.
+     * @param {function(number): void} [onConversationProgress] Called with the number of
+     * conversations classified so far, periodically during the scan.
+     * @returns {Promise<{classified: object, artifactRecords: object[], conversationRows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>}>}
+     * The raw classification (for apply()), the parsed Artifact records, and the conversation rows.
      * @throws {Error} When no conversations.json was among the selected files.
      */
-    async importFiles(files) {
+    async previewClassified(files, onConversationProgress) {
       const classified = await ImportFileClassifier.classify(files);
-      if (!classified.conversationsJson) throw new Error('No conversations.json was among the selected files.');
+      if (!classified.conversationsFile) throw new Error('No conversations.json was among the selected files.');
+      const artifactRecords = classified.artifacts.map(({ artifactJson, htmlByVersionId }) => ClaudeExportParser.artifact(artifactJson, htmlByVersionId));
+      const artifactsById = new Map(artifactRecords.map(record => [record.artifactId, record]));
+      const conversationRows = await this.#previewConversations(classified.conversationsFile, artifactsById, onConversationProgress);
+      return { classified, artifactRecords, conversationRows };
+    }
+
+    /**
+     * Writes the conversations selected from a preview, plus every other classified category.
+     * @param {object} classified A previewClassified() result's classified files.
+     * @param {object[]} artifactRecords A previewClassified() result's parsed Artifact records.
+     * @param {Set<string>} selectedConversationIds Ids of the conversations to actually write.
+     * @param {function(number): void} [onConversationProgress] Called with the number of
+     * conversations processed so far, periodically during the scan.
+     * @returns {Promise<object>} Per-category counts: conversations {new, changed, renamedOnly,
+     * unchanged} (only among the selected ones), and written/total for memoryFiles, artifacts,
+     * projects, feedbackPeriods and loginEvents; accountProfile is true when a profile was written.
+     */
+    async apply(classified, artifactRecords, selectedConversationIds, onConversationProgress) {
       const importedAt = new Date().toISOString();
-      const artifacts = await this.#importArtifacts(classified.artifacts);
+      const artifactsById = new Map(artifactRecords.map(record => [record.artifactId, record]));
       return {
-        conversations: await this.#importConversations(classified.conversationsJson, artifacts.byId, importedAt),
+        conversations: await this.#applyConversations(classified.conversationsFile, artifactsById, selectedConversationIds, importedAt, onConversationProgress),
         memoryFiles: await this.#importEach(DATABASE.stores.importedMemoryFiles, classified.memoriesJsons.flatMap(ClaudeExportParser.memoryFiles), record => [record.accountId, record.path], ImportMerger.mergeMemoryFile),
-        artifacts: artifacts.tally,
+        artifacts: await this.#writeArtifacts(artifactRecords),
         projects: await this.#importEach(DATABASE.stores.importedProjects, classified.projectsJsons.map(ClaudeExportParser.project), record => record.projectId, ImportMerger.mergeProject),
         feedbackPeriods: await this.#importEach(DATABASE.stores.importedFeedbackPeriods, classified.feedbackJsons.flatMap(ClaudeExportParser.feedbackPeriods), record => [record.accountId, record.period], ImportMerger.mergeFeedbackPeriod),
         accountProfile: await this.#importAccountProfile(classified.usersJson),
@@ -8984,40 +9210,84 @@
     }
 
     /**
-     * Imports every conversation, tallying its classification.
-     * @param {Array} conversationsJson The raw conversations.
-     * @param {Map<string, {html: string}>} artifactsById Imported Artifact content, by artifact id.
-     * @param {string} importedAt ISO timestamp of this import.
-     * @returns {Promise<{new: number, changed: number, renamedOnly: number, unchanged: number}>} The counts.
+     * Streams every conversation, classifying each against what's already stored, without writing.
+     * @param {File} conversationsFile The conversations.json file.
+     * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
+     * @param {function(number): void} [onProgress] Called with the number classified so far.
+     * @returns {Promise<Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>>}
+     * The rows, in file order.
      */
-    async #importConversations(conversationsJson, artifactsById, importedAt) {
-      const tally = { new: 0, changed: 0, renamedOnly: 0, unchanged: 0 };
-      for (const rawConversation of conversationsJson) {
+    async #previewConversations(conversationsFile, artifactsById, onProgress) {
+      const rows = [];
+      let processed = 0;
+      for await (const rawConversation of StreamingJsonArrayReader.readArray(conversationsFile)) {
         const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
         const stored = await this.#conversationStore.getRecord(mapped.conversationId);
-        tally[ImportMerger.classifyConversation(stored, mapped)] += 1;
-        const merged = ImportMerger.mergeConversation(stored, mapped, importedAt);
-        if (merged) await this.#conversationStore.write(merged);
+        rows.push({
+          conversationId: mapped.conversationId,
+          title: mapped.title,
+          updatedAt: rawConversation.updated_at,
+          promptCount: mapped.messages.filter(message => message.sender === 'human').length,
+          classification: ImportMerger.classifyConversation(stored, mapped),
+        });
+        processed += 1;
+        await ImportOrchestrator.#reportProgressIfDue(processed, onProgress);
       }
+      onProgress?.(processed);
+      return rows;
+    }
+
+    /**
+     * Streams every conversation again, writing only the ones selected from the preview.
+     * @param {File} conversationsFile The conversations.json file.
+     * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
+     * @param {Set<string>} selectedConversationIds Ids of the conversations to write.
+     * @param {string} importedAt ISO timestamp of this import.
+     * @param {function(number): void} [onProgress] Called with the number processed so far.
+     * @returns {Promise<{new: number, changed: number, renamedOnly: number, unchanged: number}>} The
+     * counts, among the selected conversations only.
+     */
+    async #applyConversations(conversationsFile, artifactsById, selectedConversationIds, importedAt, onProgress) {
+      const tally = { new: 0, changed: 0, renamedOnly: 0, unchanged: 0 };
+      let processed = 0;
+      for await (const rawConversation of StreamingJsonArrayReader.readArray(conversationsFile)) {
+        if (selectedConversationIds.has(rawConversation.uuid)) await this.#applyOneConversation(rawConversation, artifactsById, importedAt, tally);
+        processed += 1;
+        await ImportOrchestrator.#reportProgressIfDue(processed, onProgress);
+      }
+      onProgress?.(processed);
       return tally;
     }
 
     /**
-     * Imports every Artifact, tallying how many were written.
-     * @param {Array<{artifactJson: object, htmlByVersionId: Map<string, string>}>} artifacts Classified Artifact files.
-     * @returns {Promise<{byId: Map<string, {html: string}>, tally: {written: number, total: number}}>}
-     * Every parsed Artifact by id (whether written or already known, for resolving conversations),
-     * and how many were newly written.
+     * Maps, classifies and merges one selected conversation, tallying its classification.
+     * @param {object} rawConversation A conversations.json entry.
+     * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
+     * @param {string} importedAt ISO timestamp of this import.
+     * @param {{new: number, changed: number, renamedOnly: number, unchanged: number}} tally Counts to update.
+     * @returns {Promise<void>} Resolves once written, if anything changed.
      */
-    async #importArtifacts(artifacts) {
-      const parsed = artifacts.map(({ artifactJson, htmlByVersionId }) => ClaudeExportParser.artifact(artifactJson, htmlByVersionId));
+    async #applyOneConversation(rawConversation, artifactsById, importedAt, tally) {
+      const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
+      const stored = await this.#conversationStore.getRecord(mapped.conversationId);
+      tally[ImportMerger.classifyConversation(stored, mapped)] += 1;
+      const merged = ImportMerger.mergeConversation(stored, mapped, importedAt);
+      if (merged) await this.#conversationStore.write(merged);
+    }
+
+    /**
+     * Writes every Artifact, tallying how many were newly written.
+     * @param {object[]} artifactRecords The parsed Artifact records.
+     * @returns {Promise<{written: number, total: number}>} The counts.
+     */
+    async #writeArtifacts(artifactRecords) {
       let written = 0;
-      for (const record of parsed) {
+      for (const record of artifactRecords) {
         const stored = await this.#database.read(DATABASE.stores.importedArtifacts, record.artifactId);
         const merged = ImportMerger.mergeArtifact(stored, record);
         if (merged) { await this.#database.write(DATABASE.stores.importedArtifacts, merged); written += 1; }
       }
-      return { byId: new Map(parsed.map(record => [record.artifactId, record])), tally: { written, total: parsed.length } };
+      return { written, total: artifactRecords.length };
     }
 
     /**
@@ -9048,6 +9318,19 @@
         if (merged) { await this.#database.write(storeName, merged); written += 1; }
       }
       return { written, total: parsedRecords.length };
+    }
+
+    /**
+     * Reports progress and yields to the browser's event loop every #YIELD_EVERY conversations, so a
+     * large import stays responsive instead of blocking the tab until it finishes.
+     * @param {number} processed Number of conversations processed so far.
+     * @param {function(number): void} [onProgress] Called with the count when due.
+     * @returns {Promise<void>} Resolves immediately, or after yielding when progress was reported.
+     */
+    static async #reportProgressIfDue(processed, onProgress) {
+      if (processed % ImportOrchestrator.#YIELD_EVERY !== 0) return;
+      onProgress?.(processed);
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
   }
 
@@ -12242,22 +12525,44 @@
     }
   }
 
-  var stylesheet$3 = ".claude-plus-import-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-import-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 460px;\n  max-width: 90vw;\n  max-height: 85vh;\n  overflow-y: auto;\n  font-size: 13px;\n}\n\n.claude-plus-import-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n}\n\n.claude-plus-import-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-import-dialog__row {\n  display: flex;\n  gap: 8px;\n  margin: 12px 0;\n}\n\n.claude-plus-import-dialog__file-count {\n  color: var(--claude-plus-color-text-muted);\n  margin: 0 0 4px;\n}\n\n.claude-plus-import-dialog__detection-list {\n  margin: 0;\n  padding-left: 18px;\n}\n\n.claude-plus-import-dialog__progress {\n  color: var(--claude-plus-color-text-muted);\n  font-style: italic;\n}\n";
+  var stylesheet$3 = ".claude-plus-import-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-import-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 720px;\n  max-width: 90vw;\n  height: 85vh;\n  box-sizing: border-box;\n  font-size: 13px;\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n}\n\n.claude-plus-import-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-import-dialog__row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin: 12px 0;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__file-count {\n  color: var(--claude-plus-color-text-muted);\n  margin: 0 0 4px;\n}\n\n.claude-plus-import-dialog__detection-list {\n  margin: 0;\n  padding-left: 18px;\n}\n\n.claude-plus-import-dialog__progress {\n  color: var(--claude-plus-color-text-muted);\n  font-style: italic;\n}\n\n.claude-plus-import-dialog__categories {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  flex-shrink: 0;\n  margin-bottom: 4px;\n}\n\n.claude-plus-import-dialog__toggle {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n}\n\n.claude-plus-import-dialog__table-host {\n  flex: 1;\n  min-height: 0;\n  display: flex;\n  flex-direction: column;\n}\n\n.claude-plus-import-dialog__badge {\n  display: inline-block;\n  padding: 1px 8px;\n  border-radius: 10px;\n  font-size: 11px;\n  white-space: nowrap;\n}\n\n.claude-plus-import-dialog__badge--new {\n  background: var(--claude-plus-color-accent);\n  color: var(--claude-plus-color-on-accent, #fff);\n}\n\n.claude-plus-import-dialog__badge--changed {\n  background: var(--claude-plus-color-tool-details);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-import-dialog__badge--renamedOnly {\n  background: var(--claude-plus-color-bar);\n  color: var(--claude-plus-color-text-muted);\n  border: 1px solid var(--claude-plus-color-border-strong);\n}\n\n.claude-plus-import-dialog__badge--unchanged {\n  background: transparent;\n  color: var(--claude-plus-color-text-faint);\n  border: 1px solid var(--claude-plus-color-border);\n}\n";
 
   StyleRegistry.register(stylesheet$3);
 
   /**
    * Imports a claude.ai data export: the user selects the files they extracted (conversations.json
-   * is required; memories, Artifacts, Projects, Feedback and light_metadata files are each
-   * independently optional, and detected by content, not filename), reviews what was found, then
-   * imports. Nothing is written until Import is clicked.
+   * is required; memories, Artifact, Project and account files are each independently optional, and
+   * detected by content, not filename), reviews every conversation found - sortable, filterable,
+   * individually selectable, classified against what's already imported - and the other categories as
+   * simple toggles, then imports. Nothing is written until Import is clicked. conversations.json is
+   * never read whole into memory: it's classified from a small prefix, previewed and imported by
+   * streaming through it (see StreamingJsonArrayReader/ImportOrchestrator), so a real export's file -
+   * routinely hundreds of megabytes - never blocks the tab or is held whole either way.
    */
   class ImportDialog extends Dialog {
+    /**
+     * Rows pre-checked by default: every classification except a truly unchanged conversation.
+     * @type {ReadonlySet<string>}
+     */
+    static #DEFAULT_SELECTED_CLASSIFICATIONS = new Set(['new', 'changed', 'renamedOnly']);
+
+    /**
+     * Label shown for each classification.
+     * @type {Readonly<Record<string, string>>}
+     */
+    static #CLASSIFICATION_LABELS = Object.freeze({ new: 'New', changed: 'Changed', renamedOnly: 'Renamed', unchanged: 'Unchanged' });
+
     /**
      * Runs the import once files are confirmed.
      * @type {ImportOrchestrator}
      */
     #orchestrator;
+
+    /**
+     * Table settings storage.
+     * @type {Preferences}
+     */
+    #preferences;
 
     /**
      * Called once an import has actually written anything, so the Chats list can refresh.
@@ -12272,30 +12577,45 @@
     #elements = null;
 
     /**
-     * The files currently selected, classified and ready to import.
-     * @type {?File[]}
+     * A previewClassified() result, once scanning has finished.
+     * @type {?object}
      */
-    #selectedFiles = null;
+    #preview = null;
+
+    /**
+     * Ids of the conversations currently checked for import.
+     * @type {Set<string>}
+     */
+    #selectedIds = new Set();
+
+    /**
+     * The conversation review table; created once scanning finishes.
+     * @type {?ColumnTable}
+     */
+    #table = null;
 
     /**
      * Creates the dialog without showing it.
      * @param {ImportOrchestrator} orchestrator Runs the import once files are confirmed.
+     * @param {Preferences} preferences Table settings storage.
      * @param {function(): void} onImported Called once an import has actually written anything.
      */
-    constructor(orchestrator, onImported) {
+    constructor(orchestrator, preferences, onImported) {
       super();
       this.#orchestrator = orchestrator;
+      this.#preferences = preferences;
       this.#onImported = onImported;
     }
 
     /**
      * Opens the import screen.
      * @param {ImportOrchestrator} orchestrator Runs the import once files are confirmed.
+     * @param {Preferences} preferences Table settings storage.
      * @param {function(): void} onImported Called once an import has actually written anything.
      * @returns {Promise<void>} Resolves once closed.
      */
-    static open(orchestrator, onImported) {
-      return new ImportDialog(orchestrator, onImported).show();
+    static open(orchestrator, preferences, onImported) {
+      return new ImportDialog(orchestrator, preferences, onImported).show();
     }
 
     /**
@@ -12331,7 +12651,13 @@
       <div class="claude-plus-import-dialog__row">
         <button class="claude-plus-toolbar__button" data-name="chooseButton">Choose files…</button>
       </div>
-      <div data-name="summary"></div>
+      <div data-name="status"></div>
+      <div class="claude-plus-import-dialog__categories" data-name="categories" hidden></div>
+      <div class="claude-plus-import-dialog__row" data-name="selectionRow" hidden>
+        <button class="claude-plus-toolbar__button" data-name="selectAllButton">Select all</button>
+        <button class="claude-plus-toolbar__button" data-name="selectNoneButton">Select none</button>
+      </div>
+      <div class="claude-plus-import-dialog__table-host" data-name="tableHost" hidden></div>
       <div class="claude-plus-import-dialog__row">
         <button class="claude-plus-primary-button" data-name="importButton" disabled>Import</button>
       </div>`;
@@ -12345,11 +12671,13 @@
       const elements = this.#elements;
       elements.closeButton.addEventListener('click', () => this.close());
       elements.chooseButton.addEventListener('click', () => this.#chooseFiles());
+      elements.selectAllButton.addEventListener('click', () => this.#setAllSelected(true));
+      elements.selectNoneButton.addEventListener('click', () => this.#setAllSelected(false));
       elements.importButton.addEventListener('click', () => this.#runImport());
     }
 
     /**
-     * Opens a native multi-file picker and classifies whatever was selected.
+     * Opens a native multi-file picker and scans whatever was selected.
      * @returns {void}
      */
     #chooseFiles() {
@@ -12359,71 +12687,268 @@
     }
 
     /**
-     * Classifies the chosen files and shows what was found; Import stays disabled without a
-     * conversations.json among them.
+     * Classifies the chosen files, then previews every conversation found; reports progress as it
+     * streams, since a large export can take a while to scan.
      * @param {File[]} files The chosen files.
-     * @returns {Promise<void>} Resolves once the summary is shown.
+     * @returns {Promise<void>} Resolves once the review table is shown or a failure is reported.
      */
     async #onFilesChosen(files) {
-      this.#selectedFiles = files;
-      const classified = await ImportFileClassifier.classify(files);
-      this.#elements.summary.innerHTML = ImportDialog.#detectionSummaryHtml(files.length, classified);
-      this.#elements.importButton.disabled = !classified.conversationsJson;
-    }
-
-    /**
-     * HTML listing what was detected among the chosen files.
-     * @param {number} fileCount Number of files chosen.
-     * @param {object} classified The classification result.
-     * @returns {string} The summary.
-     */
-    static #detectionSummaryHtml(fileCount, classified) {
-      const lines = ImportDialog.#DETECTION_LINES.map(line => line(classified));
-      return `<p class="claude-plus-import-dialog__file-count">${fileCount} file(s) selected:</p><ul class="claude-plus-import-dialog__detection-list">${lines.map(line => `<li>${line}</li>`).join('')}</ul>`;
-    }
-
-    /**
-     * One detection line per export category, each deciding its own found/missing wording.
-     * @type {ReadonlyArray<function(object): string>}
-     */
-    static #DETECTION_LINES = [
-      classified => (classified.conversationsJson ? `✓ Conversations (${classified.conversationsJson.length})` : '✕ No conversations.json found - required'),
-      classified => (classified.memoriesJsons.length ? `✓ Memory files (${classified.memoriesJsons.flatMap(json => json.memory_files).length})` : '– No memory files'),
-      classified => (classified.artifacts.length ? `✓ Artifacts (${classified.artifacts.length})` : '– No Artifacts'),
-      classified => (classified.projectsJsons.length ? `✓ Projects (${classified.projectsJsons.length})` : '– No Projects'),
-      classified => (classified.feedbackJsons.length ? `✓ Feedback periods (${classified.feedbackJsons.flatMap(json => json.reflections).length})` : '– No Feedback/reflections'),
-      classified => (classified.usersJson ? '✓ Account profile' : '– No account profile'),
-      classified => (classified.loginHistoryJson ? `✓ Login history (${classified.loginHistoryJson.login_events.length} events)` : '– No login history'),
-    ];
-
-    /**
-     * Runs the import, shows a progress notice while it writes, then the result summary.
-     * @returns {Promise<void>} Resolves once the result is shown or a failure is reported.
-     */
-    async #runImport() {
       this.#elements.importButton.disabled = true;
-      this.#elements.summary.innerHTML = '<p class="claude-plus-import-dialog__progress">Importing…</p>';
+      this.#elements.status.innerHTML = `<p class="claude-plus-import-dialog__progress">Scanning ${files.length} file(s)…</p>`;
       try {
-        const result = await this.#orchestrator.importFiles(this.#selectedFiles);
-        this.#elements.summary.innerHTML = ImportDialog.#resultSummaryHtml(result);
-        this.#elements.chooseButton.hidden = true;
-        this.#elements.importButton.hidden = true;
-        this.#onImported();
+        const preview = await this.#orchestrator.previewClassified(files, count => this.#showScanProgress(count));
+        this.#preview = preview;
+        this.#showReview(preview);
       } catch (error) {
-        await AlertDialog.inform(`Import failed: ${error.message}`);
-        this.#elements.importButton.disabled = false;
+        this.#elements.status.innerHTML = `<p class="claude-plus-import-dialog__progress">${escapeHtml(error.message)}</p>`;
       }
     }
 
     /**
-     * HTML of the result summary shown once the import has written everything.
-     * @param {object} result The orchestrator's result.
+     * Updates the scanning progress line.
+     * @param {number} count Conversations classified so far.
+     * @returns {void}
+     */
+    #showScanProgress(count) {
+      this.#elements.status.innerHTML = `<p class="claude-plus-import-dialog__progress">Scanning… ${count} conversation(s) found so far.</p>`;
+    }
+
+    /**
+     * Shows the category summary, builds the conversation review table with a smart default
+     * selection, and enables Import.
+     * @param {object} preview A previewClassified() result.
+     * @returns {void}
+     */
+    #showReview(preview) {
+      const { classified, conversationRows } = preview;
+      this.#elements.status.innerHTML = ImportDialog.#categoryCountsHtml(conversationRows, classified);
+      this.#elements.categories.hidden = false;
+      this.#elements.categories.innerHTML = ImportDialog.#categoryToggleHtml(classified);
+      this.#selectedIds = new Set(conversationRows.filter(row => ImportDialog.#DEFAULT_SELECTED_CLASSIFICATIONS.has(row.classification)).map(row => row.conversationId));
+      this.#elements.selectionRow.hidden = false;
+      this.#elements.tableHost.hidden = false;
+      this.#buildTable(conversationRows);
+      this.#refreshImportButton();
+    }
+
+    /**
+     * Optional categories: how to count them in a classified result, their count line's noun phrase,
+     * and the toggle they show when present (null for a category with no opt-out, like Artifacts).
+     * @type {ReadonlyArray<{isPresent: function(object): boolean, count: function(object): number, countNoun: string, toggleKey: ?string, toggleLabel: ?string}>}
+     */
+    static #OPTIONAL_CATEGORIES = [
+      {
+        isPresent: classified => classified.memoriesJsons.length > 0,
+        count: classified => classified.memoriesJsons.flatMap(json => json.memory_files).length,
+        countNoun: 'memory file(s)', toggleKey: 'memoryFiles', toggleLabel: 'Import memory files',
+      },
+      {
+        isPresent: classified => classified.artifacts.length > 0,
+        count: classified => classified.artifacts.length,
+        countNoun: 'Artifact(s)', toggleKey: null, toggleLabel: null,
+      },
+      {
+        isPresent: classified => classified.projectsJsons.length > 0,
+        count: classified => classified.projectsJsons.length,
+        countNoun: 'Project(s)', toggleKey: 'projects', toggleLabel: 'Import Projects',
+      },
+      {
+        isPresent: classified => classified.feedbackJsons.length > 0,
+        count: classified => classified.feedbackJsons.flatMap(json => json.reflections).length,
+        countNoun: 'Feedback period(s)', toggleKey: 'feedbackPeriods', toggleLabel: 'Import Feedback/reflections',
+      },
+      {
+        isPresent: classified => Boolean(classified.usersJson) || Boolean(classified.loginHistoryJson),
+        count: classified => (classified.loginHistoryJson?.login_events.length ?? 0),
+        countNoun: 'login event(s), plus the account profile', toggleKey: 'accountMetadata', toggleLabel: 'Import account profile and login history',
+      },
+    ];
+
+    /**
+     * HTML summarizing how many of each category were found.
+     * @param {object[]} conversationRows The previewed conversation rows.
+     * @param {object} classified The classified files.
      * @returns {string} The summary.
      */
-    static #resultSummaryHtml(result) {
+    static #categoryCountsHtml(conversationRows, classified) {
+      const present = ImportDialog.#OPTIONAL_CATEGORIES.filter(category => category.isPresent(classified));
+      const lines = [`${conversationRows.length} conversation(s)`, ...present.map(category => `${category.count(classified)} ${category.countNoun}`)];
+      return `<p class="claude-plus-import-dialog__file-count">Found: ${lines.join(', ')}.</p>`;
+    }
+
+    /**
+     * HTML of the optional-category toggles, one per toggleable category actually found.
+     * @param {object} classified The classified files.
+     * @returns {string} The toggles.
+     */
+    static #categoryToggleHtml(classified) {
+      return ImportDialog.#OPTIONAL_CATEGORIES
+        .filter(category => category.toggleKey && category.isPresent(classified))
+        .map(category => `<label class="claude-plus-import-dialog__toggle"><input type="checkbox" data-category-toggle="${category.toggleKey}" checked /> ${escapeHtml(category.toggleLabel)}</label>`)
+        .join('');
+    }
+
+    /**
+     * Builds the conversation review table, keyed by selection state kept outside the table itself
+     * so it survives re-sorting and re-filtering.
+     * @param {object[]} conversationRows The previewed conversation rows.
+     * @returns {void}
+     */
+    #buildTable(conversationRows) {
+      this.#table = new ColumnTable({
+        container: this.#elements.tableHost,
+        tableId: 'importReview',
+        columns: this.#columns(),
+        preferences: this.#preferences,
+        defaultSort: { column: 'date', direction: -1 },
+        rowAttributes: row => `data-conversation-id="${escapeHtml(row.conversationId)}"`,
+        emptyText: 'No conversations found.',
+        maxRenderedRows: 2000,
+      });
+      this.#table.bodyElement.addEventListener('change', event => this.#onRowCheckboxChange(event));
+      this.#table.setRows(conversationRows);
+    }
+
+    /**
+     * The review table's columns.
+     * @returns {TableColumn[]} The columns.
+     */
+    #columns() {
+      return [
+        { id: 'selected', label: '', isAlwaysVisible: true, isNotSortable: true, sortValue: () => 0, cellHtml: row => ImportDialog.#checkboxHtml(row, this.#selectedIds) },
+        { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: row => (row.title || '').toLowerCase(), filterValue: row => row.title || UNTITLED, cellHtml: row => escapeHtml(row.title || UNTITLED) },
+        createDateColumn(row => row.updatedAt),
+        { id: 'turns', label: 'Turns', isVisibleByDefault: true, sortValue: row => row.promptCount, cellHtml: row => String(row.promptCount) },
+        { id: 'status', label: 'Status', isVisibleByDefault: true, filter: 'values', sortValue: row => row.classification, filterValue: row => ImportDialog.#CLASSIFICATION_LABELS[row.classification], cellHtml: row => ImportDialog.#statusBadgeHtml(row.classification) },
+      ];
+    }
+
+    /**
+     * HTML of one row's selection checkbox.
+     * @param {{conversationId: string}} row The row.
+     * @param {Set<string>} selectedIds Currently selected conversation ids.
+     * @returns {string} The checkbox.
+     */
+    static #checkboxHtml(row, selectedIds) {
+      const checked = selectedIds.has(row.conversationId) ? ' checked' : '';
+      return `<input type="checkbox" data-select-row${checked} />`;
+    }
+
+    /**
+     * HTML of a classification badge.
+     * @param {string} classification The classification.
+     * @returns {string} The badge.
+     */
+    static #statusBadgeHtml(classification) {
+      const label = ImportDialog.#CLASSIFICATION_LABELS[classification] ?? classification;
+      return `<span class="claude-plus-import-dialog__badge claude-plus-import-dialog__badge--${escapeHtml(classification)}">${escapeHtml(label)}</span>`;
+    }
+
+    /**
+     * Records a row's checkbox change and refreshes the Import button's count.
+     * @param {Event} event Change of a row checkbox.
+     * @returns {void}
+     */
+    #onRowCheckboxChange(event) {
+      const checkbox = event.target.closest('[data-select-row]');
+      if (!checkbox) return;
+      const conversationId = checkbox.closest('[data-conversation-id]').dataset.conversationId;
+      if (checkbox.checked) this.#selectedIds.add(conversationId);
+      else this.#selectedIds.delete(conversationId);
+      this.#refreshImportButton();
+    }
+
+    /**
+     * Selects or deselects every previewed conversation, then re-renders the table so its checkboxes
+     * reflect the change.
+     * @param {boolean} selected Whether every conversation should be selected.
+     * @returns {void}
+     */
+    #setAllSelected(selected) {
+      const rows = this.#preview.conversationRows;
+      this.#selectedIds = selected ? new Set(rows.map(row => row.conversationId)) : new Set();
+      this.#table.setRows(rows);
+      this.#refreshImportButton();
+    }
+
+    /**
+     * Updates the Import button's label with the current selection count.
+     * @returns {void}
+     */
+    #refreshImportButton() {
+      this.#elements.importButton.textContent = `Import selected (${this.#selectedIds.size})`;
+      this.#elements.importButton.disabled = false;
+    }
+
+    /**
+     * Runs the import over the current selection, shows progress while it writes, then the result.
+     * @returns {Promise<void>} Resolves once the result is shown or a failure is reported.
+     */
+    async #runImport() {
+      this.#elements.importButton.disabled = true;
+      this.#elements.status.innerHTML = '<p class="claude-plus-import-dialog__progress">Importing…</p>';
+      try {
+        const classified = this.#classifiedWithToggles();
+        const result = await this.#orchestrator.apply(classified, this.#preview.artifactRecords, this.#selectedIds, count => this.#showImportProgress(count));
+        this.#showResult(result);
+        this.#onImported();
+      } catch (error) {
+        await AlertDialog.inform(`Import failed: ${error.message}`);
+        this.#refreshImportButton();
+      }
+    }
+
+    /**
+     * Classified-file fields cleared when a toggle is unchecked, by toggle key.
+     * @type {Readonly<Record<string, string[]>>}
+     */
+    static #TOGGLE_FIELDS = Object.freeze({
+      memoryFiles: ['memoriesJsons'],
+      projects: ['projectsJsons'],
+      feedbackPeriods: ['feedbackJsons'],
+      accountMetadata: ['usersJson', 'loginHistoryJson'],
+    });
+
+    /**
+     * The classified files, with any unchecked category toggle's data cleared.
+     * @returns {object} The classified files to actually import.
+     */
+    #classifiedWithToggles() {
+      const classified = { ...this.#preview.classified };
+      for (const [toggleKey, fields] of Object.entries(ImportDialog.#TOGGLE_FIELDS)) {
+        if (!this.#isToggleChecked(toggleKey)) fields.forEach(field => { classified[field] = Array.isArray(classified[field]) ? [] : null; });
+      }
+      return classified;
+    }
+
+    /**
+     * Whether an optional-category toggle is checked; missing (not shown, since its category wasn't
+     * found) counts as checked, since there's nothing for it to exclude.
+     * @param {string} toggleKey The toggle's data-category-toggle value.
+     * @returns {boolean} True when checked or absent.
+     */
+    #isToggleChecked(toggleKey) {
+      return this.#elements.categories.querySelector(`[data-category-toggle="${toggleKey}"]`)?.checked ?? true;
+    }
+
+    /**
+     * Updates the importing progress line.
+     * @param {number} count Conversations processed so far (selected or not).
+     * @returns {void}
+     */
+    #showImportProgress(count) {
+      this.#elements.status.innerHTML = `<p class="claude-plus-import-dialog__progress">Importing… scanned ${count} conversation(s) so far.</p>`;
+    }
+
+    /**
+     * Replaces the screen with the result summary.
+     * @param {object} result The orchestrator's apply() result.
+     * @returns {void}
+     */
+    #showResult(result) {
       const { conversations } = result;
       const lines = [
-        `${conversations.new} new conversation(s), ${conversations.changed} with new messages, ${conversations.renamedOnly} renamed, ${conversations.unchanged} unchanged`,
+        `${conversations.new} new, ${conversations.changed} with new messages, ${conversations.renamedOnly} renamed, ${conversations.unchanged} unchanged among the selected conversations`,
         `${result.memoryFiles.written} of ${result.memoryFiles.total} memory file(s) saved`,
         `${result.artifacts.written} of ${result.artifacts.total} Artifact(s) saved`,
         `${result.projects.written} of ${result.projects.total} Project(s) saved`,
@@ -12431,7 +12956,12 @@
         `${result.loginEvents.written} of ${result.loginEvents.total} login event(s) saved`,
         result.accountProfile ? 'Account profile saved' : null,
       ].filter(Boolean);
-      return `<p><strong>Import complete.</strong></p><ul class="claude-plus-import-dialog__detection-list">${lines.map(line => `<li>${line}</li>`).join('')}</ul>`;
+      this.#elements.status.innerHTML = `<p><strong>Import complete.</strong></p><ul class="claude-plus-import-dialog__detection-list">${lines.map(line => `<li>${line}</li>`).join('')}</ul>`;
+      this.#elements.categories.hidden = true;
+      this.#elements.selectionRow.hidden = true;
+      this.#elements.tableHost.hidden = true;
+      this.#elements.chooseButton.hidden = true;
+      this.#elements.importButton.hidden = true;
     }
   }
 
@@ -12470,6 +13000,12 @@
     #importOrchestrator;
 
     /**
+     * Import review table settings storage.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
      * Called once an import has actually written anything.
      * @type {function(): void}
      */
@@ -12487,14 +13023,16 @@
      * @param {SettingsTransfer} settingsTransfer Settings export and import.
      * @param {Theme} theme Colors and fonts.
      * @param {ImportOrchestrator} importOrchestrator Runs a data-export import.
+     * @param {Preferences} preferences Import review table settings storage.
      * @param {function(): void} onImported Called once an import has actually written anything.
      */
-    constructor(layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported) {
+    constructor(layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, onImported) {
       super();
       this.#layoutLibrary = layoutLibrary;
       this.#settingsTransfer = settingsTransfer;
       this.#theme = theme;
       this.#importOrchestrator = importOrchestrator;
+      this.#preferences = preferences;
       this.#onImported = onImported;
     }
 
@@ -12504,11 +13042,12 @@
      * @param {SettingsTransfer} settingsTransfer Settings export and import.
      * @param {Theme} theme Colors and fonts.
      * @param {ImportOrchestrator} importOrchestrator Runs a data-export import.
+     * @param {Preferences} preferences Import review table settings storage.
      * @param {function(): void} onImported Called once an import has actually written anything.
      * @returns {Promise<void>} Resolves once closed.
      */
-    static open(layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported) {
-      return new SettingsDialog(layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported).show();
+    static open(layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, onImported) {
+      return new SettingsDialog(layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, onImported).show();
     }
 
     /**
@@ -12581,7 +13120,7 @@
       elements.layoutList.addEventListener('click', event => this.#onLayoutListClick(event));
       elements.exportButton.addEventListener('click', () => this.#settingsTransfer.exportSettings());
       elements.importButton.addEventListener('click', () => this.#settingsTransfer.chooseFileAndImport());
-      elements.importChatExportButton.addEventListener('click', () => ImportDialog.open(this.#importOrchestrator, this.#onImported));
+      elements.importChatExportButton.addEventListener('click', () => ImportDialog.open(this.#importOrchestrator, this.#preferences, this.#onImported));
       elements.uiFontInput.addEventListener('input', () => this.#saveThemeFromFields());
       elements.chatFontInput.addEventListener('input', () => this.#saveThemeFromFields());
       elements.resetThemeButton.addEventListener('click', () => this.#resetTheme());
@@ -12809,7 +13348,7 @@
       const elements = collectNamedElements(toolbar);
       elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
       elements.layoutsButton.addEventListener('click', () => this.#showLayoutsMenu(elements.layoutsButton));
-      elements.settingsButton.addEventListener('click', () => SettingsDialog.open(this.#layoutLibrary, this.#settingsTransfer, this.#theme, this.#importOrchestrator, this.#onImported));
+      elements.settingsButton.addEventListener('click', () => SettingsDialog.open(this.#layoutLibrary, this.#settingsTransfer, this.#theme, this.#importOrchestrator, this.#preferences, this.#onImported));
       elements.resetLayoutButton.addEventListener('click', () => this.#workspace.resetLayout());
       elements.hideButton.addEventListener('click', () => this.#onHide());
       this.#applyFontSize(elements.fontSizeLabel);

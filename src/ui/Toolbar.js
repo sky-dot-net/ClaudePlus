@@ -131,7 +131,7 @@ export class Toolbar {
     const elements = collectNamedElements(toolbar);
     elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
     elements.layoutsButton.addEventListener('click', () => this.#showLayoutsMenu(elements.layoutsButton));
-    elements.settingsButton.addEventListener('click', () => SettingsDialog.open(this.#layoutLibrary, this.#settingsTransfer, this.#theme, this.#importOrchestrator, this.#onImported));
+    elements.settingsButton.addEventListener('click', () => SettingsDialog.open(this.#layoutLibrary, this.#settingsTransfer, this.#theme, this.#importOrchestrator, this.#preferences, this.#onImported));
     elements.resetLayoutButton.addEventListener('click', () => this.#workspace.resetLayout());
     elements.hideButton.addEventListener('click', () => this.#onHide());
     this.#applyFontSize(elements.fontSizeLabel);

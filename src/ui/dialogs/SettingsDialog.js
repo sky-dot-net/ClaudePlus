@@ -42,6 +42,12 @@ export class SettingsDialog extends Dialog {
   #importOrchestrator;
 
   /**
+   * Import review table settings storage.
+   * @type {Preferences}
+   */
+  #preferences;
+
+  /**
    * Called once an import has actually written anything.
    * @type {function(): void}
    */
@@ -59,14 +65,16 @@ export class SettingsDialog extends Dialog {
    * @param {SettingsTransfer} settingsTransfer Settings export and import.
    * @param {Theme} theme Colors and fonts.
    * @param {ImportOrchestrator} importOrchestrator Runs a data-export import.
+   * @param {Preferences} preferences Import review table settings storage.
    * @param {function(): void} onImported Called once an import has actually written anything.
    */
-  constructor(layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported) {
+  constructor(layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, onImported) {
     super();
     this.#layoutLibrary = layoutLibrary;
     this.#settingsTransfer = settingsTransfer;
     this.#theme = theme;
     this.#importOrchestrator = importOrchestrator;
+    this.#preferences = preferences;
     this.#onImported = onImported;
   }
 
@@ -76,11 +84,12 @@ export class SettingsDialog extends Dialog {
    * @param {SettingsTransfer} settingsTransfer Settings export and import.
    * @param {Theme} theme Colors and fonts.
    * @param {ImportOrchestrator} importOrchestrator Runs a data-export import.
+   * @param {Preferences} preferences Import review table settings storage.
    * @param {function(): void} onImported Called once an import has actually written anything.
    * @returns {Promise<void>} Resolves once closed.
    */
-  static open(layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported) {
-    return new SettingsDialog(layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported).show();
+  static open(layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, onImported) {
+    return new SettingsDialog(layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, onImported).show();
   }
 
   /**
@@ -153,7 +162,7 @@ export class SettingsDialog extends Dialog {
     elements.layoutList.addEventListener('click', event => this.#onLayoutListClick(event));
     elements.exportButton.addEventListener('click', () => this.#settingsTransfer.exportSettings());
     elements.importButton.addEventListener('click', () => this.#settingsTransfer.chooseFileAndImport());
-    elements.importChatExportButton.addEventListener('click', () => ImportDialog.open(this.#importOrchestrator, this.#onImported));
+    elements.importChatExportButton.addEventListener('click', () => ImportDialog.open(this.#importOrchestrator, this.#preferences, this.#onImported));
     elements.uiFontInput.addEventListener('input', () => this.#saveThemeFromFields());
     elements.chatFontInput.addEventListener('input', () => this.#saveThemeFromFields());
     elements.resetThemeButton.addEventListener('click', () => this.#resetTheme());
