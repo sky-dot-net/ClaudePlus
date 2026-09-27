@@ -13052,7 +13052,10 @@
     #showResult(result) {
       const { conversations } = result;
       const lines = [
-        `${conversations.new} new, ${conversations.changed} with new messages, ${conversations.renamedOnly} renamed, ${conversations.unchanged} unchanged among the selected conversations`,
+        `${conversations.new} brand-new conversation(s) saved`,
+        `${conversations.changed} already-imported conversation(s) got new messages (a continuation or branch since last time)`,
+        `${conversations.renamedOnly} already-imported conversation(s) were only renamed`,
+        `${conversations.unchanged} already-imported conversation(s) had nothing new`,
         conversations.failed > 0 ? `${conversations.failed} selected conversation(s) failed to import - see the browser console for details` : null,
         `${result.memoryFiles.written} of ${result.memoryFiles.total} memory file(s) saved`,
         `${result.artifacts.written} of ${result.artifacts.total} Artifact(s) saved`,
