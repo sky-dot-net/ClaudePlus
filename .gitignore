@@ -1,11 +1,3 @@
 node_modules/
 *.log
 test-results/
-
-# claude.ai export test fixtures (data/): light_metadata's real login IP and
-# manifest-*.json's one-time-use download tokens were sanitized in place
-# (fake IP, zeroed tokens) rather than excluded, so the fixture set stays
-# complete for anyone who clones the repo. attachments/ is excluded
-# defensively in case a future export ever includes real binary attachment
-# content (none does today).
-attachments/
