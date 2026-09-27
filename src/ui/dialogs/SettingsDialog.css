@@ -32,6 +32,32 @@
   font-size: 15px;
 }
 
+.claude-plus-settings-dialog__tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--claude-plus-color-border);
+}
+
+.claude-plus-settings-dialog__tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--claude-plus-color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  padding: 6px 10px;
+}
+
+.claude-plus-settings-dialog__tab:hover {
+  color: var(--claude-plus-color-text);
+}
+
+.claude-plus-settings-dialog__tab--active {
+  color: var(--claude-plus-color-text);
+  border-bottom-color: var(--claude-plus-color-accent);
+}
+
 .claude-plus-settings-dialog__section {
   padding: 12px 0;
   border-top: 1px solid var(--claude-plus-color-border);

@@ -25,7 +25,7 @@ export class StatsAggregate {
      * Prompt and file counts by conversation id, for showing them as sidebar columns without
      * needing a separate lookup structure. Only conversations that have been indexed (opened, or
      * pulled in by a backfill) appear here.
-     * @type {Map<string, {title: string, updatedAt: string, promptCount: number, fileCount: number, toolNames: string[]}>}
+     * @type {Map<string, {title: string, updatedAt: string, isImported: boolean, promptCount: number, fileCount: number, toolCalls: Array<{name: string, timestamp: string, messageId: string}>}>}
      */
     this.perConversation = new Map();
 
@@ -55,7 +55,7 @@ export class StatsAggregate {
    * @returns {void}
    */
   #addSummary(summary) {
-    const origin = { conversationTitle: summary.title, conversationId: summary.conversationId };
+    const origin = { conversationTitle: summary.title, conversationId: summary.conversationId, isImported: Boolean(summary.isImported) };
     this.conversationCount += 1;
     this.promptCount += summary.promptCount;
     this.estimatedTokensIn += summary.estimatedTokensIn;
@@ -67,9 +67,10 @@ export class StatsAggregate {
     this.perConversation.set(summary.conversationId, {
       title: summary.title,
       updatedAt: summary.updatedAt,
+      isImported: Boolean(summary.isImported),
       promptCount: summary.promptCount,
       fileCount: summary.files.length,
-      toolNames: Object.keys(summary.toolCallCounts),
+      toolCalls: summary.toolCalls ?? [],
     });
   }
 

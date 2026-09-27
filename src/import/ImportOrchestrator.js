@@ -3,6 +3,7 @@ import { ClaudeExportParser } from '../vendors/anthropic/import/ClaudeExportPars
 import { DATABASE } from '../config/DATABASE.js';
 import { ImportFileClassifier } from './ImportFileClassifier.js';
 import { ImportMerger } from './ImportMerger.js';
+import { ImportedConversationStore } from './ImportedConversationStore.js';
 import { LOG_PREFIX } from '../config/LOG_PREFIX.js';
 import { StreamingJsonArrayReader } from './StreamingJsonArrayReader.js';
 
@@ -36,13 +37,21 @@ export class ImportOrchestrator {
   #conversationStore;
 
   /**
+   * Conversation statistics, indexed for every written conversation as the last import step.
+   * @type {StatsIndex}
+   */
+  #stats;
+
+  /**
    * Creates the orchestrator.
    * @param {IndexedDbStore} database Backing storage.
    * @param {ImportedConversationStore} conversationStore Imported conversations.
+   * @param {StatsIndex} stats Conversation statistics, indexed for every written conversation.
    */
-  constructor(database, conversationStore) {
+  constructor(database, conversationStore, stats) {
     this.#database = database;
     this.#conversationStore = conversationStore;
+    this.#stats = stats;
   }
 
   /**
@@ -150,7 +159,8 @@ export class ImportOrchestrator {
   }
 
   /**
-   * Streams every conversation again, writing only the ones selected from the preview.
+   * Streams every conversation again, writing only the ones selected from the preview, then indexes
+   * every one that was written in a single batch so its date and turn count are correct right away.
    * @param {File} conversationsFile The conversations.json file.
    * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
    * @param {Set<string>} selectedConversationIds Ids of the conversations to write.
@@ -161,32 +171,39 @@ export class ImportOrchestrator {
    */
   async #applyConversations(conversationsFile, artifactsById, selectedConversationIds, importedAt, onProgress) {
     const tally = { new: 0, changed: 0, renamedOnly: 0, unchanged: 0, failed: 0 };
+    const indexable = [];
     let processed = 0;
     for await (const rawConversation of StreamingJsonArrayReader.readArray(conversationsFile)) {
-      if (selectedConversationIds.has(rawConversation.uuid)) await this.#applyOneConversation(rawConversation, artifactsById, importedAt, tally);
+      if (selectedConversationIds.has(rawConversation.uuid)) await this.#applyOneConversation(rawConversation, artifactsById, importedAt, tally, indexable);
       processed += 1;
       await ImportOrchestrator.#reportProgressIfDue(processed, onProgress);
     }
     onProgress?.(processed);
+    await this.#stats.indexConversationsBatch(indexable);
     return tally;
   }
 
   /**
-   * Maps, classifies and merges one selected conversation, tallying its classification.
+   * Maps, classifies and merges one selected conversation, tallying its classification and queuing
+   * it for indexing when it was actually written.
    * @param {object} rawConversation A conversations.json entry.
    * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
    * @param {string} importedAt ISO timestamp of this import.
    * @param {{new: number, changed: number, renamedOnly: number, unchanged: number, failed: number}} tally Counts to update.
+   * @param {ApiConversation[]} indexable Written conversations to index, appended to in place.
    * @returns {Promise<void>} Resolves once written, if anything changed; a failure is logged and
    * tallied rather than thrown, so it doesn't stop the rest of the selected conversations from importing.
    */
-  async #applyOneConversation(rawConversation, artifactsById, importedAt, tally) {
+  async #applyOneConversation(rawConversation, artifactsById, importedAt, tally, indexable) {
     try {
       const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
       const stored = await this.#conversationStore.getRecord(mapped.conversationId);
       tally[ImportMerger.classifyConversation(stored, mapped)] += 1;
       const merged = ImportMerger.mergeConversation(stored, mapped, importedAt);
-      if (merged) await this.#conversationStore.write(merged);
+      if (merged) {
+        await this.#conversationStore.write(merged);
+        indexable.push(ImportedConversationStore.toApiConversation(merged));
+      }
     } catch (error) {
       tally.failed += 1;
       console.warn(LOG_PREFIX, 'skipping a conversation that failed to import', rawConversation?.uuid, error);

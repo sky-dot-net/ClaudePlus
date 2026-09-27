@@ -21,7 +21,7 @@ async function checkColumnsAndSorting(run) {
   const chatRows = () => run.chatsPanel.locator('tbody tr.claude-plus-conversation');
   const headers = () => run.chatsPanel.locator('thead tr:first-child th').allTextContents();
   run.check('Chats table lists conversations', await chatRows().count() === 2);
-  run.check('Chats table default columns: Name, Date (+ buttons)', JSON.stringify(await headers()) === JSON.stringify(['Name', 'Date ▼', '']), JSON.stringify(await headers()));
+  run.check('Chats table default columns: Name, Origin, Date (+ buttons)', JSON.stringify(await headers()) === JSON.stringify(['Name', 'Origin', 'Date ▼', '']), JSON.stringify(await headers()));
   await run.chatsPanel.locator('summary', { hasText: 'Columns' }).click();
   await run.chatsPanel.locator('[data-column-toggle="turns"]').check();
   await run.page.waitForTimeout(50);

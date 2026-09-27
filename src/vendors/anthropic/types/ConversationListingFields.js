@@ -28,4 +28,13 @@ export class ConversationListingFields {
   static updatedAt(listing) {
     return listing.updated_at;
   }
+
+  /**
+   * Whether a listing came from an imported data export rather than the live API.
+   * @param {ConversationListing} listing The listing.
+   * @returns {boolean} True for an imported conversation.
+   */
+  static isImported(listing) {
+    return Boolean(listing.isImported);
+  }
 }

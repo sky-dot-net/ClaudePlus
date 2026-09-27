@@ -1,0 +1,9 @@
+.claude-plus-stats-view-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+.claude-plus-stats-view-toggle__button--active {
+  background: var(--claude-plus-color-accent);
+  color: #fff;
+}

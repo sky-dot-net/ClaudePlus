@@ -29,10 +29,22 @@ export class StatsIndex extends EventEmitter {
   #database;
 
   /**
-   * Current totals.
+   * Current totals across every indexed conversation.
    * @type {StatsAggregate}
    */
   #aggregate = new StatsAggregate();
+
+  /**
+   * Current totals across only live conversations.
+   * @type {StatsAggregate}
+   */
+  #liveAggregate = new StatsAggregate();
+
+  /**
+   * Current totals across only imported conversations.
+   * @type {StatsAggregate}
+   */
+  #importedAggregate = new StatsAggregate();
 
   /**
    * Backfill state.
@@ -58,11 +70,27 @@ export class StatsIndex extends EventEmitter {
   }
 
   /**
-   * Current totals.
+   * Current totals across every indexed conversation.
    * @returns {StatsAggregate} The aggregate.
    */
   get aggregate() {
     return this.#aggregate;
+  }
+
+  /**
+   * Current totals across only live conversations.
+   * @returns {StatsAggregate} The aggregate.
+   */
+  get liveAggregate() {
+    return this.#liveAggregate;
+  }
+
+  /**
+   * Current totals across only imported conversations.
+   * @returns {StatsAggregate} The aggregate.
+   */
+  get importedAggregate() {
+    return this.#importedAggregate;
   }
 
   /**
@@ -84,6 +112,8 @@ export class StatsIndex extends EventEmitter {
       const summaries = records.filter(record => SummaryValidator.isValid(record));
       this.#aggregate = StatsAggregate.fromSummaries(summaries);
       this.#aggregate.skippedRecordCount = records.length - summaries.length;
+      this.#liveAggregate = StatsAggregate.fromSummaries(summaries.filter(summary => !summary.isImported));
+      this.#importedAggregate = StatsAggregate.fromSummaries(summaries.filter(summary => summary.isImported));
       this.publish('aggregate');
     } catch (error) {
       console.warn(LOG_PREFIX, 'reading stats failed', error);
@@ -110,13 +140,30 @@ export class StatsIndex extends EventEmitter {
   /**
    * Stores a conversation's summary if it changed, then recomputes the aggregate. Failures are logged.
    * @param {ApiConversation} conversation The conversation.
+   * @param {boolean} [isImported] Whether it came from an imported data export rather than the live API.
    * @returns {Promise<void>} Resolves once done.
    */
-  async indexConversation(conversation) {
+  async indexConversation(conversation, isImported = false) {
     try {
-      if (await this.#storeSummaryIfOutdated(conversation)) await this.refreshAggregate();
+      if (await this.#storeSummaryIfOutdated(conversation, isImported)) await this.refreshAggregate();
     } catch (error) {
       console.warn(LOG_PREFIX, 'indexing conversation failed', error);
+    }
+  }
+
+  /**
+   * Stores summaries for several conversations, refreshing the aggregate only once at the end -
+   * used after an import, where indexing each one individually would re-scan the whole summary
+   * store after every single conversation. Failures are logged.
+   * @param {ApiConversation[]} conversations The conversations, already shaped for the live pipeline.
+   * @returns {Promise<void>} Resolves once every conversation is stored and the aggregate refreshed.
+   */
+  async indexConversationsBatch(conversations) {
+    try {
+      for (const conversation of conversations) await this.#storeSummaryIfOutdated(conversation, true);
+      await this.refreshAggregate();
+    } catch (error) {
+      console.warn(LOG_PREFIX, 'indexing imported conversations failed', error);
     }
   }
 
@@ -209,7 +256,7 @@ export class StatsIndex extends EventEmitter {
   async #indexListing(listing) {
     const listingId = ConversationListingFields.id(listing);
     if (!(await this.#isOutdated(listingId, ConversationListingFields.updatedAt(listing)))) return;
-    await this.#storeSummaryIfOutdated(await this.#api.getConversation(listingId));
+    await this.#storeSummaryIfOutdated(await this.#api.getConversation(listingId), false);
     this.#storedDuringBackfill += 1;
     if (this.#storedDuringBackfill % LIMITS.backfillRefreshInterval === 0) await this.refreshAggregate();
     await wait(TIMING.backfillPauseMs);
@@ -231,12 +278,13 @@ export class StatsIndex extends EventEmitter {
   /**
    * Stores a conversation's summary if the cached one is outdated.
    * @param {ApiConversation} conversation The conversation.
+   * @param {boolean} isImported Whether it came from an imported data export rather than the live API.
    * @returns {Promise<boolean>} True if a summary was written.
    * @throws {DOMException} When the cache can't be read or written.
    */
-  async #storeSummaryIfOutdated(conversation) {
+  async #storeSummaryIfOutdated(conversation, isImported) {
     if (!(await this.#isOutdated(ApiConversationFields.id(conversation), ApiConversationFields.updatedAt(conversation)))) return false;
-    await this.#database.write(DATABASE.stores.conversationSummaries, ConversationSummarizer.summarize(conversation));
+    await this.#database.write(DATABASE.stores.conversationSummaries, ConversationSummarizer.summarize(conversation, isImported));
     return true;
   }
 

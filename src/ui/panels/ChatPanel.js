@@ -163,6 +163,15 @@ export class ChatPanel extends Panel {
   }
 
   /**
+   * Scrolls a message into view and briefly highlights it, if it's part of the branch shown.
+   * @param {string} messageId Message id.
+   * @returns {void}
+   */
+  scrollToMessage(messageId) {
+    this.#messageListView.scrollToMessage(messageId);
+  }
+
+  /**
    * Opens a sub-pane on the right edge, or closes it if one of that kind is already open.
    * @param {string} kind 'files', 'sources' or 'stats'.
    * @returns {void}

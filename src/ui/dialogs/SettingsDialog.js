@@ -114,7 +114,8 @@ export class SettingsDialog extends Dialog {
   }
 
   /**
-   * The screen's static markup.
+   * The screen's static markup: a tab bar switching between the app-wide tab and one tab per
+   * vendor - just Anthropic today, holding the import that's coupled to its export format.
    * @returns {string} The HTML.
    */
   static #bodyHtml() {
@@ -123,6 +124,20 @@ export class SettingsDialog extends Dialog {
         <h2>Settings</h2>
         <button class="claude-plus-toolbar__close-button" data-name="closeButton" title="Close">✕</button>
       </div>
+      <div class="claude-plus-settings-dialog__tabs">
+        <button class="claude-plus-settings-dialog__tab claude-plus-settings-dialog__tab--active" data-name="appTabButton">App</button>
+        <button class="claude-plus-settings-dialog__tab" data-name="anthropicTabButton">Anthropic</button>
+      </div>
+      <div data-name="appPane">${SettingsDialog.#appPaneHtml()}</div>
+      <div data-name="anthropicPane" hidden>${SettingsDialog.#anthropicPaneHtml()}</div>`;
+  }
+
+  /**
+   * Markup of the App tab: saved layouts, generic settings import/export and theming.
+   * @returns {string} The HTML.
+   */
+  static #appPaneHtml() {
+    return `
       <section class="claude-plus-settings-dialog__section">
         <h3>Layout</h3>
         <div class="claude-plus-settings-dialog__row">
@@ -135,9 +150,6 @@ export class SettingsDialog extends Dialog {
         <div class="claude-plus-settings-dialog__row">
           <button class="claude-plus-toolbar__button" data-name="exportButton">Export settings (JSON)</button>
           <button class="claude-plus-toolbar__button" data-name="importButton">Import settings…</button>
-        </div>
-        <div class="claude-plus-settings-dialog__row">
-          <button class="claude-plus-toolbar__button" data-name="importChatExportButton">Import chat export…</button>
         </div>
       </section>
       <section class="claude-plus-settings-dialog__section">
@@ -152,12 +164,28 @@ export class SettingsDialog extends Dialog {
   }
 
   /**
+   * Markup of the Anthropic tab: importing a claude.ai data export, coupled to its own file format.
+   * @returns {string} The HTML.
+   */
+  static #anthropicPaneHtml() {
+    return `
+      <section class="claude-plus-settings-dialog__section">
+        <h3>Import</h3>
+        <div class="claude-plus-settings-dialog__row">
+          <button class="claude-plus-toolbar__button" data-name="importChatExportButton">Import chat export…</button>
+        </div>
+      </section>`;
+  }
+
+  /**
    * Wires every control. The saved-layouts list uses one delegated listener since its rows change.
    * @returns {void}
    */
   #bindEvents() {
     const elements = this.#elements;
     elements.closeButton.addEventListener('click', () => this.close());
+    elements.appTabButton.addEventListener('click', () => this.#showTab('app'));
+    elements.anthropicTabButton.addEventListener('click', () => this.#showTab('anthropic'));
     elements.saveLayoutButton.addEventListener('click', () => this.#saveLayout());
     elements.layoutList.addEventListener('click', event => this.#onLayoutListClick(event));
     elements.exportButton.addEventListener('click', () => this.#settingsTransfer.exportSettings());
@@ -166,6 +194,19 @@ export class SettingsDialog extends Dialog {
     elements.uiFontInput.addEventListener('input', () => this.#saveThemeFromFields());
     elements.chatFontInput.addEventListener('input', () => this.#saveThemeFromFields());
     elements.resetThemeButton.addEventListener('click', () => this.#resetTheme());
+  }
+
+  /**
+   * Shows one tab's pane and hides the other, marking the clicked tab button active.
+   * @param {'app'|'anthropic'} tabName Tab to show.
+   * @returns {void}
+   */
+  #showTab(tabName) {
+    const isApp = tabName === 'app';
+    this.#elements.appPane.hidden = !isApp;
+    this.#elements.anthropicPane.hidden = isApp;
+    this.#elements.appTabButton.classList.toggle('claude-plus-settings-dialog__tab--active', isApp);
+    this.#elements.anthropicTabButton.classList.toggle('claude-plus-settings-dialog__tab--active', !isApp);
   }
 
   /**

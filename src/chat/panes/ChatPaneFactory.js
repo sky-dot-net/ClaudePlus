@@ -46,7 +46,7 @@ export class ChatPaneFactory {
     const session = new ChatSession(api, settings, directory, importedConversations);
     const panel = new ChatPanel({ paneId, session, directory, paneManager: this.#paneManager, stats, preferences, widgetExtractor });
     session.subscribe('openConversation', () => this.#onPaneConversationChanged(paneId));
-    session.subscribe('conversationLoaded', conversation => this.#paneManager.publish('conversationLoaded', conversation));
+    session.subscribe('conversationLoaded', payload => this.#paneManager.publish('conversationLoaded', payload));
     session.subscribe('rateLimits', limits => this.#paneManager.publish('rateLimits', limits));
     return { session, panel };
   }

@@ -4,6 +4,8 @@
  * @typedef {object} ImportedConversationRecord
  * @property {string} conversationId Conversation id; the store's key.
  * @property {string} title Conversation title.
+ * @property {string} updatedAt ISO timestamp the conversation itself last changed, from the export -
+ * not when it was imported; what the conversation list and search show as its date.
  * @property {ApiMessage[]} messages Every message ever seen for this conversation across all
  * imports, with parent links; may contain more than one branch.
  * @property {?string} currentLeafId Id of the branch shown by default; recomputed on every merge;

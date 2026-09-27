@@ -104,10 +104,26 @@ export class MessageListView {
     this.#updateScheduler.cancel();
     const wasAtBottom = this.#isScrolledToBottom();
     const messages = this.#session.messages;
-    const retryableIndex = this.#session.isSending ? -1 : messages.findLastIndex(message => message.sender === 'assistant');
+    const retryableIndex = this.#session.isSending || this.#session.isReadOnly ? -1 : messages.findLastIndex(message => message.sender === 'assistant');
     this.#listElement.innerHTML = messages.map((message, index) => this.#messageHtml(message, index, index === retryableIndex)).join('')
       || '<div class="claude-plus-empty-state claude-plus-empty-state--padded">Start a conversation using the message box below.</div>';
     this.#scrollToBottomIf(wasAtBottom);
+  }
+
+  /**
+   * Scrolls a message into view and briefly highlights it, if it's part of the branch shown; does
+   * nothing when it belongs to a different branch (an edit or retry from before this conversation
+   * was exported), rather than switching branches to find it.
+   * @param {string} messageId Message id.
+   * @returns {void}
+   */
+  scrollToMessage(messageId) {
+    const index = this.#session.messages.findIndex(message => message.id === messageId);
+    const element = index === -1 ? null : this.#listElement.querySelector(`[data-message-index="${index}"]`);
+    if (!element) return;
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    element.classList.add('claude-plus-message--highlighted');
+    setTimeout(() => element.classList.remove('claude-plus-message--highlighted'), TIMING.messageHighlightMs);
     this.#focusEditInputIfEditing();
     this.#fillWidgetSlots();
   }
@@ -249,8 +265,7 @@ export class MessageListView {
    */
   #actionsHtml(sender, message, offersRetry, branchInfo) {
     const branchNavHtml = branchInfo ? MessageListView.#branchNavHtml(branchInfo) : '';
-    const editButton = sender === 'human' && message.isPersisted
-      ? '<button class="claude-plus-message__action-button" data-action="startEdit" title="Edit and branch from here">✎</button>' : '';
+    const editButton = this.#editButtonHtml(sender, message);
     const retryButton = offersRetry ? '<button class="claude-plus-message__action-button" data-action="retry" title="Retry">🔁</button>' : '';
     const toolStepsButton = MessageListView.#toolStepsButtonHtml(message);
     return `
@@ -261,6 +276,26 @@ export class MessageListView {
         ${retryButton}
         ${toolStepsButton}
       </div>`;
+  }
+
+  /**
+   * The edit-and-branch button, for a persisted human message in a conversation that isn't read-only.
+   * @param {'human'|'assistant'} sender The message's sender.
+   * @param {ChatMessage} message The message.
+   * @returns {string} The button, or an empty string when it doesn't apply.
+   */
+  #editButtonHtml(sender, message) {
+    return sender === 'human' && this.#isEditable(message)
+      ? '<button class="claude-plus-message__action-button" data-action="startEdit" title="Edit and branch from here">✎</button>' : '';
+  }
+
+  /**
+   * Whether a message can be edited: persisted, and not part of a read-only (imported) conversation.
+   * @param {?ChatMessage} message The message.
+   * @returns {boolean} True when it can be edited.
+   */
+  #isEditable(message) {
+    return Boolean(message?.isPersisted) && !this.#session.isReadOnly;
   }
 
   /**
@@ -321,7 +356,7 @@ export class MessageListView {
     const container = event.target.closest('.claude-plus-message--human');
     if (!container) return;
     const index = MessageListView.#indexOf(container);
-    if (this.#session.messages[index]?.isPersisted) this.#startEdit(index);
+    if (this.#isEditable(this.#session.messages[index])) this.#startEdit(index);
   }
 
   /**

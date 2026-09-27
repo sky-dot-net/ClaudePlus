@@ -153,11 +153,21 @@ export class ConversationListPanel extends Panel {
   #columns() {
     return [
       { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: conversation => (ConversationListingFields.title(conversation) || '').toLowerCase(), filterValue: conversation => ConversationListingFields.title(conversation) || UNTITLED, cellHtml: conversation => `<span class="claude-plus-conversation__title">${escapeHtml(ConversationListingFields.title(conversation) || UNTITLED)}</span>` },
+      { id: 'origin', label: 'Origin', isVisibleByDefault: true, filter: 'values', sortValue: conversation => ConversationListPanel.#originLabel(conversation), filterValue: conversation => ConversationListPanel.#originLabel(conversation), cellHtml: conversation => escapeHtml(ConversationListPanel.#originLabel(conversation)) },
       { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: conversation => toEpochMs(ConversationListingFields.updatedAt(conversation)), filterValue: conversation => ConversationListingFields.updatedAt(conversation), cellHtml: conversation => escapeHtml(formatDay(ConversationListingFields.updatedAt(conversation))) },
       { id: 'turns', label: 'Turns', sortValue: conversation => this.#indexedCount(conversation, 'promptCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'promptCount') },
       { id: 'files', label: 'Files', sortValue: conversation => this.#indexedCount(conversation, 'fileCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'fileCount') },
       { id: 'actions', label: '', isAlwaysVisible: true, isNotSortable: true, sortValue: () => 0, cellHtml: () => ConversationListPanel.#actionButtonsHtml() },
     ];
+  }
+
+  /**
+   * A conversation's origin, for the Origin column.
+   * @param {ConversationListing} conversation The conversation.
+   * @returns {'Live'|'Imported'} The label.
+   */
+  static #originLabel(conversation) {
+    return ConversationListingFields.isImported(conversation) ? 'Imported' : 'Live';
   }
 
   /**

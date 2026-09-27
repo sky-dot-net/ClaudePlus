@@ -213,7 +213,7 @@ export class ClaudePlusApp {
     paneManager.attachWorkspace(workspace);
     panelFactory.attachWorkspace(workspace);
     const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
-    const importOrchestrator = new ImportOrchestrator(database, importedConversations);
+    const importOrchestrator = new ImportOrchestrator(database, importedConversations, stats);
     const onImported = () => { directory.refreshImported(); stats.refreshAggregate(); };
     new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, onImported, onHide: () => this.hide() }).mount();
     workspace.mount();
@@ -292,7 +292,7 @@ export class ClaudePlusApp {
    * @returns {void}
    */
   static #connectServices({ directory, paneManager, stats, rateLimits }) {
-    paneManager.subscribe('conversationLoaded', conversation => stats.indexConversation(conversation));
+    paneManager.subscribe('conversationLoaded', ({ conversation, isImported }) => stats.indexConversation(conversation, isImported));
     paneManager.subscribe('rateLimits', limits => rateLimits.setLimits(limits));
     directory.subscribe('conversationDeleted', conversationId => stats.removeConversation(conversationId));
   }

@@ -139,16 +139,17 @@ export class ComposerPanel extends Panel {
   /**
    * Shows Stop only while the active chat streams a reply, enables export only for a saved
    * conversation, shows the files/sources buttons only when the active chat has any, and replaces
-   * the whole input area with a read-only notice for an imported chat.
+   * just the send box (not the whole toolbar) with a read-only notice for an imported chat, whose
+   * model/effort/thinking choosers are disabled rather than hidden since there's nothing to send.
    * @returns {void}
    */
   render() {
     const session = this.#paneManager.focusedSession;
-    const { optionsRow, promptInput, stopButton, readonlyNotice, filesButton, sourcesButton } = this.elements;
-    optionsRow.hidden = session.isReadOnly;
+    const { promptInput, stopButton, readonlyNotice, filesButton, sourcesButton } = this.elements;
     promptInput.hidden = session.isReadOnly;
     readonlyNotice.hidden = !session.isReadOnly;
     stopButton.hidden = session.isReadOnly || !session.isSending;
+    this.#optionsView.setDisabled(session.isReadOnly);
     this.#exportButton.setEnabled(Boolean(session.openConversationId));
     filesButton.hidden = !this.#activeChatHas('folders');
     sourcesButton.hidden = !this.#activeChatHas('sources');

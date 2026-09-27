@@ -128,7 +128,7 @@ export class ChatSessionState {
   showConversation(conversation, isImported) {
     this.#isImported = isImported;
     this.showBranchOf(conversation);
-    this.#publish('conversationLoaded', conversation);
+    this.#publish('conversationLoaded', { conversation, isImported });
   }
 
   /**

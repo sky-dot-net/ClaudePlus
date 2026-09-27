@@ -1,11 +1,15 @@
 import { Panel } from './Panel.js';
+import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { average } from '../../math/average.js';
 import { emptyStateHtml } from '../html/emptyStateHtml.js';
 import { entriesByDescendingCount } from '../../math/entriesByDescendingCount.js';
 import { escapeHtml } from '../../text/escapeHtml.js';
 import { formatDuration } from '../../time/formatDuration.js';
 import { formatUtilization } from '../../stats/formatUtilization.js';
+import stylesheet from './StatsPanel.css';
 import { valueRowHtml } from '../html/valueRowHtml.js';
+
+StyleRegistry.register(stylesheet);
 
 /**
  * Activity, usage, token estimates, tool calls and the history backfill.
@@ -30,6 +34,12 @@ export class StatsPanel extends Panel {
   #rateLimits;
 
   /**
+   * Which aggregate the totals section currently shows.
+   * @type {'combined'|'live'|'imported'}
+   */
+  #view = 'combined';
+
+  /**
    * Creates the panel.
    * @param {StatsIndex} stats Conversation statistics.
    * @param {ActivityTracker} activity Active-time tracking.
@@ -50,7 +60,14 @@ export class StatsPanel extends Panel {
     const row = StatsPanel.#namedValueRowHtml;
     return `
       <div class="claude-plus-panel__section">${row('Active today', 'activeToday')}${row('Active all-time', 'activeAllTime')}${row('Status', 'activityStatus')}</div>
-      <div class="claude-plus-panel__section">${row('Turns (all chats)', 'promptCount')}${row('Avg response time', 'averageResponseTime')}</div>
+      <div class="claude-plus-panel__section">
+        <div class="claude-plus-stats-view-toggle" data-name="viewToggle">
+          <button class="claude-plus-toolbar__button claude-plus-stats-view-toggle__button" data-view="combined">Combined</button>
+          <button class="claude-plus-toolbar__button claude-plus-stats-view-toggle__button" data-view="live">Live</button>
+          <button class="claude-plus-toolbar__button claude-plus-stats-view-toggle__button" data-view="imported">Imported</button>
+        </div>
+      </div>
+      <div class="claude-plus-panel__section">${row('Turns', 'promptCount')}${row('Avg response time', 'averageResponseTime')}</div>
       <div class="claude-plus-panel__section">${row('Session limit (5h)', 'sessionLimit')}${row('Weekly limit', 'weeklyLimit')}</div>
       <div class="claude-plus-panel__section">${row('Est. tokens in / out', 'estimatedTokens')}
         <div class="claude-plus-hint">Estimated from text length — claude.ai doesn't expose real token counts.</div></div>
@@ -69,6 +86,7 @@ export class StatsPanel extends Panel {
    */
   bindEvents() {
     this.elements.backfillButton.addEventListener('click', () => this.#toggleBackfill());
+    this.elements.viewToggle.addEventListener('click', event => this.#onViewToggleClick(event));
     this.listenTo(this.#activity, 'activity', () => this.#renderActivity());
     this.listenTo(this.#rateLimits, 'rateLimits', () => this.#renderRateLimits());
     this.listenTo(this.#stats, 'aggregate', () => this.#renderAggregate());
@@ -127,13 +145,35 @@ export class StatsPanel extends Panel {
   }
 
   /**
-   * Shows the totals and the tool call ranking.
+   * Switches which aggregate the totals section shows, unless the toggle itself was clicked
+   * without hitting a button.
+   * @param {MouseEvent} event Click in the view toggle.
+   * @returns {void}
+   */
+  #onViewToggleClick(event) {
+    const button = event.target.closest('[data-view]');
+    if (button) { this.#view = button.dataset.view; this.#renderAggregate(); }
+  }
+
+  /**
+   * The currently selected aggregate.
+   * @returns {StatsAggregate} Combined, live-only or imported-only totals.
+   */
+  #selectedAggregate() {
+    if (this.#view === 'live') return this.#stats.liveAggregate;
+    if (this.#view === 'imported') return this.#stats.importedAggregate;
+    return this.#stats.aggregate;
+  }
+
+  /**
+   * Shows the totals and the tool call ranking for the currently selected view.
    * @returns {void}
    */
   #renderAggregate() {
-    const aggregate = this.#stats.aggregate;
+    const aggregate = this.#selectedAggregate();
     const toolRanking = entriesByDescendingCount(aggregate.toolCallCounts);
     const responseTimes = aggregate.responseTimesMs;
+    this.elements.viewToggle.querySelectorAll('[data-view]').forEach(button => button.classList.toggle('claude-plus-stats-view-toggle__button--active', button.dataset.view === this.#view));
     this.elements.promptCount.textContent = aggregate.promptCount;
     this.elements.averageResponseTime.textContent = responseTimes.length ? formatDuration(average(responseTimes)) : '–';
     this.elements.estimatedTokens.textContent = `~${aggregate.estimatedTokensIn.toLocaleString()} in / ~${aggregate.estimatedTokensOut.toLocaleString()} out`;

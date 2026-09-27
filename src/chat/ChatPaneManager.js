@@ -11,7 +11,7 @@ import { isChatPaneId } from './panes/isChatPaneId.js';
  * each one shows. The focused pane is the one the sidebar, the URL and the export act on.
  * @fires ChatPaneManager#focus The focused pane changed.
  * @fires ChatPaneManager#paneConversations A pane opened another conversation; payload is the pane id.
- * @fires ChatPaneManager#conversationLoaded A pane fetched a conversation; payload is the ApiConversation.
+ * @fires ChatPaneManager#conversationLoaded A pane fetched a conversation; payload is {conversation: ApiConversation, isImported: boolean}.
  * @fires ChatPaneManager#rateLimits A pane received usage windows; payload is RateLimits.
  * @fires ChatPaneManager#visiblePanes Whether more than one chat pane is visible changed.
  */

@@ -70,4 +70,15 @@ export class ComposerOptionsView {
     this.#effortSelect.value = this.#settings.effort;
     this.#thinkingCheckbox.checked = this.#settings.thinkingMode === THINKING_MODES.extended;
   }
+
+  /**
+   * Disables or re-enables every control, for a read-only chat with no model to reply to.
+   * @param {boolean} isDisabled Whether to disable them.
+   * @returns {void}
+   */
+  setDisabled(isDisabled) {
+    this.#modelSelect.disabled = isDisabled;
+    this.#effortSelect.disabled = isDisabled;
+    this.#thinkingCheckbox.disabled = isDisabled;
+  }
 }

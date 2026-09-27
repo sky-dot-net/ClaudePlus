@@ -60,10 +60,10 @@ export class SearchEngine {
    * @returns {SearchItem[]} Chats, files, sources and tool uses.
    */
   static #items(aggregate, conversations) {
-    const chats = conversations.map(conversation => SearchEngine.#item('chat', ConversationListingFields.title(conversation) || UNTITLED, null, { conversationId: ConversationListingFields.id(conversation), conversationTitle: ConversationListingFields.title(conversation) || UNTITLED, timestamp: ConversationListingFields.updatedAt(conversation) }));
+    const chats = conversations.map(conversation => SearchEngine.#item('chat', ConversationListingFields.title(conversation) || UNTITLED, null, { conversationId: ConversationListingFields.id(conversation), conversationTitle: ConversationListingFields.title(conversation) || UNTITLED, timestamp: ConversationListingFields.updatedAt(conversation), isImported: ConversationListingFields.isImported(conversation) }));
     const files = aggregate.folders.flatMap(folder => folder.files).map(file => SearchEngine.#item('file', file.title || file.path, null, file));
     const sources = aggregate.sources.map(source => SearchEngine.#item('source', source.title, `${source.outlet || ''} ${source.url}`, source));
-    const tools = [...aggregate.perConversation].flatMap(([conversationId, summary]) => summary.toolNames.map(toolName => SearchEngine.#item('tool', toolName, null, { conversationId, conversationTitle: summary.title, timestamp: summary.updatedAt })));
+    const tools = [...aggregate.perConversation].flatMap(([conversationId, summary]) => summary.toolCalls.map(call => SearchEngine.#item('tool', call.name, null, { conversationId, conversationTitle: summary.title, timestamp: call.timestamp, isImported: summary.isImported, messageId: call.messageId })));
     return [...chats, ...files, ...sources, ...tools];
   }
 
@@ -72,11 +72,11 @@ export class SearchEngine {
    * @param {string} kind Item kind.
    * @param {string} text The item's own text.
    * @param {?string} detail Secondary text.
-   * @param {{conversationId: string, conversationTitle: string, timestamp: ?string}} origin Conversation and time of the item.
+   * @param {{conversationId: string, conversationTitle: string, timestamp: ?string, isImported: ?boolean, messageId: ?string}} origin Conversation, time and message of the item.
    * @returns {SearchItem} The item.
    */
   static #item(kind, text, detail, origin) {
-    return { kind, text, detail, conversationId: origin.conversationId, conversationTitle: origin.conversationTitle, timestamp: origin.timestamp };
+    return { kind, text, detail, conversationId: origin.conversationId, conversationTitle: origin.conversationTitle, timestamp: origin.timestamp, isImported: Boolean(origin.isImported), messageId: origin.messageId ?? null };
   }
 
   /**

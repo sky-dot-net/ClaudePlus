@@ -42,6 +42,15 @@ export class Router {
   }
 
   /**
+   * Scrolls the focused pane to a message, if it's currently shown there.
+   * @param {string} messageId Message id.
+   * @returns {void}
+   */
+  scrollToMessage(messageId) {
+    this.#paneManager.focusedPanel.scrollToMessage(messageId);
+  }
+
+  /**
    * Starts a new chat in the focused pane as a user navigation, adding a history entry.
    * @returns {void}
    */

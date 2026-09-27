@@ -66,7 +66,7 @@ export class ChatDirectorySync {
     try {
       const conversation = await this.#api.getConversation(conversationId);
       this.#directory.updateListing(conversation);
-      this.#publish('conversationLoaded', conversation);
+      this.#publish('conversationLoaded', { conversation, isImported: false });
       if (replaceMessages && this.#state.isOpenAndIdle(conversationId)) this.#state.showBranchOf(conversation);
     } catch (error) {
       console.warn(LOG_PREFIX, 'refreshing conversation failed', error);

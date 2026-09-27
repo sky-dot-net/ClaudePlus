@@ -7,6 +7,9 @@
  * @property {string} conversationId Conversation the item belongs to.
  * @property {string} conversationTitle Title of that conversation.
  * @property {?string} timestamp ISO timestamp of the item.
+ * @property {boolean} isImported Whether the conversation it belongs to was imported.
+ * @property {?string} messageId Message the item matched in, when it's tied to one specific message
+ * (a file, source or tool call); null for a chat-title match, which isn't.
  * @property {string} [reason] Why it matched, set on results.
  */
 

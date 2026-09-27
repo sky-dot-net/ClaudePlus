@@ -26,7 +26,7 @@ export class ImportedConversationStore {
    */
   async get(conversationId) {
     const record = await this.getRecord(conversationId);
-    return record ? ImportedConversationStore.#toApiConversation(record) : null;
+    return record ? ImportedConversationStore.toApiConversation(record) : null;
   }
 
   /**
@@ -44,7 +44,7 @@ export class ImportedConversationStore {
    */
   async listings() {
     const records = await this.#database.readAll(DATABASE.stores.importedConversations);
-    return records.map(record => ({ uuid: record.conversationId, name: record.title, updated_at: record.lastImportedAt, isImported: true }));
+    return records.map(record => ({ uuid: record.conversationId, name: record.title, updated_at: record.updatedAt, isImported: true }));
   }
 
   /**
@@ -66,11 +66,11 @@ export class ImportedConversationStore {
   }
 
   /**
-   * A stored record as the app's own conversation shape.
+   * A stored record as the app's own conversation shape, for rendering or re-indexing.
    * @param {ImportedConversationRecord} record The record.
    * @returns {ApiConversation} The conversation.
    */
-  static #toApiConversation(record) {
-    return { uuid: record.conversationId, name: record.title, updated_at: record.lastImportedAt, current_leaf_message_uuid: record.currentLeafId, chat_messages: record.messages };
+  static toApiConversation(record) {
+    return { uuid: record.conversationId, name: record.title, updated_at: record.updatedAt, current_leaf_message_uuid: record.currentLeafId, chat_messages: record.messages };
   }
 }

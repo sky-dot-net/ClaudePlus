@@ -91,7 +91,7 @@ export class SearchPanel extends Panel {
       columns: SearchPanel.#columns(),
       preferences: this.#preferences,
       defaultSort: { column: 'date', direction: -1 },
-      rowAttributes: item => `class="claude-plus-search-result" data-conversation-id="${escapeHtml(item.conversationId)}"`,
+      rowAttributes: item => `class="claude-plus-search-result" data-conversation-id="${escapeHtml(item.conversationId)}" data-message-id="${escapeHtml(item.messageId ?? '')}"`,
       emptyText: 'No results.',
       maxRenderedRows: LIMITS.searchResults,
     });
@@ -126,10 +126,20 @@ export class SearchPanel extends Panel {
     return [
       { id: 'match', label: 'Match', isAlwaysVisible: true, sortValue: item => item.text.toLowerCase(), cellHtml: item => escapeHtml(item.text) },
       { id: 'kind', label: 'Kind', isVisibleByDefault: true, filter: 'values', sortValue: item => SearchEngine.kindLabel(item.kind), cellHtml: item => escapeHtml(SearchEngine.kindLabel(item.kind)) },
+      { id: 'origin', label: 'Origin', isVisibleByDefault: true, filter: 'values', sortValue: item => SearchPanel.#originLabel(item), filterValue: item => SearchPanel.#originLabel(item), cellHtml: item => escapeHtml(SearchPanel.#originLabel(item)) },
       { id: 'conversation', label: 'Chat', isVisibleByDefault: true, filter: 'values', sortValue: item => item.conversationTitle.toLowerCase(), filterValue: item => item.conversationTitle, cellHtml: item => escapeHtml(item.conversationTitle) },
       { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: item => toEpochMs(item.timestamp), filterValue: item => item.timestamp, cellHtml: item => escapeHtml(formatTimestamp(item.timestamp)) },
       { id: 'reason', label: 'Why', isVisibleByDefault: true, sortValue: item => item.reason, cellHtml: item => escapeHtml(item.reason) },
     ];
+  }
+
+  /**
+   * A search item's origin label, for the Origin column.
+   * @param {SearchItem} item The item.
+   * @returns {'Live'|'Imported'} The label.
+   */
+  static #originLabel(item) {
+    return item.isImported ? 'Imported' : 'Live';
   }
 
   /**
@@ -143,12 +153,15 @@ export class SearchPanel extends Panel {
   }
 
   /**
-   * Opens the clicked result's conversation in the active chat.
+   * Opens the clicked result's conversation in the active chat, then scrolls to and highlights the
+   * matched message, if the result is tied to one.
    * @param {MouseEvent} event Click in the results body.
-   * @returns {void}
+   * @returns {Promise<void>} Resolves once opened and, when applicable, scrolled to.
    */
-  #onResultClick(event) {
+  async #onResultClick(event) {
     const row = event.target.closest('[data-conversation-id]');
-    if (row) this.#router.openConversation(row.dataset.conversationId);
+    if (!row) return;
+    await this.#router.openConversation(row.dataset.conversationId);
+    if (row.dataset.messageId) this.#router.scrollToMessage(row.dataset.messageId);
   }
 }

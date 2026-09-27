@@ -96,6 +96,7 @@
    * modelCatalogPollMs: how often the model catalog extractor checks its hidden iframe.
    * modelCatalogTimeoutMs: time budget for extracting the model/effort catalog before giving up.
    * modelCatalogTtlMs: how long an extracted catalog is trusted before it's refreshed again.
+   * messageHighlightMs: how long a message stays highlighted after being scrolled to from search.
    * @type {Readonly<Record<string, number>>}
    */
   const TIMING = Object.freeze({
@@ -111,6 +112,7 @@
     modelCatalogPollMs: 300,
     modelCatalogTimeoutMs: 20_000,
     modelCatalogTtlMs: 12 * 60 * 60 * 1000,
+    messageHighlightMs: 2_000,
   });
 
   /**
@@ -430,9 +432,9 @@
     return Object.assign(document.createElement(tagName), properties);
   }
 
-  var stylesheet$q = ".claude-plus-empty-state {\n  color: var(--claude-plus-color-text-faint);\n  font-style: italic;\n  padding: 6px 0;\n}\n\n.claude-plus-empty-state--padded {\n  padding: 24px;\n}\n";
+  var stylesheet$r = ".claude-plus-empty-state {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-style: italic;\r\n  padding: 6px 0;\r\n}\r\n\r\n.claude-plus-empty-state--padded {\r\n  padding: 24px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$q);
+  StyleRegistry.register(stylesheet$r);
 
   /**
    * HTML for an empty-state message.
@@ -467,9 +469,9 @@
     return `${seconds}s`;
   }
 
-  var stylesheet$p = ".claude-plus-value-row {\n  display: flex;\n  justify-content: space-between;\n  padding: 2px 0;\n  gap: 8px;\n}\n\n.claude-plus-value-row span {\n  color: var(--claude-plus-color-text-muted);\n}\n";
+  var stylesheet$q = ".claude-plus-value-row {\r\n  display: flex;\r\n  justify-content: space-between;\r\n  padding: 2px 0;\r\n  gap: 8px;\r\n}\r\n\r\n.claude-plus-value-row span {\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$p);
+  StyleRegistry.register(stylesheet$q);
 
   /**
    * HTML for a label/value row.
@@ -481,9 +483,9 @@
     return `<div class="claude-plus-value-row"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>`;
   }
 
-  var stylesheet$o = ".claude-plus-conversation-stats {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n";
+  var stylesheet$p = ".claude-plus-conversation-stats {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n";
 
-  StyleRegistry.register(stylesheet$o);
+  StyleRegistry.register(stylesheet$p);
 
   /**
    * A sub-pane showing usage stats scoped to just the pane's own conversation (turns, average
@@ -1042,9 +1044,9 @@
     searchResults: 300,
   });
 
-  var stylesheet$n = ".claude-plus-value-combobox {\n  position: fixed;\n  z-index: var(--claude-plus-layer-popup-menu);\n  max-height: 240px;\n  overflow-y: auto;\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  padding: 4px;\n  font-size: 12px;\n}\n\n.claude-plus-value-combobox__entry {\n  padding: 4px 8px;\n  border-radius: 4px;\n  cursor: pointer;\n  white-space: nowrap;\n}\n\n.claude-plus-value-combobox__entry:hover {\n  background: var(--claude-plus-color-raised-hover);\n}\n";
+  var stylesheet$o = ".claude-plus-value-combobox {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  max-height: 240px;\r\n  overflow-y: auto;\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-value-combobox__entry {\r\n  padding: 4px 8px;\r\n  border-radius: 4px;\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-value-combobox__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$n);
+  StyleRegistry.register(stylesheet$o);
 
   /**
    * A text input that shows the distinct values it can filter by in a list below it while focused.
@@ -1188,9 +1190,9 @@
     return FILTER_CONTROLS[column.filter ?? 'none'](column);
   }
 
-  var stylesheet$m = ".claude-plus-column-table__column-picker {\n  flex-shrink: 0;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n\ndetails.claude-plus-column-table__column-picker summary {\n  padding: 0;\n}\n\n.claude-plus-column-table__column-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  margin: 2px 10px 2px 0;\n  cursor: pointer;\n}\n\n.claude-plus-column-table__table {\n  width: 100%;\n  border-collapse: collapse;\n  font-size: 12px;\n}\n\n.claude-plus-column-table__table th {\n  text-align: left;\n  padding: 4px 6px;\n  color: var(--claude-plus-color-text-muted);\n  background: var(--claude-plus-color-raised);\n  position: sticky;\n  z-index: 1;\n  white-space: nowrap;\n  font-weight: 600;\n}\n\n.claude-plus-column-table__table thead tr:first-child th {\n  top: 0;\n}\n\n.claude-plus-column-table__filter-row th {\n  top: 24px;\n  padding-top: 0;\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\n  font-weight: normal;\n}\n\n.claude-plus-column-table__sortable {\n  cursor: pointer;\n  user-select: none;\n}\n\n.claude-plus-column-table__sortable:hover {\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-panel .claude-plus-column-table__filter-input {\n  display: block;\n  width: 100%;\n  min-width: 40px;\n  box-sizing: border-box;\n  padding: 2px 4px;\n  font-size: 11px;\n}\n\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\n  min-width: 0;\n  max-width: 112px;\n  padding: 1px 2px;\n  font-size: 10px;\n}\n\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\n  margin-top: 2px;\n}\n\n.claude-plus-column-table__cell {\n  padding: 4px 6px;\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\n  vertical-align: top;\n}\n\n.claude-plus-column-table__cell--name,\n.claude-plus-column-table__cell--title,\n.claude-plus-column-table__cell--match {\n  width: 100%;\n  max-width: 1px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-column-table__cell a {\n  color: var(--claude-plus-color-accent);\n  text-decoration: none;\n}\n\n.claude-plus-column-table__cell a:hover {\n  text-decoration: underline;\n}\n";
+  var stylesheet$n = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$m);
+  StyleRegistry.register(stylesheet$n);
 
   /**
    * A reusable table with toggleable columns, sorting by clicking a header (clicking again reverses
@@ -1582,9 +1584,9 @@
     return includesConversation ? [...columns, createConversationColumn()] : columns;
   }
 
-  var stylesheet$l = ".claude-plus-subpane {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-height: 0;\n  flex: 1;\n  padding: 6px;\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  background: var(--claude-plus-color-bar);\n}\n\n.claude-plus-subpane__header {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  flex-shrink: 0;\n}\n\n.claude-plus-subpane__title {\n  flex: 1;\n  min-width: 0;\n  font-size: 12px;\n  font-weight: 600;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.claude-plus-subpane__button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-faint);\n  cursor: pointer;\n  padding: 2px 5px;\n  border-radius: 4px;\n}\n\n.claude-plus-subpane__button:hover {\n  background: var(--claude-plus-color-hover);\n  color: var(--claude-plus-color-text);\n}\n";
+  var stylesheet$m = ".claude-plus-subpane {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  min-height: 0;\r\n  flex: 1;\r\n  padding: 6px;\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  background: var(--claude-plus-color-bar);\r\n}\r\n\r\n.claude-plus-subpane__header {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 2px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-subpane__title {\r\n  flex: 1;\r\n  min-width: 0;\r\n  font-size: 12px;\r\n  font-weight: 600;\r\n  white-space: nowrap;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-subpane__button {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 2px 5px;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-subpane__button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$l);
+  StyleRegistry.register(stylesheet$m);
 
   /**
    * A sub-pane inside a chat pane listing the web sources or files of that pane's conversation.
@@ -2078,9 +2080,9 @@
     }
   }
 
-  var stylesheet$k = ".claude-plus-image-viewer-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.8);\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 12px;\n}\n\n.claude-plus-image-viewer__frame {\n  max-width: 90vw;\n  max-height: 90vh;\n  overflow: hidden;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-image-viewer__image {\n  max-width: 90vw;\n  max-height: 90vh;\n  width: auto;\n  height: auto;\n  cursor: grab;\n  user-select: none;\n}\n\n.claude-plus-image-viewer__open-button {\n  flex-shrink: 0;\n}\n";
+  var stylesheet$l = ".claude-plus-image-viewer-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.8);\r\n  display: flex;\r\n  flex-direction: column;\r\n  align-items: center;\r\n  justify-content: center;\r\n  gap: 12px;\r\n}\r\n\r\n.claude-plus-image-viewer__frame {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  overflow: hidden;\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-image-viewer__image {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  width: auto;\r\n  height: auto;\r\n  cursor: grab;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-image-viewer__open-button {\r\n  flex-shrink: 0;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$k);
+  StyleRegistry.register(stylesheet$l);
 
   /**
    * Shows an image at full size over a dark backdrop, capped at 90% of the viewport. Scrolling zooms;
@@ -2286,9 +2288,9 @@
     }
   }
 
-  var stylesheet$j = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  align-self: flex-end;\n  text-align: right;\n}\n\n.claude-plus-message--human:not(.claude-plus-message--editing) {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__attachments {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message__bubble {\n  background: var(--claude-plus-color-message-human-bg);\n  border-radius: 14px;\n  padding: 8px 12px;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  font-family: var(--claude-plus-message-font-family, inherit);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 6px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
+  var stylesheet$k = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  align-self: flex-end;\n  text-align: right;\n}\n\n.claude-plus-message--human:not(.claude-plus-message--editing) {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__attachments {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message__bubble {\n  background: var(--claude-plus-color-message-human-bg);\n  border-radius: 14px;\n  padding: 8px 12px;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  font-family: var(--claude-plus-message-font-family, inherit);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 6px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n\n.claude-plus-message--highlighted {\n  outline: 2px solid var(--claude-plus-color-accent);\n  outline-offset: 4px;\n  border-radius: 14px;\n}\n";
 
-  StyleRegistry.register(stylesheet$j);
+  StyleRegistry.register(stylesheet$k);
 
   /**
    * The messages of a chat session: copy, retry, branch navigation between a message's edits and
@@ -2385,10 +2387,26 @@
       this.#updateScheduler.cancel();
       const wasAtBottom = this.#isScrolledToBottom();
       const messages = this.#session.messages;
-      const retryableIndex = this.#session.isSending ? -1 : messages.findLastIndex(message => message.sender === 'assistant');
+      const retryableIndex = this.#session.isSending || this.#session.isReadOnly ? -1 : messages.findLastIndex(message => message.sender === 'assistant');
       this.#listElement.innerHTML = messages.map((message, index) => this.#messageHtml(message, index, index === retryableIndex)).join('')
         || '<div class="claude-plus-empty-state claude-plus-empty-state--padded">Start a conversation using the message box below.</div>';
       this.#scrollToBottomIf(wasAtBottom);
+    }
+
+    /**
+     * Scrolls a message into view and briefly highlights it, if it's part of the branch shown; does
+     * nothing when it belongs to a different branch (an edit or retry from before this conversation
+     * was exported), rather than switching branches to find it.
+     * @param {string} messageId Message id.
+     * @returns {void}
+     */
+    scrollToMessage(messageId) {
+      const index = this.#session.messages.findIndex(message => message.id === messageId);
+      const element = index === -1 ? null : this.#listElement.querySelector(`[data-message-index="${index}"]`);
+      if (!element) return;
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('claude-plus-message--highlighted');
+      setTimeout(() => element.classList.remove('claude-plus-message--highlighted'), TIMING.messageHighlightMs);
       this.#focusEditInputIfEditing();
       this.#fillWidgetSlots();
     }
@@ -2530,8 +2548,7 @@
      */
     #actionsHtml(sender, message, offersRetry, branchInfo) {
       const branchNavHtml = branchInfo ? MessageListView.#branchNavHtml(branchInfo) : '';
-      const editButton = sender === 'human' && message.isPersisted
-        ? '<button class="claude-plus-message__action-button" data-action="startEdit" title="Edit and branch from here">✎</button>' : '';
+      const editButton = this.#editButtonHtml(sender, message);
       const retryButton = offersRetry ? '<button class="claude-plus-message__action-button" data-action="retry" title="Retry">🔁</button>' : '';
       const toolStepsButton = MessageListView.#toolStepsButtonHtml(message);
       return `
@@ -2542,6 +2559,26 @@
         ${retryButton}
         ${toolStepsButton}
       </div>`;
+    }
+
+    /**
+     * The edit-and-branch button, for a persisted human message in a conversation that isn't read-only.
+     * @param {'human'|'assistant'} sender The message's sender.
+     * @param {ChatMessage} message The message.
+     * @returns {string} The button, or an empty string when it doesn't apply.
+     */
+    #editButtonHtml(sender, message) {
+      return sender === 'human' && this.#isEditable(message)
+        ? '<button class="claude-plus-message__action-button" data-action="startEdit" title="Edit and branch from here">✎</button>' : '';
+    }
+
+    /**
+     * Whether a message can be edited: persisted, and not part of a read-only (imported) conversation.
+     * @param {?ChatMessage} message The message.
+     * @returns {boolean} True when it can be edited.
+     */
+    #isEditable(message) {
+      return Boolean(message?.isPersisted) && !this.#session.isReadOnly;
     }
 
     /**
@@ -2602,7 +2639,7 @@
       const container = event.target.closest('.claude-plus-message--human');
       if (!container) return;
       const index = MessageListView.#indexOf(container);
-      if (this.#session.messages[index]?.isPersisted) this.#startEdit(index);
+      if (this.#isEditable(this.#session.messages[index])) this.#startEdit(index);
     }
 
     /**
@@ -2746,9 +2783,9 @@
     }
   }
 
-  var stylesheet$i = ".claude-plus-tool-steps {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n\n.claude-plus-tool-step {\n  background: var(--claude-plus-color-tool-details);\n  border-radius: 6px;\n  padding: 6px 8px;\n  font-size: 12px;\n}\n\n.claude-plus-tool-step--error {\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-error);\n}\n\n.claude-plus-tool-step summary {\n  cursor: pointer;\n  font-weight: 600;\n}\n\n.claude-plus-tool-step__summaries {\n  margin: 6px 0 0;\n  padding-left: 18px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__field-label {\n  margin-top: 8px;\n  font-size: 11px;\n  font-weight: 600;\n  color: var(--claude-plus-color-text-faint);\n  text-transform: uppercase;\n  letter-spacing: 0.03em;\n}\n\n.claude-plus-tool-step__pre {\n  margin: 2px 0 0;\n  white-space: pre-wrap;\n  overflow-wrap: break-word;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__result-status {\n  margin-top: 8px;\n  font-weight: 600;\n}\n";
+  var stylesheet$j = ".claude-plus-tool-steps {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n\n.claude-plus-tool-step {\n  background: var(--claude-plus-color-tool-details);\n  border-radius: 6px;\n  padding: 6px 8px;\n  font-size: 12px;\n}\n\n.claude-plus-tool-step--error {\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-error);\n}\n\n.claude-plus-tool-step summary {\n  cursor: pointer;\n  font-weight: 600;\n}\n\n.claude-plus-tool-step__summaries {\n  margin: 6px 0 0;\n  padding-left: 18px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__field-label {\n  margin-top: 8px;\n  font-size: 11px;\n  font-weight: 600;\n  color: var(--claude-plus-color-text-faint);\n  text-transform: uppercase;\n  letter-spacing: 0.03em;\n}\n\n.claude-plus-tool-step__pre {\n  margin: 2px 0 0;\n  white-space: pre-wrap;\n  overflow-wrap: break-word;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__result-status {\n  margin-top: 8px;\n  font-weight: 600;\n}\n";
 
-  StyleRegistry.register(stylesheet$i);
+  StyleRegistry.register(stylesheet$j);
 
   /**
    * A sub-pane showing one message's thinking and tool-call steps, chronologically, each collapsed
@@ -3041,9 +3078,9 @@
     }
   }
 
-  var stylesheet$h = ".claude-plus-panel {\n  position: fixed;\n  z-index: var(--claude-plus-layer-panel);\n  box-sizing: border-box;\n  padding: 10px 12px;\n  overflow-y: auto;\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  font-size: 13px;\n  background: var(--claude-plus-color-background);\n}\n\n.claude-plus-panel summary {\n  cursor: pointer;\n  padding: 4px 0;\n}\n\n.claude-plus-panel select,\n.claude-plus-panel input[type=text],\n.claude-plus-panel input[type=date],\n.claude-plus-panel textarea {\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font-size: 12px;\n  font-family: inherit;\n}\n\n.claude-plus-panel__section {\n  padding: 8px 0;\n  border-bottom: 1px solid var(--claude-plus-color-hover);\n  flex-shrink: 0;\n}\n\n.claude-plus-panel__section:last-child {\n  border-bottom: none;\n}\n\n.claude-plus-spaced-above {\n  margin-top: 6px;\n}\n\n.claude-plus-hint {\n  color: var(--claude-plus-color-text-faint);\n  font-size: 11px;\n  margin-top: 4px;\n}\n\n.claude-plus-scrollable {\n  overflow-y: auto;\n}\n\n.claude-plus-fill-remaining {\n  flex: 1;\n  min-height: 0;\n}\n\n.claude-plus-pending {\n  opacity: 0.4;\n  pointer-events: none;\n}\n\n.claude-plus-primary-button {\n  padding: 8px;\n  background: var(--claude-plus-color-accent);\n  border: none;\n  border-radius: 6px;\n  color: #fff;\n  font-size: 13px;\n  cursor: pointer;\n  font-weight: 600;\n  flex-shrink: 0;\n}\n\n.claude-plus-primary-button:disabled {\n  opacity: 0.6;\n  cursor: default;\n}\n\n.claude-plus-full-width {\n  width: 100%;\n}\n\n.claude-plus-search-input {\n  flex-shrink: 0;\n  padding: 6px 8px;\n}\n";
+  var stylesheet$i = ".claude-plus-panel {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-panel);\r\n  box-sizing: border-box;\r\n  padding: 10px 12px;\r\n  overflow-y: auto;\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  font-size: 13px;\r\n  background: var(--claude-plus-color-background);\r\n}\r\n\r\n.claude-plus-panel summary {\r\n  cursor: pointer;\r\n  padding: 4px 0;\r\n}\r\n\r\n.claude-plus-panel select,\r\n.claude-plus-panel input[type=text],\r\n.claude-plus-panel input[type=date],\r\n.claude-plus-panel textarea {\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font-size: 12px;\r\n  font-family: inherit;\r\n}\r\n\r\n.claude-plus-panel__section {\r\n  padding: 8px 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-hover);\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-panel__section:last-child {\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-spaced-above {\r\n  margin-top: 6px;\r\n}\r\n\r\n.claude-plus-hint {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-size: 11px;\r\n  margin-top: 4px;\r\n}\r\n\r\n.claude-plus-scrollable {\r\n  overflow-y: auto;\r\n}\r\n\r\n.claude-plus-fill-remaining {\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-pending {\r\n  opacity: 0.4;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-primary-button {\r\n  padding: 8px;\r\n  background: var(--claude-plus-color-accent);\r\n  border: none;\r\n  border-radius: 6px;\r\n  color: #fff;\r\n  font-size: 13px;\r\n  cursor: pointer;\r\n  font-weight: 600;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-primary-button:disabled {\r\n  opacity: 0.6;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-full-width {\r\n  width: 100%;\r\n}\r\n\r\n.claude-plus-search-input {\r\n  flex-shrink: 0;\r\n  padding: 6px 8px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$h);
+  StyleRegistry.register(stylesheet$i);
 
   /**
    * A dockable panel. Its DOM is built on first access and immediately rendered from current state,
@@ -3192,9 +3229,9 @@
     }
   }
 
-  var stylesheet$g = ".claude-plus-panel--active-among-several {\n  border: 1px solid var(--claude-plus-color-active-chat);\n  border-top: none;\n}\n\n.claude-plus-panel--inactive-among-several {\n  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\n  border-top: none;\n}\n\n.claude-plus-chat-layout {\n  display: flex;\n  gap: 8px;\n  flex: 1;\n  min-height: 0;\n}\n\n.claude-plus-chat-layout__center {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  flex: 1;\n  min-width: 0;\n}\n\n.claude-plus-chat-layout__side {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  width: 300px;\n  flex-shrink: 0;\n  min-height: 0;\n}\n\n.claude-plus-chat-layout__top {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  flex-shrink: 0;\n}\n\n.claude-plus-chat-layout__side:empty,\n.claude-plus-chat-layout__top:empty {\n  display: none;\n}\n\n.claude-plus-chat-layout__top .claude-plus-subpane {\n  height: 200px;\n  flex: none;\n}\n";
+  var stylesheet$h = ".claude-plus-panel--active-among-several {\r\n  border: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-panel--inactive-among-several {\r\n  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$g);
+  StyleRegistry.register(stylesheet$h);
 
   /**
    * A chat pane: one session's messages, plus optional sub-panes listing the conversation's files
@@ -3347,6 +3384,15 @@
     render() {
       this.#renderFocus();
       this.#messageListView.render();
+    }
+
+    /**
+     * Scrolls a message into view and briefly highlights it, if it's part of the branch shown.
+     * @param {string} messageId Message id.
+     * @returns {void}
+     */
+    scrollToMessage(messageId) {
+      this.#messageListView.scrollToMessage(messageId);
     }
 
     /**
@@ -3689,9 +3735,9 @@
    */
   const ATTACHMENT_NAME_FIELDS = Object.freeze(['file_name', 'name', 'filename', 'title']);
 
-  var stylesheet$f = ".claude-plus-code-block {\n  background: var(--claude-plus-color-code-block);\n  padding: 8px;\n  border-radius: 6px;\n  overflow-x: auto;\n  font-size: 12px;\n}\n";
+  var stylesheet$g = ".claude-plus-code-block {\r\n  background: var(--claude-plus-color-code-block);\r\n  padding: 8px;\r\n  border-radius: 6px;\r\n  overflow-x: auto;\r\n  font-size: 12px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$f);
+  StyleRegistry.register(stylesheet$g);
 
   /**
    * Minimal markdown renderer: fenced code blocks, inline code, bold, italic and http(s) links.
@@ -3754,9 +3800,9 @@
     }
   }
 
-  var stylesheet$e = ".claude-plus-message-text {\n  white-space: normal;\n}\n\n.claude-plus-message-text a {\n  color: var(--claude-plus-color-accent);\n}\n\n.claude-plus-message-attachment {\n  color: var(--claude-plus-color-text-muted);\n  font-size: 12px;\n  margin-bottom: 4px;\n}\n\n.claude-plus-message-images {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message-images {\n  justify-content: flex-end;\n}\n\n.claude-plus-message-image {\n  display: block;\n  max-height: 300px;\n  max-width: 100%;\n  border-radius: 8px;\n  cursor: zoom-in;\n}\n\n.claude-plus-artifact-frame {\n  display: block;\n  width: 100%;\n  min-height: 400px;\n  border: 1px solid var(--claude-plus-color-border);\n  border-radius: 8px;\n}\n\n";
+  var stylesheet$f = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-images {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  margin-bottom: 6px;\r\n}\r\n\r\n.claude-plus-message--human .claude-plus-message-images {\r\n  justify-content: flex-end;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n.claude-plus-artifact-frame {\r\n  display: block;\r\n  width: 100%;\r\n  min-height: 400px;\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  border-radius: 8px;\r\n}\r\n\r\n";
 
-  StyleRegistry.register(stylesheet$e);
+  StyleRegistry.register(stylesheet$f);
 
   /**
    * Reads text, uploads and renderable HTML from API messages. Thinking and ordinary tool-call
@@ -4273,7 +4319,7 @@
       try {
         const conversation = await this.#api.getConversation(conversationId);
         this.#directory.updateListing(conversation);
-        this.#publish('conversationLoaded', conversation);
+        this.#publish('conversationLoaded', { conversation, isImported: false });
         if (replaceMessages && this.#state.isOpenAndIdle(conversationId)) this.#state.showBranchOf(conversation);
       } catch (error) {
         console.warn(LOG_PREFIX, 'refreshing conversation failed', error);
@@ -4733,7 +4779,7 @@
     showConversation(conversation, isImported) {
       this.#isImported = isImported;
       this.showBranchOf(conversation);
-      this.#publish('conversationLoaded', conversation);
+      this.#publish('conversationLoaded', { conversation, isImported });
     }
 
     /**
@@ -4805,7 +4851,7 @@
    * @fires ChatSession#messages The message list changed.
    * @fires ChatSession#messageContent One message's content changed; payload is the ChatMessage.
    * @fires ChatSession#sending Sending started or ended.
-   * @fires ChatSession#conversationLoaded A conversation was fetched; payload is the ApiConversation.
+   * @fires ChatSession#conversationLoaded A conversation was fetched; payload is {conversation: ApiConversation, isImported: boolean}.
    * @fires ChatSession#rateLimits Usage windows arrived in a stream; payload is RateLimits.
    */
   class ChatSession extends EventEmitter {
@@ -5049,7 +5095,7 @@
       const session = new ChatSession(api, settings, directory, importedConversations);
       const panel = new ChatPanel({ paneId, session, directory, paneManager: this.#paneManager, stats, preferences, widgetExtractor });
       session.subscribe('openConversation', () => this.#onPaneConversationChanged(paneId));
-      session.subscribe('conversationLoaded', conversation => this.#paneManager.publish('conversationLoaded', conversation));
+      session.subscribe('conversationLoaded', payload => this.#paneManager.publish('conversationLoaded', payload));
       session.subscribe('rateLimits', limits => this.#paneManager.publish('rateLimits', limits));
       return { session, panel };
     }
@@ -5184,7 +5230,7 @@
    * each one shows. The focused pane is the one the sidebar, the URL and the export act on.
    * @fires ChatPaneManager#focus The focused pane changed.
    * @fires ChatPaneManager#paneConversations A pane opened another conversation; payload is the pane id.
-   * @fires ChatPaneManager#conversationLoaded A pane fetched a conversation; payload is the ApiConversation.
+   * @fires ChatPaneManager#conversationLoaded A pane fetched a conversation; payload is {conversation: ApiConversation, isImported: boolean}.
    * @fires ChatPaneManager#rateLimits A pane received usage windows; payload is RateLimits.
    * @fires ChatPaneManager#visiblePanes Whether more than one chat pane is visible changed.
    */
@@ -5987,11 +6033,22 @@
       this.#effortSelect.value = this.#settings.effort;
       this.#thinkingCheckbox.checked = this.#settings.thinkingMode === THINKING_MODES.extended;
     }
+
+    /**
+     * Disables or re-enables every control, for a read-only chat with no model to reply to.
+     * @param {boolean} isDisabled Whether to disable them.
+     * @returns {void}
+     */
+    setDisabled(isDisabled) {
+      this.#modelSelect.disabled = isDisabled;
+      this.#effortSelect.disabled = isDisabled;
+      this.#thinkingCheckbox.disabled = isDisabled;
+    }
   }
 
-  var stylesheet$d = ".claude-plus-dialog-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  max-width: 360px;\n  font-size: 13px;\n}\n\n.claude-plus-dialog__message {\n  margin: 0 0 14px;\n  line-height: 1.4;\n}\n\n.claude-plus-dialog__input {\n  width: 100%;\n  box-sizing: border-box;\n  margin: 0 0 14px;\n  padding: 6px 8px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font: inherit;\n}\n\n.claude-plus-dialog__actions {\n  display: flex;\n  justify-content: flex-end;\n  gap: 8px;\n}\n";
+  var stylesheet$e = ".claude-plus-dialog-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.5);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-dialog {\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 8px;\r\n  padding: 16px;\r\n  max-width: 360px;\r\n  font-size: 13px;\r\n}\r\n\r\n.claude-plus-dialog__message {\r\n  margin: 0 0 14px;\r\n  line-height: 1.4;\r\n}\r\n\r\n.claude-plus-dialog__input {\r\n  width: 100%;\r\n  box-sizing: border-box;\r\n  margin: 0 0 14px;\r\n  padding: 6px 8px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font: inherit;\r\n}\r\n\r\n.claude-plus-dialog__actions {\r\n  display: flex;\r\n  justify-content: flex-end;\r\n  gap: 8px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$d);
+  StyleRegistry.register(stylesheet$e);
 
   /**
    * A small themed dialog box with a message, an optional body and a row of action buttons. It
@@ -6502,9 +6559,9 @@
     }
   }
 
-  var stylesheet$c = ".claude-plus-popup-menu {\n  position: fixed;\n  z-index: var(--claude-plus-layer-popup-menu);\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  padding: 4px;\n  min-width: 140px;\n  font-size: 12px;\n}\n\n.claude-plus-popup-menu__entry {\n  padding: 6px 10px;\n  cursor: pointer;\n  border-radius: 4px;\n}\n\n.claude-plus-popup-menu__entry:hover {\n  background: var(--claude-plus-color-raised-hover);\n}\n";
+  var stylesheet$d = ".claude-plus-popup-menu {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  min-width: 140px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry {\r\n  padding: 6px 10px;\r\n  cursor: pointer;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$c);
+  StyleRegistry.register(stylesheet$d);
 
   /**
    * A small menu at the pointer that closes on selection or on a press outside it.
@@ -6649,9 +6706,9 @@
     }
   }
 
-  var stylesheet$b = ".claude-plus-staged-files {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  padding: 3px 4px 3px 3px;\n  font-size: 12px;\n  max-width: 200px;\n}\n\n.claude-plus-staged-file--uploading {\n  opacity: 0.6;\n}\n\n.claude-plus-staged-file__thumb {\n  width: 20px;\n  height: 20px;\n  border-radius: 4px;\n  object-fit: cover;\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file__icon {\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file__name {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-staged-file__remove {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-faint);\n  cursor: pointer;\n  padding: 0 2px;\n  border-radius: 4px;\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file__remove:hover {\n  background: var(--claude-plus-color-hover);\n  color: var(--claude-plus-color-text);\n}\n";
+  var stylesheet$c = ".claude-plus-staged-files {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 3px 4px 3px 3px;\r\n  font-size: 12px;\r\n  max-width: 200px;\r\n}\r\n\r\n.claude-plus-staged-file--uploading {\r\n  opacity: 0.6;\r\n}\r\n\r\n.claude-plus-staged-file__thumb {\r\n  width: 20px;\r\n  height: 20px;\r\n  border-radius: 4px;\r\n  object-fit: cover;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__icon {\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__name {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-staged-file__remove {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 0 2px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__remove:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$b);
+  StyleRegistry.register(stylesheet$c);
 
   /**
    * The files attached to the next prompt, shown as removable chips. Each file is uploaded as soon
@@ -6791,9 +6848,9 @@
     }
   }
 
-  var stylesheet$a = ".claude-plus-composer__options {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n  align-items: center;\n  flex-shrink: 0;\n}\n\n.claude-plus-composer__options select {\n  padding: 4px 6px;\n}\n\n.claude-plus-composer__thinking-toggle {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n}\n\n.claude-plus-panel .claude-plus-composer__input {\n  flex: 1;\n  resize: none;\n  min-height: 40px;\n  border-radius: 8px;\n  padding: 8px;\n  font-size: 14px;\n}\n\n.claude-plus-primary-button.claude-plus-composer__stop-button {\n  flex-shrink: 0;\n  background: var(--claude-plus-color-button-hover);\n}\n\n.claude-plus-composer__readonly-notice {\n  padding: 8px;\n  font-size: 13px;\n  color: var(--claude-plus-color-text-muted);\n  font-style: italic;\n}\n";
+  var stylesheet$b = ".claude-plus-composer__options {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 8px;\r\n  align-items: center;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-composer__options select {\r\n  padding: 4px 6px;\r\n}\r\n\r\n.claude-plus-composer__thinking-toggle {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-panel .claude-plus-composer__input {\r\n  flex: 1;\r\n  resize: none;\r\n  min-height: 40px;\r\n  border-radius: 8px;\r\n  padding: 8px;\r\n  font-size: 14px;\r\n}\r\n\r\n.claude-plus-primary-button.claude-plus-composer__stop-button {\r\n  flex-shrink: 0;\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-composer__readonly-notice {\r\n  padding: 8px;\r\n  font-size: 13px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-style: italic;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$a);
+  StyleRegistry.register(stylesheet$b);
 
   /**
    * The single message composer. It always targets the active chat (the focused chat pane) and can
@@ -6926,16 +6983,17 @@
     /**
      * Shows Stop only while the active chat streams a reply, enables export only for a saved
      * conversation, shows the files/sources buttons only when the active chat has any, and replaces
-     * the whole input area with a read-only notice for an imported chat.
+     * just the send box (not the whole toolbar) with a read-only notice for an imported chat, whose
+     * model/effort/thinking choosers are disabled rather than hidden since there's nothing to send.
      * @returns {void}
      */
     render() {
       const session = this.#paneManager.focusedSession;
-      const { optionsRow, promptInput, stopButton, readonlyNotice, filesButton, sourcesButton } = this.elements;
-      optionsRow.hidden = session.isReadOnly;
+      const { promptInput, stopButton, readonlyNotice, filesButton, sourcesButton } = this.elements;
       promptInput.hidden = session.isReadOnly;
       readonlyNotice.hidden = !session.isReadOnly;
       stopButton.hidden = session.isReadOnly || !session.isSending;
+      this.#optionsView.setDisabled(session.isReadOnly);
       this.#exportButton.setEnabled(Boolean(session.openConversationId));
       filesButton.hidden = !this.#activeChatHas('folders');
       sourcesButton.hidden = !this.#activeChatHas('sources');
@@ -7948,9 +8006,9 @@
     Object.assign(element.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
   }
 
-  var stylesheet$9 = "html.claude-plus-resizing-horizontally,\nhtml.claude-plus-resizing-horizontally * {\n  cursor: col-resize !important;\n  user-select: none;\n}\n\nhtml.claude-plus-resizing-vertically,\nhtml.claude-plus-resizing-vertically * {\n  cursor: row-resize !important;\n  user-select: none;\n}\n\n.claude-plus-divider-layer {\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  z-index: var(--claude-plus-layer-divider);\n}\n\n.claude-plus-divider {\n  position: fixed;\n  pointer-events: auto;\n  background: transparent;\n}\n\n.claude-plus-divider--vertical {\n  cursor: col-resize;\n}\n\n.claude-plus-divider--horizontal {\n  cursor: row-resize;\n}\n\n.claude-plus-divider:hover {\n  background: var(--claude-plus-color-accent);\n}\n";
+  var stylesheet$a = "html.claude-plus-resizing-horizontally,\r\nhtml.claude-plus-resizing-horizontally * {\r\n  cursor: col-resize !important;\r\n  user-select: none;\r\n}\r\n\r\nhtml.claude-plus-resizing-vertically,\r\nhtml.claude-plus-resizing-vertically * {\r\n  cursor: row-resize !important;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-divider-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-divider);\r\n}\r\n\r\n.claude-plus-divider {\r\n  position: fixed;\r\n  pointer-events: auto;\r\n  background: transparent;\r\n}\r\n\r\n.claude-plus-divider--vertical {\r\n  cursor: col-resize;\r\n}\r\n\r\n.claude-plus-divider--horizontal {\r\n  cursor: row-resize;\r\n}\r\n\r\n.claude-plus-divider:hover {\r\n  background: var(--claude-plus-color-accent);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$9);
+  StyleRegistry.register(stylesheet$a);
 
   /**
    * Draws the dividers between split children on a layer above the panels, so they can be grabbed
@@ -8180,9 +8238,9 @@
     }
   }
 
-  var stylesheet$8 = ".claude-plus-drop-highlight[hidden] {\n  display: none !important;\n}\n\n.claude-plus-drag-label {\n  position: fixed;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n  padding: 4px 10px;\n  border-radius: 6px;\n  font-size: 12px;\n  pointer-events: none;\n}\n\n.claude-plus-drop-highlight {\n  position: fixed;\n  z-index: var(--claude-plus-layer-drop-highlight);\n  background: var(--claude-plus-color-accent-overlay);\n  border: 2px solid var(--claude-plus-color-accent);\n  pointer-events: none;\n  box-sizing: border-box;\n}\n";
+  var stylesheet$9 = ".claude-plus-drop-highlight[hidden] {\r\n  display: none !important;\r\n}\r\n\r\n.claude-plus-drag-label {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: var(--claude-plus-color-accent);\r\n  color: #fff;\r\n  padding: 4px 10px;\r\n  border-radius: 6px;\r\n  font-size: 12px;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-drop-highlight {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drop-highlight);\r\n  background: var(--claude-plus-color-accent-overlay);\r\n  border: 2px solid var(--claude-plus-color-accent);\r\n  pointer-events: none;\r\n  box-sizing: border-box;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$8);
+  StyleRegistry.register(stylesheet$9);
 
   /**
    * One drag of something to dock, a tab or a not yet existing panel: a floating label follows the
@@ -8389,9 +8447,9 @@
     }
   }
 
-  var stylesheet$7 = ".claude-plus-zone-chrome-layer {\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  z-index: var(--claude-plus-layer-zone-chrome);\n}\n\n.claude-plus-zone-frame {\n  position: fixed;\n  background: var(--claude-plus-color-background);\n  border: 1px solid var(--claude-plus-color-border);\n  box-sizing: border-box;\n}\n\n.claude-plus-tab-strip {\n  position: fixed;\n  display: flex;\n  align-items: center;\n  background: var(--claude-plus-color-bar);\n  overflow-x: auto;\n  overflow-y: hidden;\n  box-sizing: border-box;\n  pointer-events: auto;\n}\n\n/*\n * The strip itself carries no border-bottom: a child can never paint over a pixel that belongs to\n * its parent's own border (borders live outside the content-box children are confined to), so a\n * gap in the strip's own border could never actually open under a child. Instead, every element\n * in the strip - each tab, the \"+\" button, the trailing filler - draws this same 1px line itself,\n * all sized to the identical height below so their lines stay pixel-aligned with each other. Only\n * the active tab of a bordered zone omits its own line, which is a real gap since nothing else\n * occupies that stretch, rather than something painted over.\n */\n.claude-plus-tab {\n  height: var(--claude-plus-tab-strip-height);\n  padding: 5px 12px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  white-space: nowrap;\n  border-right: 1px solid var(--claude-plus-color-border-faint);\n  box-sizing: border-box;\n  user-select: none;\n}\n\n.claude-plus-tab-strip__border--neutral {\n  border-bottom: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-tab-strip__border--active {\n  border-bottom: 1px solid var(--claude-plus-color-active-chat);\n}\n\n.claude-plus-tab-strip__border--inactive {\n  border-bottom: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\n}\n\n.claude-plus-tab--active {\n  color: var(--claude-plus-color-text);\n  border-bottom: 2px solid var(--claude-plus-color-accent);\n}\n\n.claude-plus-tab--active.claude-plus-tab--border-active {\n  border-left: 1px solid var(--claude-plus-color-active-chat);\n  border-top: 1px solid var(--claude-plus-color-active-chat);\n  border-right: 1px solid var(--claude-plus-color-active-chat);\n  border-bottom: none;\n  border-top-left-radius: 6px;\n  border-top-right-radius: 6px;\n}\n\n.claude-plus-tab--active.claude-plus-tab--border-inactive {\n  border-left: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\n  border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\n  border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\n  border-bottom: none;\n  border-top-left-radius: 6px;\n  border-top-right-radius: 6px;\n}\n\n.claude-plus-tab {\n  display: flex;\n  align-items: center;\n  min-width: 0;\n  max-width: 220px;\n}\n\n.claude-plus-tab__label {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-tab--chat .claude-plus-tab__label {\n  font-weight: 600;\n}\n\n.claude-plus-tab__close-button {\n  flex-shrink: 0;\n  margin-left: 8px;\n  padding: 0 3px;\n  border-radius: 3px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-tab__close-button:hover {\n  background: var(--claude-plus-color-hover);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-tab-strip__add-button {\n  height: var(--claude-plus-tab-strip-height);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 5px 10px;\n  cursor: pointer;\n  color: var(--claude-plus-color-text-faint);\n  box-sizing: border-box;\n  user-select: none;\n}\n\n.claude-plus-tab-strip__add-button:hover {\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-tab-strip__filler {\n  height: var(--claude-plus-tab-strip-height);\n  flex: 1;\n  box-sizing: border-box;\n}\n\n.claude-plus-table-host {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  flex: 1;\n  min-height: 0;\n}\n";
+  var stylesheet$8 = ".claude-plus-zone-chrome-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-zone-chrome);\r\n}\r\n\r\n.claude-plus-zone-frame {\r\n  position: fixed;\r\n  background: var(--claude-plus-color-background);\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-tab-strip {\r\n  position: fixed;\r\n  display: flex;\r\n  align-items: center;\r\n  background: var(--claude-plus-color-bar);\r\n  overflow-x: auto;\r\n  overflow-y: hidden;\r\n  box-sizing: border-box;\r\n  pointer-events: auto;\r\n}\r\n\r\n/*\r\n * The strip itself carries no border-bottom: a child can never paint over a pixel that belongs to\r\n * its parent's own border (borders live outside the content-box children are confined to), so a\r\n * gap in the strip's own border could never actually open under a child. Instead, every element\r\n * in the strip - each tab, the \"+\" button, the trailing filler - draws this same 1px line itself,\r\n * all sized to the identical height below so their lines stay pixel-aligned with each other. Only\r\n * the active tab of a bordered zone omits its own line, which is a real gap since nothing else\r\n * occupies that stretch, rather than something painted over.\r\n */\r\n.claude-plus-tab {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  padding: 5px 12px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n  border-right: 1px solid var(--claude-plus-color-border-faint);\r\n  box-sizing: border-box;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__border--neutral {\r\n  border-bottom: 1px solid var(--claude-plus-color-border);\r\n}\r\n\r\n.claude-plus-tab-strip__border--active {\r\n  border-bottom: 1px solid var(--claude-plus-color-active-chat);\r\n}\r\n\r\n.claude-plus-tab-strip__border--inactive {\r\n  border-bottom: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n}\r\n\r\n.claude-plus-tab--active {\r\n  color: var(--claude-plus-color-text);\r\n  border-bottom: 2px solid var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-active {\r\n  border-left: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: 1px solid var(--claude-plus-color-active-chat);\r\n  border-right: 1px solid var(--claude-plus-color-active-chat);\r\n  border-bottom: none;\r\n  border-top-left-radius: 6px;\r\n  border-top-right-radius: 6px;\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-inactive {\r\n  border-left: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-bottom: none;\r\n  border-top-left-radius: 6px;\r\n  border-top-right-radius: 6px;\r\n}\r\n\r\n.claude-plus-tab {\r\n  display: flex;\r\n  align-items: center;\r\n  min-width: 0;\r\n  max-width: 220px;\r\n}\r\n\r\n.claude-plus-tab__label {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-tab--chat .claude-plus-tab__label {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-tab__close-button {\r\n  flex-shrink: 0;\r\n  margin-left: 8px;\r\n  padding: 0 3px;\r\n  border-radius: 3px;\r\n  color: var(--claude-plus-color-text-faint);\r\n}\r\n\r\n.claude-plus-tab__close-button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__add-button {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n  padding: 5px 10px;\r\n  cursor: pointer;\r\n  color: var(--claude-plus-color-text-faint);\r\n  box-sizing: border-box;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__add-button:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__filler {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  flex: 1;\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-table-host {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$7);
+  StyleRegistry.register(stylesheet$8);
 
   /**
    * Draws each zone's frame and tab strip on a layer below the panels. A tab shows its panel's
@@ -8956,7 +9014,7 @@
      * @param {object} rawConversation A conversations.json entry.
      * @param {Map<string, {html: string}>} artifactsById Imported Artifact content, by artifact id;
      * empty when the frames file wasn't provided.
-     * @returns {{conversationId: string, title: string, messages: ApiMessage[], hasReadableContent: boolean}}
+     * @returns {{conversationId: string, title: string, updatedAt: string, messages: ApiMessage[], hasReadableContent: boolean}}
      * The mapped conversation. hasReadableContent is false for a conversation with no messages, or
      * where not one message has any plain text to show (e.g. a deleted or never-really-started chat
      * an export still lists) - real, importable data, just nothing a picker UI should bother a human
@@ -8967,6 +9025,7 @@
       return {
         conversationId: rawConversation.uuid,
         title: rawConversation.name,
+        updatedAt: rawConversation.updated_at,
         messages,
         hasReadableContent: messages.some(message => MessageContent.plainText(message).trim().length > 0),
       };
@@ -9256,16 +9315,16 @@
     /**
      * Merges a newly mapped conversation into what's already stored.
      * @param {?ImportedConversationRecord} storedRecord The stored record, or null when not seen before.
-     * @param {{conversationId: string, title: string, messages: ApiMessage[]}} mapped The newly mapped conversation.
+     * @param {{conversationId: string, title: string, updatedAt: string, messages: ApiMessage[]}} mapped The newly mapped conversation.
      * @param {string} importedAt ISO timestamp of this import.
      * @returns {?ImportedConversationRecord} The record to write, or null when nothing changed.
      */
     static mergeConversation(storedRecord, mapped, importedAt) {
       const classification = ImportMerger.classifyConversation(storedRecord, mapped);
       if (classification === 'unchanged') return null;
-      if (classification === 'renamedOnly') return { ...storedRecord, title: mapped.title, lastImportedAt: importedAt };
+      if (classification === 'renamedOnly') return { ...storedRecord, title: mapped.title, updatedAt: mapped.updatedAt, lastImportedAt: importedAt };
       const messages = classification === 'new' ? mapped.messages : ImportMerger.#addedMessages(storedRecord, mapped);
-      return { conversationId: mapped.conversationId, title: mapped.title, messages, currentLeafId: ImportMerger.defaultLeafOf(messages), lastImportedAt: importedAt };
+      return { conversationId: mapped.conversationId, title: mapped.title, updatedAt: mapped.updatedAt, messages, currentLeafId: ImportMerger.defaultLeafOf(messages), lastImportedAt: importedAt };
     }
 
     /**
@@ -9390,6 +9449,81 @@
      */
     static mergeLoginEvent(storedRecord, parsed) {
       return storedRecord ? null : parsed;
+    }
+  }
+
+  /**
+   * Persisted imported conversations, read as the app's own conversation shape so they load through
+   * the same pipeline as a live fetch, and listed alongside live conversations in the directory.
+   */
+  class ImportedConversationStore {
+    /**
+     * Backing storage.
+     * @type {IndexedDbStore}
+     */
+    #database;
+
+    /**
+     * Creates the store on top of the shared database.
+     * @param {IndexedDbStore} database Backing storage.
+     */
+    constructor(database) {
+      this.#database = database;
+    }
+
+    /**
+     * An imported conversation, ready to render.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<?ApiConversation>} The conversation, or null when it isn't an imported one.
+     */
+    async get(conversationId) {
+      const record = await this.getRecord(conversationId);
+      return record ? ImportedConversationStore.toApiConversation(record) : null;
+    }
+
+    /**
+     * A conversation's stored record, for merging a newly imported export against it.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<?ImportedConversationRecord>} The record, or undefined when not imported yet.
+     */
+    getRecord(conversationId) {
+      return this.#database.read(DATABASE.stores.importedConversations, conversationId);
+    }
+
+    /**
+     * Listings of every imported conversation, for merging into the directory.
+     * @returns {Promise<ConversationListing[]>} The listings, each tagged isImported.
+     */
+    async listings() {
+      const records = await this.#database.readAll(DATABASE.stores.importedConversations);
+      return records.map(record => ({ uuid: record.conversationId, name: record.title, updated_at: record.updatedAt, isImported: true }));
+    }
+
+    /**
+     * Stores a merged conversation record.
+     * @param {ImportedConversationRecord} record The record.
+     * @returns {Promise<void>} Resolves once written.
+     */
+    write(record) {
+      return this.#database.write(DATABASE.stores.importedConversations, record);
+    }
+
+    /**
+     * Removes an imported conversation from the local store.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<void>} Resolves once removed.
+     */
+    remove(conversationId) {
+      return this.#database.remove(DATABASE.stores.importedConversations, conversationId);
+    }
+
+    /**
+     * A stored record as the app's own conversation shape, for rendering or re-indexing.
+     * @param {ImportedConversationRecord} record The record.
+     * @returns {ApiConversation} The conversation.
+     */
+    static toApiConversation(record) {
+      return { uuid: record.conversationId, name: record.title, updated_at: record.updatedAt, current_leaf_message_uuid: record.currentLeafId, chat_messages: record.messages };
     }
   }
 
@@ -9592,13 +9726,21 @@
     #conversationStore;
 
     /**
+     * Conversation statistics, indexed for every written conversation as the last import step.
+     * @type {StatsIndex}
+     */
+    #stats;
+
+    /**
      * Creates the orchestrator.
      * @param {IndexedDbStore} database Backing storage.
      * @param {ImportedConversationStore} conversationStore Imported conversations.
+     * @param {StatsIndex} stats Conversation statistics, indexed for every written conversation.
      */
-    constructor(database, conversationStore) {
+    constructor(database, conversationStore, stats) {
       this.#database = database;
       this.#conversationStore = conversationStore;
+      this.#stats = stats;
     }
 
     /**
@@ -9706,7 +9848,8 @@
     }
 
     /**
-     * Streams every conversation again, writing only the ones selected from the preview.
+     * Streams every conversation again, writing only the ones selected from the preview, then indexes
+     * every one that was written in a single batch so its date and turn count are correct right away.
      * @param {File} conversationsFile The conversations.json file.
      * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
      * @param {Set<string>} selectedConversationIds Ids of the conversations to write.
@@ -9717,32 +9860,39 @@
      */
     async #applyConversations(conversationsFile, artifactsById, selectedConversationIds, importedAt, onProgress) {
       const tally = { new: 0, changed: 0, renamedOnly: 0, unchanged: 0, failed: 0 };
+      const indexable = [];
       let processed = 0;
       for await (const rawConversation of StreamingJsonArrayReader.readArray(conversationsFile)) {
-        if (selectedConversationIds.has(rawConversation.uuid)) await this.#applyOneConversation(rawConversation, artifactsById, importedAt, tally);
+        if (selectedConversationIds.has(rawConversation.uuid)) await this.#applyOneConversation(rawConversation, artifactsById, importedAt, tally, indexable);
         processed += 1;
         await ImportOrchestrator.#reportProgressIfDue(processed, onProgress);
       }
       onProgress?.(processed);
+      await this.#stats.indexConversationsBatch(indexable);
       return tally;
     }
 
     /**
-     * Maps, classifies and merges one selected conversation, tallying its classification.
+     * Maps, classifies and merges one selected conversation, tallying its classification and queuing
+     * it for indexing when it was actually written.
      * @param {object} rawConversation A conversations.json entry.
      * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
      * @param {string} importedAt ISO timestamp of this import.
      * @param {{new: number, changed: number, renamedOnly: number, unchanged: number, failed: number}} tally Counts to update.
+     * @param {ApiConversation[]} indexable Written conversations to index, appended to in place.
      * @returns {Promise<void>} Resolves once written, if anything changed; a failure is logged and
      * tallied rather than thrown, so it doesn't stop the rest of the selected conversations from importing.
      */
-    async #applyOneConversation(rawConversation, artifactsById, importedAt, tally) {
+    async #applyOneConversation(rawConversation, artifactsById, importedAt, tally, indexable) {
       try {
         const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
         const stored = await this.#conversationStore.getRecord(mapped.conversationId);
         tally[ImportMerger.classifyConversation(stored, mapped)] += 1;
         const merged = ImportMerger.mergeConversation(stored, mapped, importedAt);
-        if (merged) await this.#conversationStore.write(merged);
+        if (merged) {
+          await this.#conversationStore.write(merged);
+          indexable.push(ImportedConversationStore.toApiConversation(merged));
+        }
       } catch (error) {
         tally.failed += 1;
         console.warn(LOG_PREFIX, 'skipping a conversation that failed to import', rawConversation?.uuid, error);
@@ -9805,81 +9955,6 @@
       if (processed % ImportOrchestrator.#YIELD_EVERY !== 0) return;
       onProgress?.(processed);
       await new Promise(resolve => setTimeout(resolve, 0));
-    }
-  }
-
-  /**
-   * Persisted imported conversations, read as the app's own conversation shape so they load through
-   * the same pipeline as a live fetch, and listed alongside live conversations in the directory.
-   */
-  class ImportedConversationStore {
-    /**
-     * Backing storage.
-     * @type {IndexedDbStore}
-     */
-    #database;
-
-    /**
-     * Creates the store on top of the shared database.
-     * @param {IndexedDbStore} database Backing storage.
-     */
-    constructor(database) {
-      this.#database = database;
-    }
-
-    /**
-     * An imported conversation, ready to render.
-     * @param {string} conversationId Conversation id.
-     * @returns {Promise<?ApiConversation>} The conversation, or null when it isn't an imported one.
-     */
-    async get(conversationId) {
-      const record = await this.getRecord(conversationId);
-      return record ? ImportedConversationStore.#toApiConversation(record) : null;
-    }
-
-    /**
-     * A conversation's stored record, for merging a newly imported export against it.
-     * @param {string} conversationId Conversation id.
-     * @returns {Promise<?ImportedConversationRecord>} The record, or undefined when not imported yet.
-     */
-    getRecord(conversationId) {
-      return this.#database.read(DATABASE.stores.importedConversations, conversationId);
-    }
-
-    /**
-     * Listings of every imported conversation, for merging into the directory.
-     * @returns {Promise<ConversationListing[]>} The listings, each tagged isImported.
-     */
-    async listings() {
-      const records = await this.#database.readAll(DATABASE.stores.importedConversations);
-      return records.map(record => ({ uuid: record.conversationId, name: record.title, updated_at: record.lastImportedAt, isImported: true }));
-    }
-
-    /**
-     * Stores a merged conversation record.
-     * @param {ImportedConversationRecord} record The record.
-     * @returns {Promise<void>} Resolves once written.
-     */
-    write(record) {
-      return this.#database.write(DATABASE.stores.importedConversations, record);
-    }
-
-    /**
-     * Removes an imported conversation from the local store.
-     * @param {string} conversationId Conversation id.
-     * @returns {Promise<void>} Resolves once removed.
-     */
-    remove(conversationId) {
-      return this.#database.remove(DATABASE.stores.importedConversations, conversationId);
-    }
-
-    /**
-     * A stored record as the app's own conversation shape.
-     * @param {ImportedConversationRecord} record The record.
-     * @returns {ApiConversation} The conversation.
-     */
-    static #toApiConversation(record) {
-      return { uuid: record.conversationId, name: record.title, updated_at: record.lastImportedAt, current_leaf_message_uuid: record.currentLeafId, chat_messages: record.messages };
     }
   }
 
@@ -10112,6 +10187,15 @@
     static updatedAt(listing) {
       return listing.updated_at;
     }
+
+    /**
+     * Whether a listing came from an imported data export rather than the live API.
+     * @param {ConversationListing} listing The listing.
+     * @returns {boolean} True for an imported conversation.
+     */
+    static isImported(listing) {
+      return Boolean(listing.isImported);
+    }
   }
 
   /**
@@ -10124,9 +10208,9 @@
     return epochMs ? new Date(epochMs).toLocaleDateString() : '';
   }
 
-  var stylesheet$6 = ".claude-plus-conversation:hover .claude-plus-conversation__action-button {\n  visibility: visible;\n}\n\n.claude-plus-conversation {\n  cursor: pointer;\n}\n\n.claude-plus-conversation:hover > td {\n  background: var(--claude-plus-color-hover);\n}\n\n.claude-plus-conversation--active > td {\n  background: var(--claude-plus-color-accent-soft);\n}\n\n.claude-plus-conversation--open-elsewhere > td:first-child {\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);\n}\n\n.claude-plus-conversation__actions {\n  display: inline-flex;\n  white-space: nowrap;\n}\n\n.claude-plus-conversation__action-button {\n  visibility: hidden;\n  background: none;\n  border: none;\n  cursor: pointer;\n  font-size: 12px;\n  padding: 4px;\n  border-radius: 4px;\n  flex-shrink: 0;\n}\n\n.claude-plus-conversation__action-button:hover {\n  background: rgba(255, 255, 255, 0.1);\n}\n";
+  var stylesheet$7 = ".claude-plus-conversation:hover .claude-plus-conversation__action-button {\r\n  visibility: visible;\r\n}\r\n\r\n.claude-plus-conversation {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-conversation:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-conversation--active > td {\r\n  background: var(--claude-plus-color-accent-soft);\r\n}\r\n\r\n.claude-plus-conversation--open-elsewhere > td:first-child {\r\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-conversation__actions {\r\n  display: inline-flex;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-conversation__action-button {\r\n  visibility: hidden;\r\n  background: none;\r\n  border: none;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n  padding: 4px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-conversation__action-button:hover {\r\n  background: rgba(255, 255, 255, 0.1);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$6);
+  StyleRegistry.register(stylesheet$7);
 
   /**
    * Conversation list as a column table, with a quick title search, open in a new pane, delete, and
@@ -10269,11 +10353,21 @@
     #columns() {
       return [
         { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: conversation => (ConversationListingFields.title(conversation) || '').toLowerCase(), filterValue: conversation => ConversationListingFields.title(conversation) || UNTITLED, cellHtml: conversation => `<span class="claude-plus-conversation__title">${escapeHtml(ConversationListingFields.title(conversation) || UNTITLED)}</span>` },
+        { id: 'origin', label: 'Origin', isVisibleByDefault: true, filter: 'values', sortValue: conversation => ConversationListPanel.#originLabel(conversation), filterValue: conversation => ConversationListPanel.#originLabel(conversation), cellHtml: conversation => escapeHtml(ConversationListPanel.#originLabel(conversation)) },
         { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: conversation => toEpochMs(ConversationListingFields.updatedAt(conversation)), filterValue: conversation => ConversationListingFields.updatedAt(conversation), cellHtml: conversation => escapeHtml(formatDay(ConversationListingFields.updatedAt(conversation))) },
         { id: 'turns', label: 'Turns', sortValue: conversation => this.#indexedCount(conversation, 'promptCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'promptCount') },
         { id: 'files', label: 'Files', sortValue: conversation => this.#indexedCount(conversation, 'fileCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'fileCount') },
         { id: 'actions', label: '', isAlwaysVisible: true, isNotSortable: true, sortValue: () => 0, cellHtml: () => ConversationListPanel.#actionButtonsHtml() },
       ];
+    }
+
+    /**
+     * A conversation's origin, for the Origin column.
+     * @param {ConversationListing} conversation The conversation.
+     * @returns {'Live'|'Imported'} The label.
+     */
+    static #originLabel(conversation) {
+      return ConversationListingFields.isImported(conversation) ? 'Imported' : 'Live';
     }
 
     /**
@@ -10900,9 +10994,9 @@
     }
   }
 
-  var stylesheet$5 = ".claude-plus-folder {\n  cursor: pointer;\n}\n\n.claude-plus-folder:hover > td {\n  background: var(--claude-plus-color-hover);\n}\n\n.claude-plus-breadcrumb {\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  margin-bottom: 6px;\n  flex-shrink: 0;\n}\n\n.claude-plus-breadcrumb__back-link {\n  color: var(--claude-plus-color-accent);\n  cursor: pointer;\n}\n";
+  var stylesheet$6 = ".claude-plus-folder {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-folder:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-breadcrumb {\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  margin-bottom: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-breadcrumb__back-link {\r\n  color: var(--claude-plus-color-accent);\r\n  cursor: pointer;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$5);
+  StyleRegistry.register(stylesheet$6);
 
   /**
    * Uploaded and produced files: a table of conversations with files, and per conversation a table
@@ -11133,10 +11227,10 @@
      * @returns {SearchItem[]} Chats, files, sources and tool uses.
      */
     static #items(aggregate, conversations) {
-      const chats = conversations.map(conversation => SearchEngine.#item('chat', ConversationListingFields.title(conversation) || UNTITLED, null, { conversationId: ConversationListingFields.id(conversation), conversationTitle: ConversationListingFields.title(conversation) || UNTITLED, timestamp: ConversationListingFields.updatedAt(conversation) }));
+      const chats = conversations.map(conversation => SearchEngine.#item('chat', ConversationListingFields.title(conversation) || UNTITLED, null, { conversationId: ConversationListingFields.id(conversation), conversationTitle: ConversationListingFields.title(conversation) || UNTITLED, timestamp: ConversationListingFields.updatedAt(conversation), isImported: ConversationListingFields.isImported(conversation) }));
       const files = aggregate.folders.flatMap(folder => folder.files).map(file => SearchEngine.#item('file', file.title || file.path, null, file));
       const sources = aggregate.sources.map(source => SearchEngine.#item('source', source.title, `${source.outlet || ''} ${source.url}`, source));
-      const tools = [...aggregate.perConversation].flatMap(([conversationId, summary]) => summary.toolNames.map(toolName => SearchEngine.#item('tool', toolName, null, { conversationId, conversationTitle: summary.title, timestamp: summary.updatedAt })));
+      const tools = [...aggregate.perConversation].flatMap(([conversationId, summary]) => summary.toolCalls.map(call => SearchEngine.#item('tool', call.name, null, { conversationId, conversationTitle: summary.title, timestamp: call.timestamp, isImported: summary.isImported, messageId: call.messageId })));
       return [...chats, ...files, ...sources, ...tools];
     }
 
@@ -11145,11 +11239,11 @@
      * @param {string} kind Item kind.
      * @param {string} text The item's own text.
      * @param {?string} detail Secondary text.
-     * @param {{conversationId: string, conversationTitle: string, timestamp: ?string}} origin Conversation and time of the item.
+     * @param {{conversationId: string, conversationTitle: string, timestamp: ?string, isImported: ?boolean, messageId: ?string}} origin Conversation, time and message of the item.
      * @returns {SearchItem} The item.
      */
     static #item(kind, text, detail, origin) {
-      return { kind, text, detail, conversationId: origin.conversationId, conversationTitle: origin.conversationTitle, timestamp: origin.timestamp };
+      return { kind, text, detail, conversationId: origin.conversationId, conversationTitle: origin.conversationTitle, timestamp: origin.timestamp, isImported: Boolean(origin.isImported), messageId: origin.messageId ?? null };
     }
 
     /**
@@ -11329,9 +11423,9 @@
     }
   }
 
-  var stylesheet$4 = ".claude-plus-search-result {\n  cursor: pointer;\n}\n\n.claude-plus-search-result:hover > td {\n  background: var(--claude-plus-color-hover);\n}\n";
+  var stylesheet$5 = ".claude-plus-search-result {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-search-result:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$4);
+  StyleRegistry.register(stylesheet$5);
 
   /**
    * Structured search over chats, files, web sources and tool uses, e.g. `file:*.pdf`,
@@ -11413,7 +11507,7 @@
         columns: SearchPanel.#columns(),
         preferences: this.#preferences,
         defaultSort: { column: 'date', direction: -1 },
-        rowAttributes: item => `class="claude-plus-search-result" data-conversation-id="${escapeHtml(item.conversationId)}"`,
+        rowAttributes: item => `class="claude-plus-search-result" data-conversation-id="${escapeHtml(item.conversationId)}" data-message-id="${escapeHtml(item.messageId ?? '')}"`,
         emptyText: 'No results.',
         maxRenderedRows: LIMITS.searchResults,
       });
@@ -11448,10 +11542,20 @@
       return [
         { id: 'match', label: 'Match', isAlwaysVisible: true, sortValue: item => item.text.toLowerCase(), cellHtml: item => escapeHtml(item.text) },
         { id: 'kind', label: 'Kind', isVisibleByDefault: true, filter: 'values', sortValue: item => SearchEngine.kindLabel(item.kind), cellHtml: item => escapeHtml(SearchEngine.kindLabel(item.kind)) },
+        { id: 'origin', label: 'Origin', isVisibleByDefault: true, filter: 'values', sortValue: item => SearchPanel.#originLabel(item), filterValue: item => SearchPanel.#originLabel(item), cellHtml: item => escapeHtml(SearchPanel.#originLabel(item)) },
         { id: 'conversation', label: 'Chat', isVisibleByDefault: true, filter: 'values', sortValue: item => item.conversationTitle.toLowerCase(), filterValue: item => item.conversationTitle, cellHtml: item => escapeHtml(item.conversationTitle) },
         { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: item => toEpochMs(item.timestamp), filterValue: item => item.timestamp, cellHtml: item => escapeHtml(formatTimestamp(item.timestamp)) },
         { id: 'reason', label: 'Why', isVisibleByDefault: true, sortValue: item => item.reason, cellHtml: item => escapeHtml(item.reason) },
       ];
+    }
+
+    /**
+     * A search item's origin label, for the Origin column.
+     * @param {SearchItem} item The item.
+     * @returns {'Live'|'Imported'} The label.
+     */
+    static #originLabel(item) {
+      return item.isImported ? 'Imported' : 'Live';
     }
 
     /**
@@ -11465,13 +11569,16 @@
     }
 
     /**
-     * Opens the clicked result's conversation in the active chat.
+     * Opens the clicked result's conversation in the active chat, then scrolls to and highlights the
+     * matched message, if the result is tied to one.
      * @param {MouseEvent} event Click in the results body.
-     * @returns {void}
+     * @returns {Promise<void>} Resolves once opened and, when applicable, scrolled to.
      */
-    #onResultClick(event) {
+    async #onResultClick(event) {
       const row = event.target.closest('[data-conversation-id]');
-      if (row) this.#router.openConversation(row.dataset.conversationId);
+      if (!row) return;
+      await this.#router.openConversation(row.dataset.conversationId);
+      if (row.dataset.messageId) this.#router.scrollToMessage(row.dataset.messageId);
     }
   }
 
@@ -11484,6 +11591,10 @@
     if (!usageWindow) return '–';
     return `${Math.round((usageWindow.utilization || 0) * 100) / 100}%`;
   }
+
+  var stylesheet$4 = ".claude-plus-stats-view-toggle {\n  display: flex;\n  gap: 6px;\n}\n\n.claude-plus-stats-view-toggle__button--active {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n";
+
+  StyleRegistry.register(stylesheet$4);
 
   /**
    * Activity, usage, token estimates, tool calls and the history backfill.
@@ -11508,6 +11619,12 @@
     #rateLimits;
 
     /**
+     * Which aggregate the totals section currently shows.
+     * @type {'combined'|'live'|'imported'}
+     */
+    #view = 'combined';
+
+    /**
      * Creates the panel.
      * @param {StatsIndex} stats Conversation statistics.
      * @param {ActivityTracker} activity Active-time tracking.
@@ -11528,7 +11645,14 @@
       const row = StatsPanel.#namedValueRowHtml;
       return `
       <div class="claude-plus-panel__section">${row('Active today', 'activeToday')}${row('Active all-time', 'activeAllTime')}${row('Status', 'activityStatus')}</div>
-      <div class="claude-plus-panel__section">${row('Turns (all chats)', 'promptCount')}${row('Avg response time', 'averageResponseTime')}</div>
+      <div class="claude-plus-panel__section">
+        <div class="claude-plus-stats-view-toggle" data-name="viewToggle">
+          <button class="claude-plus-toolbar__button claude-plus-stats-view-toggle__button" data-view="combined">Combined</button>
+          <button class="claude-plus-toolbar__button claude-plus-stats-view-toggle__button" data-view="live">Live</button>
+          <button class="claude-plus-toolbar__button claude-plus-stats-view-toggle__button" data-view="imported">Imported</button>
+        </div>
+      </div>
+      <div class="claude-plus-panel__section">${row('Turns', 'promptCount')}${row('Avg response time', 'averageResponseTime')}</div>
       <div class="claude-plus-panel__section">${row('Session limit (5h)', 'sessionLimit')}${row('Weekly limit', 'weeklyLimit')}</div>
       <div class="claude-plus-panel__section">${row('Est. tokens in / out', 'estimatedTokens')}
         <div class="claude-plus-hint">Estimated from text length — claude.ai doesn't expose real token counts.</div></div>
@@ -11547,6 +11671,7 @@
      */
     bindEvents() {
       this.elements.backfillButton.addEventListener('click', () => this.#toggleBackfill());
+      this.elements.viewToggle.addEventListener('click', event => this.#onViewToggleClick(event));
       this.listenTo(this.#activity, 'activity', () => this.#renderActivity());
       this.listenTo(this.#rateLimits, 'rateLimits', () => this.#renderRateLimits());
       this.listenTo(this.#stats, 'aggregate', () => this.#renderAggregate());
@@ -11605,13 +11730,35 @@
     }
 
     /**
-     * Shows the totals and the tool call ranking.
+     * Switches which aggregate the totals section shows, unless the toggle itself was clicked
+     * without hitting a button.
+     * @param {MouseEvent} event Click in the view toggle.
+     * @returns {void}
+     */
+    #onViewToggleClick(event) {
+      const button = event.target.closest('[data-view]');
+      if (button) { this.#view = button.dataset.view; this.#renderAggregate(); }
+    }
+
+    /**
+     * The currently selected aggregate.
+     * @returns {StatsAggregate} Combined, live-only or imported-only totals.
+     */
+    #selectedAggregate() {
+      if (this.#view === 'live') return this.#stats.liveAggregate;
+      if (this.#view === 'imported') return this.#stats.importedAggregate;
+      return this.#stats.aggregate;
+    }
+
+    /**
+     * Shows the totals and the tool call ranking for the currently selected view.
      * @returns {void}
      */
     #renderAggregate() {
-      const aggregate = this.#stats.aggregate;
+      const aggregate = this.#selectedAggregate();
       const toolRanking = entriesByDescendingCount(aggregate.toolCallCounts);
       const responseTimes = aggregate.responseTimesMs;
+      this.elements.viewToggle.querySelectorAll('[data-view]').forEach(button => button.classList.toggle('claude-plus-stats-view-toggle__button--active', button.dataset.view === this.#view));
       this.elements.promptCount.textContent = aggregate.promptCount;
       this.elements.averageResponseTime.textContent = responseTimes.length ? formatDuration(average(responseTimes)) : '–';
       this.elements.estimatedTokens.textContent = `~${aggregate.estimatedTokensIn.toLocaleString()} in / ~${aggregate.estimatedTokensOut.toLocaleString()} out`;
@@ -12074,6 +12221,15 @@
     }
 
     /**
+     * Scrolls the focused pane to a message, if it's currently shown there.
+     * @param {string} messageId Message id.
+     * @returns {void}
+     */
+    scrollToMessage(messageId) {
+      this.#paneManager.focusedPanel.scrollToMessage(messageId);
+    }
+
+    /**
      * Starts a new chat in the focused pane as a user navigation, adding a history entry.
      * @returns {void}
      */
@@ -12283,14 +12439,17 @@
     /**
      * Starts an empty summary.
      * @param {ApiConversation} conversation The conversation being summarized.
+     * @param {boolean} isImported Whether it came from an imported data export rather than the live API.
      */
-    constructor(conversation) {
+    constructor(conversation, isImported) {
       this.#summary = {
         conversationId: conversation.uuid,
         title: conversation.name || UNTITLED,
         updatedAt: conversation.updated_at,
+        isImported,
         promptCount: 0,
         toolCallCounts: Object.create(null),
+        toolCalls: [],
         sources: [],
         files: [],
         estimatedTokensIn: 0,
@@ -12302,10 +12461,11 @@
     /**
      * Summarizes a conversation.
      * @param {ApiConversation} conversation The conversation, with every message.
+     * @param {boolean} [isImported] Whether it came from an imported data export rather than the live API.
      * @returns {ConversationSummary} The summary.
      */
-    static summarize(conversation) {
-      const summarizer = new ConversationSummarizer(conversation);
+    static summarize(conversation, isImported = false) {
+      const summarizer = new ConversationSummarizer(conversation, isImported);
       for (const message of conversation.chat_messages ?? []) summarizer.#addMessage(message);
       return summarizer.#summary;
     }
@@ -12331,7 +12491,7 @@
       this.#unansweredPromptTime = message.created_at;
       for (const upload of MessageContent.uploads(message)) {
         const name = MessageContent.uploadName(upload);
-        this.#summary.files.push({ path: name, title: name, timestamp: upload.created_at || message.created_at, source: 'user' });
+        this.#summary.files.push({ path: name, title: name, timestamp: upload.created_at || message.created_at, source: 'user', messageId: message.uuid });
       }
     }
 
@@ -12344,7 +12504,7 @@
       this.#summary.estimatedTokensOut += estimateTokens(MessageContent.plainText(message));
       this.#recordResponseTime(message.created_at);
       const producedFilesByPath = new Map();
-      for (const block of message.content ?? []) this.#addContentBlock(block, block.stop_timestamp || message.created_at, producedFilesByPath);
+      for (const block of message.content ?? []) this.#addContentBlock(block, block.stop_timestamp || message.created_at, message.uuid, producedFilesByPath);
       this.#summary.files.push(...producedFilesByPath.values());
     }
 
@@ -12364,40 +12524,44 @@
      * Adds one content block of a reply.
      * @param {ContentBlock} block The block.
      * @param {string} blockTime Timestamp of the block.
+     * @param {string} messageId Id of the message the block belongs to.
      * @param {Map<string, FileEntry>} producedFilesByPath Files produced by the reply, keyed by path; the last write wins.
      * @returns {void}
      */
-    #addContentBlock(block, blockTime, producedFilesByPath) {
-      if (block.type === 'tool_use') this.#addToolCall(block, blockTime, producedFilesByPath);
-      else if (block.type === 'tool_result') this.#addToolResult(block, blockTime);
+    #addContentBlock(block, blockTime, messageId, producedFilesByPath) {
+      if (block.type === 'tool_use') this.#addToolCall(block, blockTime, messageId, producedFilesByPath);
+      else if (block.type === 'tool_result') this.#addToolResult(block, blockTime, messageId);
     }
 
     /**
-     * Counts a tool call and records the file it produced, if any.
+     * Counts a tool call, records its occurrence and the file it produced, if any.
      * @param {ContentBlock} block A tool_use block.
      * @param {string} blockTime Timestamp of the block.
+     * @param {string} messageId Id of the message the block belongs to.
      * @param {Map<string, FileEntry>} producedFilesByPath Files produced by the reply, keyed by path.
      * @returns {void}
      */
-    #addToolCall(block, blockTime, producedFilesByPath) {
+    #addToolCall(block, blockTime, messageId, producedFilesByPath) {
       const toolName = block.name || 'unknown_tool';
       addToCount(this.#summary.toolCallCounts, toolName, 1);
+      this.#summary.toolCalls.push({ name: toolName, timestamp: blockTime, messageId });
       const describeFile = ConversationSummarizer.#FILE_PRODUCING_TOOLS.get(toolName);
       if (!describeFile || !block.input) return;
       const { path, title } = describeFile(block.input);
-      producedFilesByPath.set(path, { path, title: title || lastPathSegment(path), timestamp: blockTime, source: 'claude' });
+      producedFilesByPath.set(path, { path, title: title || lastPathSegment(path), timestamp: blockTime, source: 'claude', messageId });
     }
 
     /**
      * Records the web sources a tool result cites.
      * @param {ContentBlock} block A tool_result block.
      * @param {string} blockTime Timestamp of the block.
+     * @param {string} messageId Id of the message the block belongs to.
      * @returns {void}
      */
-    #addToolResult(block, blockTime) {
+    #addToolResult(block, blockTime, messageId) {
       const items = Array.isArray(block.content) ? block.content : [];
       for (const item of items.filter(ConversationSummarizer.#isWebSource)) {
-        this.#summary.sources.push({ title: item.title, url: item.url, ...hostParts(item.url), timestamp: blockTime });
+        this.#summary.sources.push({ title: item.title, url: item.url, ...hostParts(item.url), timestamp: blockTime, messageId });
       }
     }
 
@@ -12434,7 +12598,7 @@
        * Prompt and file counts by conversation id, for showing them as sidebar columns without
        * needing a separate lookup structure. Only conversations that have been indexed (opened, or
        * pulled in by a backfill) appear here.
-       * @type {Map<string, {title: string, updatedAt: string, promptCount: number, fileCount: number, toolNames: string[]}>}
+       * @type {Map<string, {title: string, updatedAt: string, isImported: boolean, promptCount: number, fileCount: number, toolCalls: Array<{name: string, timestamp: string, messageId: string}>}>}
        */
       this.perConversation = new Map();
 
@@ -12464,7 +12628,7 @@
      * @returns {void}
      */
     #addSummary(summary) {
-      const origin = { conversationTitle: summary.title, conversationId: summary.conversationId };
+      const origin = { conversationTitle: summary.title, conversationId: summary.conversationId, isImported: Boolean(summary.isImported) };
       this.conversationCount += 1;
       this.promptCount += summary.promptCount;
       this.estimatedTokensIn += summary.estimatedTokensIn;
@@ -12476,9 +12640,10 @@
       this.perConversation.set(summary.conversationId, {
         title: summary.title,
         updatedAt: summary.updatedAt,
+        isImported: Boolean(summary.isImported),
         promptCount: summary.promptCount,
         fileCount: summary.files.length,
-        toolNames: Object.keys(summary.toolCallCounts),
+        toolCalls: summary.toolCalls ?? [],
       });
     }
 
@@ -12588,10 +12753,22 @@
     #database;
 
     /**
-     * Current totals.
+     * Current totals across every indexed conversation.
      * @type {StatsAggregate}
      */
     #aggregate = new StatsAggregate();
+
+    /**
+     * Current totals across only live conversations.
+     * @type {StatsAggregate}
+     */
+    #liveAggregate = new StatsAggregate();
+
+    /**
+     * Current totals across only imported conversations.
+     * @type {StatsAggregate}
+     */
+    #importedAggregate = new StatsAggregate();
 
     /**
      * Backfill state.
@@ -12617,11 +12794,27 @@
     }
 
     /**
-     * Current totals.
+     * Current totals across every indexed conversation.
      * @returns {StatsAggregate} The aggregate.
      */
     get aggregate() {
       return this.#aggregate;
+    }
+
+    /**
+     * Current totals across only live conversations.
+     * @returns {StatsAggregate} The aggregate.
+     */
+    get liveAggregate() {
+      return this.#liveAggregate;
+    }
+
+    /**
+     * Current totals across only imported conversations.
+     * @returns {StatsAggregate} The aggregate.
+     */
+    get importedAggregate() {
+      return this.#importedAggregate;
     }
 
     /**
@@ -12643,6 +12836,8 @@
         const summaries = records.filter(record => SummaryValidator.isValid(record));
         this.#aggregate = StatsAggregate.fromSummaries(summaries);
         this.#aggregate.skippedRecordCount = records.length - summaries.length;
+        this.#liveAggregate = StatsAggregate.fromSummaries(summaries.filter(summary => !summary.isImported));
+        this.#importedAggregate = StatsAggregate.fromSummaries(summaries.filter(summary => summary.isImported));
         this.publish('aggregate');
       } catch (error) {
         console.warn(LOG_PREFIX, 'reading stats failed', error);
@@ -12669,13 +12864,30 @@
     /**
      * Stores a conversation's summary if it changed, then recomputes the aggregate. Failures are logged.
      * @param {ApiConversation} conversation The conversation.
+     * @param {boolean} [isImported] Whether it came from an imported data export rather than the live API.
      * @returns {Promise<void>} Resolves once done.
      */
-    async indexConversation(conversation) {
+    async indexConversation(conversation, isImported = false) {
       try {
-        if (await this.#storeSummaryIfOutdated(conversation)) await this.refreshAggregate();
+        if (await this.#storeSummaryIfOutdated(conversation, isImported)) await this.refreshAggregate();
       } catch (error) {
         console.warn(LOG_PREFIX, 'indexing conversation failed', error);
+      }
+    }
+
+    /**
+     * Stores summaries for several conversations, refreshing the aggregate only once at the end -
+     * used after an import, where indexing each one individually would re-scan the whole summary
+     * store after every single conversation. Failures are logged.
+     * @param {ApiConversation[]} conversations The conversations, already shaped for the live pipeline.
+     * @returns {Promise<void>} Resolves once every conversation is stored and the aggregate refreshed.
+     */
+    async indexConversationsBatch(conversations) {
+      try {
+        for (const conversation of conversations) await this.#storeSummaryIfOutdated(conversation, true);
+        await this.refreshAggregate();
+      } catch (error) {
+        console.warn(LOG_PREFIX, 'indexing imported conversations failed', error);
       }
     }
 
@@ -12768,7 +12980,7 @@
     async #indexListing(listing) {
       const listingId = ConversationListingFields.id(listing);
       if (!(await this.#isOutdated(listingId, ConversationListingFields.updatedAt(listing)))) return;
-      await this.#storeSummaryIfOutdated(await this.#api.getConversation(listingId));
+      await this.#storeSummaryIfOutdated(await this.#api.getConversation(listingId), false);
       this.#storedDuringBackfill += 1;
       if (this.#storedDuringBackfill % LIMITS.backfillRefreshInterval === 0) await this.refreshAggregate();
       await wait(TIMING.backfillPauseMs);
@@ -12790,12 +13002,13 @@
     /**
      * Stores a conversation's summary if the cached one is outdated.
      * @param {ApiConversation} conversation The conversation.
+     * @param {boolean} isImported Whether it came from an imported data export rather than the live API.
      * @returns {Promise<boolean>} True if a summary was written.
      * @throws {DOMException} When the cache can't be read or written.
      */
-    async #storeSummaryIfOutdated(conversation) {
+    async #storeSummaryIfOutdated(conversation, isImported) {
       if (!(await this.#isOutdated(ApiConversationFields.id(conversation), ApiConversationFields.updatedAt(conversation)))) return false;
-      await this.#database.write(DATABASE.stores.conversationSummaries, ConversationSummarizer.summarize(conversation));
+      await this.#database.write(DATABASE.stores.conversationSummaries, ConversationSummarizer.summarize(conversation, isImported));
       return true;
     }
 
@@ -13630,7 +13843,7 @@
     }
   }
 
-  var stylesheet$2 = ".claude-plus-settings-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-settings-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 420px;\n  max-width: 90vw;\n  max-height: 85vh;\n  overflow-y: auto;\n  font-size: 13px;\n}\n\n.claude-plus-settings-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n}\n\n.claude-plus-settings-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-settings-dialog__section {\n  padding: 12px 0;\n  border-top: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-settings-dialog__section:first-of-type {\n  border-top: none;\n}\n\n.claude-plus-settings-dialog__section h3 {\n  margin: 0 0 8px;\n  font-size: 12px;\n  text-transform: uppercase;\n  letter-spacing: 0.04em;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__row {\n  display: flex;\n  gap: 8px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-settings-dialog__layout-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 6px 0;\n}\n\n.claude-plus-settings-dialog__layout-name {\n  flex: 1;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-settings-dialog__colors {\n  display: flex;\n  gap: 14px;\n  flex-wrap: wrap;\n  margin-bottom: 12px;\n}\n\n.claude-plus-settings-dialog__color-field {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__color-field input[type='color'] {\n  width: 36px;\n  height: 28px;\n  padding: 0;\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  background: none;\n  cursor: pointer;\n}\n\n.claude-plus-settings-dialog__field {\n  display: block;\n  margin-bottom: 10px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__field input[type='text'] {\n  display: block;\n  width: 100%;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 6px 8px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font: inherit;\n}\n";
+  var stylesheet$2 = ".claude-plus-settings-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-settings-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 420px;\n  max-width: 90vw;\n  max-height: 85vh;\n  overflow-y: auto;\n  font-size: 13px;\n}\n\n.claude-plus-settings-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n}\n\n.claude-plus-settings-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-settings-dialog__tabs {\n  display: flex;\n  gap: 4px;\n  margin-bottom: 8px;\n  border-bottom: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-settings-dialog__tab {\n  background: none;\n  border: none;\n  border-bottom: 2px solid transparent;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font: inherit;\n  padding: 6px 10px;\n}\n\n.claude-plus-settings-dialog__tab:hover {\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-settings-dialog__tab--active {\n  color: var(--claude-plus-color-text);\n  border-bottom-color: var(--claude-plus-color-accent);\n}\n\n.claude-plus-settings-dialog__section {\n  padding: 12px 0;\n  border-top: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-settings-dialog__section:first-of-type {\n  border-top: none;\n}\n\n.claude-plus-settings-dialog__section h3 {\n  margin: 0 0 8px;\n  font-size: 12px;\n  text-transform: uppercase;\n  letter-spacing: 0.04em;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__row {\n  display: flex;\n  gap: 8px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-settings-dialog__layout-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 6px 0;\n}\n\n.claude-plus-settings-dialog__layout-name {\n  flex: 1;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-settings-dialog__colors {\n  display: flex;\n  gap: 14px;\n  flex-wrap: wrap;\n  margin-bottom: 12px;\n}\n\n.claude-plus-settings-dialog__color-field {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__color-field input[type='color'] {\n  width: 36px;\n  height: 28px;\n  padding: 0;\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  background: none;\n  cursor: pointer;\n}\n\n.claude-plus-settings-dialog__field {\n  display: block;\n  margin-bottom: 10px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__field input[type='text'] {\n  display: block;\n  width: 100%;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 6px 8px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font: inherit;\n}\n";
 
   StyleRegistry.register(stylesheet$2);
 
@@ -13737,7 +13950,8 @@
     }
 
     /**
-     * The screen's static markup.
+     * The screen's static markup: a tab bar switching between the app-wide tab and one tab per
+     * vendor - just Anthropic today, holding the import that's coupled to its export format.
      * @returns {string} The HTML.
      */
     static #bodyHtml() {
@@ -13746,6 +13960,20 @@
         <h2>Settings</h2>
         <button class="claude-plus-toolbar__close-button" data-name="closeButton" title="Close">✕</button>
       </div>
+      <div class="claude-plus-settings-dialog__tabs">
+        <button class="claude-plus-settings-dialog__tab claude-plus-settings-dialog__tab--active" data-name="appTabButton">App</button>
+        <button class="claude-plus-settings-dialog__tab" data-name="anthropicTabButton">Anthropic</button>
+      </div>
+      <div data-name="appPane">${SettingsDialog.#appPaneHtml()}</div>
+      <div data-name="anthropicPane" hidden>${SettingsDialog.#anthropicPaneHtml()}</div>`;
+    }
+
+    /**
+     * Markup of the App tab: saved layouts, generic settings import/export and theming.
+     * @returns {string} The HTML.
+     */
+    static #appPaneHtml() {
+      return `
       <section class="claude-plus-settings-dialog__section">
         <h3>Layout</h3>
         <div class="claude-plus-settings-dialog__row">
@@ -13758,9 +13986,6 @@
         <div class="claude-plus-settings-dialog__row">
           <button class="claude-plus-toolbar__button" data-name="exportButton">Export settings (JSON)</button>
           <button class="claude-plus-toolbar__button" data-name="importButton">Import settings…</button>
-        </div>
-        <div class="claude-plus-settings-dialog__row">
-          <button class="claude-plus-toolbar__button" data-name="importChatExportButton">Import chat export…</button>
         </div>
       </section>
       <section class="claude-plus-settings-dialog__section">
@@ -13775,12 +14000,28 @@
     }
 
     /**
+     * Markup of the Anthropic tab: importing a claude.ai data export, coupled to its own file format.
+     * @returns {string} The HTML.
+     */
+    static #anthropicPaneHtml() {
+      return `
+      <section class="claude-plus-settings-dialog__section">
+        <h3>Import</h3>
+        <div class="claude-plus-settings-dialog__row">
+          <button class="claude-plus-toolbar__button" data-name="importChatExportButton">Import chat export…</button>
+        </div>
+      </section>`;
+    }
+
+    /**
      * Wires every control. The saved-layouts list uses one delegated listener since its rows change.
      * @returns {void}
      */
     #bindEvents() {
       const elements = this.#elements;
       elements.closeButton.addEventListener('click', () => this.close());
+      elements.appTabButton.addEventListener('click', () => this.#showTab('app'));
+      elements.anthropicTabButton.addEventListener('click', () => this.#showTab('anthropic'));
       elements.saveLayoutButton.addEventListener('click', () => this.#saveLayout());
       elements.layoutList.addEventListener('click', event => this.#onLayoutListClick(event));
       elements.exportButton.addEventListener('click', () => this.#settingsTransfer.exportSettings());
@@ -13789,6 +14030,19 @@
       elements.uiFontInput.addEventListener('input', () => this.#saveThemeFromFields());
       elements.chatFontInput.addEventListener('input', () => this.#saveThemeFromFields());
       elements.resetThemeButton.addEventListener('click', () => this.#resetTheme());
+    }
+
+    /**
+     * Shows one tab's pane and hides the other, marking the clicked tab button active.
+     * @param {'app'|'anthropic'} tabName Tab to show.
+     * @returns {void}
+     */
+    #showTab(tabName) {
+      const isApp = tabName === 'app';
+      this.#elements.appPane.hidden = !isApp;
+      this.#elements.anthropicPane.hidden = isApp;
+      this.#elements.appTabButton.classList.toggle('claude-plus-settings-dialog__tab--active', isApp);
+      this.#elements.anthropicTabButton.classList.toggle('claude-plus-settings-dialog__tab--active', !isApp);
     }
 
     /**
@@ -13888,7 +14142,7 @@
     }
   }
 
-  var stylesheet$1 = ".claude-plus-toolbar {\n  position: fixed;\n  top: 0;\n  left: 0;\n  right: 0;\n  height: var(--claude-plus-toolbar-height);\n  z-index: var(--claude-plus-layer-toolbar);\n  background: var(--claude-plus-color-bar);\n  display: flex;\n  align-items: center;\n  gap: 14px;\n  padding: 0 10px;\n  font-size: 12px;\n  box-sizing: border-box;\n}\n\n.claude-plus-toolbar__title {\n  font-weight: 600;\n}\n\n.claude-plus-toolbar__button {\n  background: var(--claude-plus-color-button);\n  border: none;\n  color: var(--claude-plus-color-text);\n  padding: 5px 10px;\n  border-radius: 6px;\n  cursor: pointer;\n  font-size: 12px;\n}\n\n.claude-plus-toolbar__button:hover {\n  background: var(--claude-plus-color-button-hover);\n}\n\n.claude-plus-toolbar__button:disabled {\n  opacity: 0.5;\n  cursor: default;\n}\n\n.claude-plus-toolbar__font-size {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex-shrink: 0;\n}\n\n.claude-plus-toolbar__font-size input[type=range] {\n  width: 100px;\n}\n\n.claude-plus-toolbar__close-button {\n  background: var(--claude-plus-color-error);\n  border: none;\n  color: #fff;\n  width: 22px;\n  height: 22px;\n  padding: 0;\n  border-radius: 50%;\n  cursor: pointer;\n  font-size: 12px;\n  line-height: 1;\n}\n\n.claude-plus-toolbar__close-button:hover {\n  filter: brightness(1.15);\n}\n";
+  var stylesheet$1 = ".claude-plus-toolbar {\r\n  position: fixed;\r\n  top: 0;\r\n  left: 0;\r\n  right: 0;\r\n  height: var(--claude-plus-toolbar-height);\r\n  z-index: var(--claude-plus-layer-toolbar);\r\n  background: var(--claude-plus-color-bar);\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 14px;\r\n  padding: 0 10px;\r\n  font-size: 12px;\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-toolbar__title {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-toolbar__button {\r\n  background: var(--claude-plus-color-button);\r\n  border: none;\r\n  color: var(--claude-plus-color-text);\r\n  padding: 5px 10px;\r\n  border-radius: 6px;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-toolbar__button:hover {\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-toolbar__button:disabled {\r\n  opacity: 0.5;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-toolbar__font-size {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-toolbar__font-size input[type=range] {\r\n  width: 100px;\r\n}\r\n\r\n.claude-plus-toolbar__close-button {\r\n  background: var(--claude-plus-color-error);\r\n  border: none;\r\n  color: #fff;\r\n  width: 22px;\r\n  height: 22px;\r\n  padding: 0;\r\n  border-radius: 50%;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n  line-height: 1;\r\n}\r\n\r\n.claude-plus-toolbar__close-button:hover {\r\n  filter: brightness(1.15);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$1);
 
@@ -14640,9 +14894,9 @@
     }
   }
 
-  var nativeAppHidingStylesheet = "#root,\n#portal-root {\n  display: none !important;\n}\n";
+  var nativeAppHidingStylesheet = "#root,\r\n#portal-root {\r\n  display: none !important;\r\n}\r\n";
 
-  var themeStylesheet = ":root {\n  --claude-plus-color-background: #1a1918;\n  --claude-plus-color-bar: #1c1b1a;\n  --claude-plus-color-raised: #262523;\n  --claude-plus-color-raised-hover: #3a3937;\n  --claude-plus-color-tool-details: #232221;\n  --claude-plus-color-code-block: #101010;\n  --claude-plus-color-button: #333;\n  --claude-plus-color-button-hover: #444;\n  --claude-plus-color-text: #ececec;\n  --claude-plus-color-text-muted: #b8b6b3;\n  --claude-plus-color-text-faint: #8a8886;\n  --claude-plus-color-accent: #d97757;\n  --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);\n  --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);\n  --claude-plus-color-message-human-bg: rgba(255, 255, 255, 0.07);\n  --claude-plus-color-error: #e57373;\n  --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);\n  --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);\n  --claude-plus-color-border: rgba(255, 255, 255, 0.08);\n  --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);\n  --claude-plus-color-hover: rgba(255, 255, 255, 0.06);\n  --claude-plus-font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n  --claude-plus-layer-zone-chrome: 2147480000;\n  --claude-plus-layer-panel: 2147480500;\n  --claude-plus-layer-divider: 2147480600;\n  --claude-plus-layer-toolbar: 2147483000;\n  --claude-plus-layer-popup-menu: 2147483001;\n  --claude-plus-layer-drop-highlight: 2147483646;\n  --claude-plus-layer-drag-label: 2147483647;\n}\n\n.claude-plus-themed {\n  font-family: var(--claude-plus-font-family);\n  color: var(--claude-plus-color-text);\n  color-scheme: dark;\n}\n\n.claude-plus-themed [hidden],\n.claude-plus-themed[hidden] {\n  display: none !important;\n}\n";
+  var themeStylesheet = ":root {\r\n  --claude-plus-color-background: #1a1918;\r\n  --claude-plus-color-bar: #1c1b1a;\r\n  --claude-plus-color-raised: #262523;\r\n  --claude-plus-color-raised-hover: #3a3937;\r\n  --claude-plus-color-tool-details: #232221;\r\n  --claude-plus-color-code-block: #101010;\r\n  --claude-plus-color-button: #333;\r\n  --claude-plus-color-button-hover: #444;\r\n  --claude-plus-color-text: #ececec;\r\n  --claude-plus-color-text-muted: #b8b6b3;\r\n  --claude-plus-color-text-faint: #8a8886;\r\n  --claude-plus-color-accent: #d97757;\r\n  --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);\r\n  --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);\r\n  --claude-plus-color-message-human-bg: rgba(255, 255, 255, 0.07);\r\n  --claude-plus-color-error: #e57373;\r\n  --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);\r\n  --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);\r\n  --claude-plus-color-border: rgba(255, 255, 255, 0.08);\r\n  --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);\r\n  --claude-plus-color-hover: rgba(255, 255, 255, 0.06);\r\n  --claude-plus-font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\r\n  --claude-plus-layer-zone-chrome: 2147480000;\r\n  --claude-plus-layer-panel: 2147480500;\r\n  --claude-plus-layer-divider: 2147480600;\r\n  --claude-plus-layer-toolbar: 2147483000;\r\n  --claude-plus-layer-popup-menu: 2147483001;\r\n  --claude-plus-layer-drop-highlight: 2147483646;\r\n  --claude-plus-layer-drag-label: 2147483647;\r\n}\r\n\r\n.claude-plus-themed {\r\n  font-family: var(--claude-plus-font-family);\r\n  color: var(--claude-plus-color-text);\r\n  color-scheme: dark;\r\n}\r\n\r\n.claude-plus-themed [hidden],\r\n.claude-plus-themed[hidden] {\r\n  display: none !important;\r\n}\r\n";
 
   /**
    * Composes every part of the UI and starts it, only once the launcher button is clicked.
@@ -14824,7 +15078,7 @@
       paneManager.attachWorkspace(workspace);
       panelFactory.attachWorkspace(workspace);
       const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
-      const importOrchestrator = new ImportOrchestrator(database, importedConversations);
+      const importOrchestrator = new ImportOrchestrator(database, importedConversations, stats);
       const onImported = () => { directory.refreshImported(); stats.refreshAggregate(); };
       new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, onImported, onHide: () => this.hide() }).mount();
       workspace.mount();
@@ -14903,7 +15157,7 @@
      * @returns {void}
      */
     static #connectServices({ directory, paneManager, stats, rateLimits }) {
-      paneManager.subscribe('conversationLoaded', conversation => stats.indexConversation(conversation));
+      paneManager.subscribe('conversationLoaded', ({ conversation, isImported }) => stats.indexConversation(conversation, isImported));
       paneManager.subscribe('rateLimits', limits => rateLimits.setLimits(limits));
       directory.subscribe('conversationDeleted', conversationId => stats.removeConversation(conversationId));
     }

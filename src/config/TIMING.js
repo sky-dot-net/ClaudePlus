@@ -9,6 +9,7 @@
  * modelCatalogPollMs: how often the model catalog extractor checks its hidden iframe.
  * modelCatalogTimeoutMs: time budget for extracting the model/effort catalog before giving up.
  * modelCatalogTtlMs: how long an extracted catalog is trusted before it's refreshed again.
+ * messageHighlightMs: how long a message stays highlighted after being scrolled to from search.
  * @type {Readonly<Record<string, number>>}
  */
 export const TIMING = Object.freeze({
@@ -24,4 +25,5 @@ export const TIMING = Object.freeze({
   modelCatalogPollMs: 300,
   modelCatalogTimeoutMs: 20_000,
   modelCatalogTtlMs: 12 * 60 * 60 * 1000,
+  messageHighlightMs: 2_000,
 });

@@ -12,7 +12,7 @@ import { EventEmitter } from '../core/EventEmitter.js';
  * @fires ChatSession#messages The message list changed.
  * @fires ChatSession#messageContent One message's content changed; payload is the ChatMessage.
  * @fires ChatSession#sending Sending started or ended.
- * @fires ChatSession#conversationLoaded A conversation was fetched; payload is the ApiConversation.
+ * @fires ChatSession#conversationLoaded A conversation was fetched; payload is {conversation: ApiConversation, isImported: boolean}.
  * @fires ChatSession#rateLimits Usage windows arrived in a stream; payload is RateLimits.
  */
 export class ChatSession extends EventEmitter {

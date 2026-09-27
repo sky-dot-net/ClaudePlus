@@ -156,3 +156,9 @@
     opacity: 0;
   }
 }
+
+.claude-plus-message--highlighted {
+  outline: 2px solid var(--claude-plus-color-accent);
+  outline-offset: 4px;
+  border-radius: 14px;
+}

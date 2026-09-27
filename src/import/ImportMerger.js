@@ -20,16 +20,16 @@ export class ImportMerger {
   /**
    * Merges a newly mapped conversation into what's already stored.
    * @param {?ImportedConversationRecord} storedRecord The stored record, or null when not seen before.
-   * @param {{conversationId: string, title: string, messages: ApiMessage[]}} mapped The newly mapped conversation.
+   * @param {{conversationId: string, title: string, updatedAt: string, messages: ApiMessage[]}} mapped The newly mapped conversation.
    * @param {string} importedAt ISO timestamp of this import.
    * @returns {?ImportedConversationRecord} The record to write, or null when nothing changed.
    */
   static mergeConversation(storedRecord, mapped, importedAt) {
     const classification = ImportMerger.classifyConversation(storedRecord, mapped);
     if (classification === 'unchanged') return null;
-    if (classification === 'renamedOnly') return { ...storedRecord, title: mapped.title, lastImportedAt: importedAt };
+    if (classification === 'renamedOnly') return { ...storedRecord, title: mapped.title, updatedAt: mapped.updatedAt, lastImportedAt: importedAt };
     const messages = classification === 'new' ? mapped.messages : ImportMerger.#addedMessages(storedRecord, mapped);
-    return { conversationId: mapped.conversationId, title: mapped.title, messages, currentLeafId: ImportMerger.defaultLeafOf(messages), lastImportedAt: importedAt };
+    return { conversationId: mapped.conversationId, title: mapped.title, updatedAt: mapped.updatedAt, messages, currentLeafId: ImportMerger.defaultLeafOf(messages), lastImportedAt: importedAt };
   }
 
   /**
