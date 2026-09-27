@@ -9018,7 +9018,10 @@
 
     /**
      * Every top-level element's raw, unparsed text, found by tracking brace/bracket depth and string
-     * state character by character across chunk boundaries.
+     * state character by character across chunk boundaries. The accumulated buffer is only ever
+     * dropped when nothing is mid-element - while assembling one element's text, the buffer keeps
+     * growing (bounded by that element's own size) rather than being rescanned from the start on
+     * every new chunk, which would otherwise reprocess already-seen characters and miscount depth.
      * @param {File} file A file whose content is a JSON array of objects.
      * @returns {AsyncGenerator<string>} The elements' exact source text, in file order.
      * @yields {string} Each element's exact source text.
@@ -9034,7 +9037,7 @@
 
     /**
      * Reads decoded text chunks from a stream reader and yields each completed top-level element as
-     * it's found, carrying scan state and any incomplete element's text across chunk boundaries.
+     * it's found.
      * @param {ReadableStreamDefaultReader<string>} reader Reader of the decoded text stream.
      * @returns {AsyncGenerator<string>} The elements' exact source text, in file order.
      * @yields {string} Each element's exact source text.
@@ -9042,35 +9045,48 @@
     static async *#scanChunks(reader) {
       const state = { depth: 0, inString: false, isEscaped: false, elementStart: -1 };
       let buffer = '';
+      let scannedUpTo = 0;
       let step = await reader.read();
       while (!step.done) {
         buffer += step.value;
-        const { elements, consumedUpTo } = StreamingJsonArrayReader.#scan(buffer, state);
+        const { elements, scannedUpTo: newScannedUpTo } = StreamingJsonArrayReader.#scan(buffer, scannedUpTo, state);
         yield* elements;
-        buffer = buffer.slice(consumedUpTo);
+        ({ buffer, scannedUpTo } = StreamingJsonArrayReader.#afterScan(buffer, newScannedUpTo, state));
         step = await reader.read();
       }
     }
 
     /**
-     * Scans as much of a buffer as forms complete elements, updating the scan state in place.
-     * @param {string} buffer Text accumulated since the last completed element.
+     * Drops the buffer once nothing is mid-element (there's nothing useful left in it but consumed
+     * elements and separator noise), otherwise keeps it as-is so the next chunk can extend it.
+     * @param {string} buffer The buffer as scanned so far.
+     * @param {number} scannedUpTo How much of the buffer has been scanned.
+     * @param {{elementStart: number}} state Scan state.
+     * @returns {{buffer: string, scannedUpTo: number}} The buffer and scan position to continue from.
+     */
+    static #afterScan(buffer, scannedUpTo, state) {
+      return state.elementStart === -1 ? { buffer: '', scannedUpTo: 0 } : { buffer, scannedUpTo };
+    }
+
+    /**
+     * Scans a buffer from where the last call left off, updating the scan state in place.
+     * @param {string} buffer Text accumulated so far.
+     * @param {number} startIndex Index to resume scanning from; characters before it were already scanned.
      * @param {{depth: number, inString: boolean, isEscaped: boolean, elementStart: number}} state
      * Mutable scan state, carried across calls (and across chunk boundaries).
-     * @returns {{elements: string[], consumedUpTo: number}} Completed elements found, and how much
-     * of the buffer they consumed (the rest carries over to the next call).
+     * @returns {{elements: string[], scannedUpTo: number}} Completed elements found, in order, and
+     * how much of the buffer has now been scanned.
      */
-    static #scan(buffer, state) {
+    static #scan(buffer, startIndex, state) {
       const elements = [];
-      let consumedUpTo = 0;
-      for (let index = 0; index < buffer.length; index += 1) {
+      let index = startIndex;
+      for (; index < buffer.length; index += 1) {
         if (StreamingJsonArrayReader.#step(buffer, index, state)) {
           elements.push(buffer.slice(state.elementStart, index + 1));
           state.elementStart = -1;
-          consumedUpTo = index + 1;
         }
       }
-      return { elements, consumedUpTo };
+      return { elements, scannedUpTo: index };
     }
 
     /**
