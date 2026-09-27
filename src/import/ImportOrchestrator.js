@@ -3,6 +3,7 @@ import { ClaudeExportParser } from '../vendors/anthropic/import/ClaudeExportPars
 import { DATABASE } from '../config/DATABASE.js';
 import { ImportFileClassifier } from './ImportFileClassifier.js';
 import { ImportMerger } from './ImportMerger.js';
+import { LOG_PREFIX } from '../config/LOG_PREFIX.js';
 import { StreamingJsonArrayReader } from './StreamingJsonArrayReader.js';
 
 /**
@@ -50,8 +51,10 @@ export class ImportOrchestrator {
    * @param {File[]} files The files the user selected.
    * @param {function(number): void} [onConversationProgress] Called with the number of
    * conversations classified so far, periodically during the scan.
-   * @returns {Promise<{classified: object, artifactRecords: object[], conversationRows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>}>}
-   * The raw classification (for apply()), the parsed Artifact records, and the conversation rows.
+   * @returns {Promise<{classified: object, artifactRecords: object[], conversationRows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>, failedCount: number}>}
+   * The raw classification (for apply()), the parsed Artifact records, the conversation rows, and
+   * how many conversations couldn't be read at all (logged, and left out of the rows - a single
+   * unreadable conversation elsewhere in the file never stops the rest from being previewed).
    * @throws {Error} When no conversations.json was among the selected files.
    */
   async previewClassified(files, onConversationProgress) {
@@ -59,8 +62,8 @@ export class ImportOrchestrator {
     if (!classified.conversationsFile) throw new Error('No conversations.json was among the selected files.');
     const artifactRecords = classified.artifacts.map(({ artifactJson, htmlByVersionId }) => ClaudeExportParser.artifact(artifactJson, htmlByVersionId));
     const artifactsById = new Map(artifactRecords.map(record => [record.artifactId, record]));
-    const conversationRows = await this.#previewConversations(classified.conversationsFile, artifactsById, onConversationProgress);
-    return { classified, artifactRecords, conversationRows };
+    const { rows, failedCount } = await this.#previewConversations(classified.conversationsFile, artifactsById, onConversationProgress);
+    return { classified, artifactRecords, conversationRows: rows, failedCount };
   }
 
   /**
@@ -92,28 +95,47 @@ export class ImportOrchestrator {
    * Streams every conversation, classifying each against what's already stored, without writing.
    * @param {File} conversationsFile The conversations.json file.
    * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
-   * @param {function(number): void} [onProgress] Called with the number classified so far.
-   * @returns {Promise<Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>>}
-   * The rows, in file order.
+   * @param {function(number): void} [onProgress] Called with the number processed so far (found or failed).
+   * @returns {Promise<{rows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>, failedCount: number}>}
+   * The rows, in file order, and how many conversations failed to preview.
    */
   async #previewConversations(conversationsFile, artifactsById, onProgress) {
     const rows = [];
+    let failedCount = 0;
     let processed = 0;
     for await (const rawConversation of StreamingJsonArrayReader.readArray(conversationsFile)) {
+      const row = await this.#previewOneConversation(rawConversation, artifactsById);
+      if (row) rows.push(row);
+      else failedCount += 1;
+      processed += 1;
+      await ImportOrchestrator.#reportProgressIfDue(processed, onProgress);
+    }
+    onProgress?.(processed);
+    return { rows, failedCount };
+  }
+
+  /**
+   * Maps and classifies one conversation for preview, without writing anything.
+   * @param {object} rawConversation A conversations.json entry.
+   * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
+   * @returns {Promise<?{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>}
+   * The row, or null when this conversation couldn't be read (logged, not thrown, so it doesn't stop the rest of the scan).
+   */
+  async #previewOneConversation(rawConversation, artifactsById) {
+    try {
       const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
       const stored = await this.#conversationStore.getRecord(mapped.conversationId);
-      rows.push({
+      return {
         conversationId: mapped.conversationId,
         title: mapped.title,
         updatedAt: rawConversation.updated_at,
         promptCount: mapped.messages.filter(message => message.sender === 'human').length,
         classification: ImportMerger.classifyConversation(stored, mapped),
-      });
-      processed += 1;
-      await ImportOrchestrator.#reportProgressIfDue(processed, onProgress);
+      };
+    } catch (error) {
+      console.warn(LOG_PREFIX, 'skipping a conversation that failed to preview', rawConversation?.uuid, error);
+      return null;
     }
-    onProgress?.(processed);
-    return rows;
   }
 
   /**
@@ -123,11 +145,11 @@ export class ImportOrchestrator {
    * @param {Set<string>} selectedConversationIds Ids of the conversations to write.
    * @param {string} importedAt ISO timestamp of this import.
    * @param {function(number): void} [onProgress] Called with the number processed so far.
-   * @returns {Promise<{new: number, changed: number, renamedOnly: number, unchanged: number}>} The
-   * counts, among the selected conversations only.
+   * @returns {Promise<{new: number, changed: number, renamedOnly: number, unchanged: number, failed: number}>}
+   * The counts, among the selected conversations only.
    */
   async #applyConversations(conversationsFile, artifactsById, selectedConversationIds, importedAt, onProgress) {
-    const tally = { new: 0, changed: 0, renamedOnly: 0, unchanged: 0 };
+    const tally = { new: 0, changed: 0, renamedOnly: 0, unchanged: 0, failed: 0 };
     let processed = 0;
     for await (const rawConversation of StreamingJsonArrayReader.readArray(conversationsFile)) {
       if (selectedConversationIds.has(rawConversation.uuid)) await this.#applyOneConversation(rawConversation, artifactsById, importedAt, tally);
@@ -143,15 +165,21 @@ export class ImportOrchestrator {
    * @param {object} rawConversation A conversations.json entry.
    * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
    * @param {string} importedAt ISO timestamp of this import.
-   * @param {{new: number, changed: number, renamedOnly: number, unchanged: number}} tally Counts to update.
-   * @returns {Promise<void>} Resolves once written, if anything changed.
+   * @param {{new: number, changed: number, renamedOnly: number, unchanged: number, failed: number}} tally Counts to update.
+   * @returns {Promise<void>} Resolves once written, if anything changed; a failure is logged and
+   * tallied rather than thrown, so it doesn't stop the rest of the selected conversations from importing.
    */
   async #applyOneConversation(rawConversation, artifactsById, importedAt, tally) {
-    const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
-    const stored = await this.#conversationStore.getRecord(mapped.conversationId);
-    tally[ImportMerger.classifyConversation(stored, mapped)] += 1;
-    const merged = ImportMerger.mergeConversation(stored, mapped, importedAt);
-    if (merged) await this.#conversationStore.write(merged);
+    try {
+      const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
+      const stored = await this.#conversationStore.getRecord(mapped.conversationId);
+      tally[ImportMerger.classifyConversation(stored, mapped)] += 1;
+      const merged = ImportMerger.mergeConversation(stored, mapped, importedAt);
+      if (merged) await this.#conversationStore.write(merged);
+    } catch (error) {
+      tally.failed += 1;
+      console.warn(LOG_PREFIX, 'skipping a conversation that failed to import', rawConversation?.uuid, error);
+    }
   }
 
   /**

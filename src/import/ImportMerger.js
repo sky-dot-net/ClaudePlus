@@ -58,11 +58,14 @@ export class ImportMerger {
 
   /**
    * The leaf a freshly imported or merged conversation should show by default: among messages no
-   * other message names as its parent, the one created most recently.
+   * other message names as its parent, the one created most recently. A real export can contain a
+   * conversation with no messages at all (deleted or never sent past creation); there's no leaf to
+   * pick for one, so it gets none rather than treating that as an error.
    * @param {ApiMessage[]} messages The conversation's messages.
-   * @returns {string} The leaf message's id.
+   * @returns {?string} The leaf message's id, or null when there are no messages.
    */
   static defaultLeafOf(messages) {
+    if (messages.length === 0) return null;
     const parentIds = new Set(messages.map(message => message.parent_message_uuid));
     const leaves = messages.filter(message => !parentIds.has(message.uuid));
     return leaves.reduce((latest, message) => ((message.created_at ?? '') > (latest.created_at ?? '') ? message : latest)).uuid;

@@ -239,8 +239,8 @@ export class ImportDialog extends Dialog {
    * @returns {void}
    */
   #showReview(preview) {
-    const { classified, conversationRows } = preview;
-    this.#elements.status.innerHTML = ImportDialog.#categoryCountsHtml(conversationRows, classified);
+    const { classified, conversationRows, failedCount } = preview;
+    this.#elements.status.innerHTML = ImportDialog.#categoryCountsHtml(conversationRows, classified, failedCount);
     this.#elements.categories.hidden = false;
     this.#elements.categories.innerHTML = ImportDialog.#categoryToggleHtml(classified);
     this.#selectedIds = new Set(conversationRows.filter(row => ImportDialog.#DEFAULT_SELECTED_CLASSIFICATIONS.has(row.classification)).map(row => row.conversationId));
@@ -287,12 +287,14 @@ export class ImportDialog extends Dialog {
    * HTML summarizing how many of each category were found.
    * @param {object[]} conversationRows The previewed conversation rows.
    * @param {object} classified The classified files.
+   * @param {number} failedCount Conversations that couldn't be read at all.
    * @returns {string} The summary.
    */
-  static #categoryCountsHtml(conversationRows, classified) {
+  static #categoryCountsHtml(conversationRows, classified, failedCount) {
     const present = ImportDialog.#OPTIONAL_CATEGORIES.filter(category => category.isPresent(classified));
     const lines = [`${conversationRows.length} conversation(s)`, ...present.map(category => `${category.count(classified)} ${category.countNoun}`)];
-    return `<p class="claude-plus-import-dialog__file-count">Found: ${lines.join(', ')}.</p>`;
+    const failedLine = failedCount > 0 ? `<p class="claude-plus-import-dialog__warning">${failedCount} conversation(s) couldn't be read and are not shown below - see the browser console for details.</p>` : '';
+    return `<p class="claude-plus-import-dialog__file-count">Found: ${lines.join(', ')}.</p>${failedLine}`;
   }
 
   /**
@@ -468,6 +470,7 @@ export class ImportDialog extends Dialog {
     const { conversations } = result;
     const lines = [
       `${conversations.new} new, ${conversations.changed} with new messages, ${conversations.renamedOnly} renamed, ${conversations.unchanged} unchanged among the selected conversations`,
+      conversations.failed > 0 ? `${conversations.failed} selected conversation(s) failed to import - see the browser console for details` : null,
       `${result.memoryFiles.written} of ${result.memoryFiles.total} memory file(s) saved`,
       `${result.artifacts.written} of ${result.artifacts.total} Artifact(s) saved`,
       `${result.projects.written} of ${result.projects.total} Project(s) saved`,

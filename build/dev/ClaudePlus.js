@@ -8877,11 +8877,14 @@
 
     /**
      * The leaf a freshly imported or merged conversation should show by default: among messages no
-     * other message names as its parent, the one created most recently.
+     * other message names as its parent, the one created most recently. A real export can contain a
+     * conversation with no messages at all (deleted or never sent past creation); there's no leaf to
+     * pick for one, so it gets none rather than treating that as an error.
      * @param {ApiMessage[]} messages The conversation's messages.
-     * @returns {string} The leaf message's id.
+     * @returns {?string} The leaf message's id, or null when there are no messages.
      */
     static defaultLeafOf(messages) {
+      if (messages.length === 0) return null;
       const parentIds = new Set(messages.map(message => message.parent_message_uuid));
       const leaves = messages.filter(message => !parentIds.has(message.uuid));
       return leaves.reduce((latest, message) => ((message.created_at ?? '') > (latest.created_at ?? '') ? message : latest)).uuid;
@@ -9187,8 +9190,10 @@
      * @param {File[]} files The files the user selected.
      * @param {function(number): void} [onConversationProgress] Called with the number of
      * conversations classified so far, periodically during the scan.
-     * @returns {Promise<{classified: object, artifactRecords: object[], conversationRows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>}>}
-     * The raw classification (for apply()), the parsed Artifact records, and the conversation rows.
+     * @returns {Promise<{classified: object, artifactRecords: object[], conversationRows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>, failedCount: number}>}
+     * The raw classification (for apply()), the parsed Artifact records, the conversation rows, and
+     * how many conversations couldn't be read at all (logged, and left out of the rows - a single
+     * unreadable conversation elsewhere in the file never stops the rest from being previewed).
      * @throws {Error} When no conversations.json was among the selected files.
      */
     async previewClassified(files, onConversationProgress) {
@@ -9196,8 +9201,8 @@
       if (!classified.conversationsFile) throw new Error('No conversations.json was among the selected files.');
       const artifactRecords = classified.artifacts.map(({ artifactJson, htmlByVersionId }) => ClaudeExportParser.artifact(artifactJson, htmlByVersionId));
       const artifactsById = new Map(artifactRecords.map(record => [record.artifactId, record]));
-      const conversationRows = await this.#previewConversations(classified.conversationsFile, artifactsById, onConversationProgress);
-      return { classified, artifactRecords, conversationRows };
+      const { rows, failedCount } = await this.#previewConversations(classified.conversationsFile, artifactsById, onConversationProgress);
+      return { classified, artifactRecords, conversationRows: rows, failedCount };
     }
 
     /**
@@ -9229,28 +9234,47 @@
      * Streams every conversation, classifying each against what's already stored, without writing.
      * @param {File} conversationsFile The conversations.json file.
      * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
-     * @param {function(number): void} [onProgress] Called with the number classified so far.
-     * @returns {Promise<Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>>}
-     * The rows, in file order.
+     * @param {function(number): void} [onProgress] Called with the number processed so far (found or failed).
+     * @returns {Promise<{rows: Array<{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>, failedCount: number}>}
+     * The rows, in file order, and how many conversations failed to preview.
      */
     async #previewConversations(conversationsFile, artifactsById, onProgress) {
       const rows = [];
+      let failedCount = 0;
       let processed = 0;
       for await (const rawConversation of StreamingJsonArrayReader.readArray(conversationsFile)) {
+        const row = await this.#previewOneConversation(rawConversation, artifactsById);
+        if (row) rows.push(row);
+        else failedCount += 1;
+        processed += 1;
+        await ImportOrchestrator.#reportProgressIfDue(processed, onProgress);
+      }
+      onProgress?.(processed);
+      return { rows, failedCount };
+    }
+
+    /**
+     * Maps and classifies one conversation for preview, without writing anything.
+     * @param {object} rawConversation A conversations.json entry.
+     * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
+     * @returns {Promise<?{conversationId: string, title: string, updatedAt: string, promptCount: number, classification: string}>}
+     * The row, or null when this conversation couldn't be read (logged, not thrown, so it doesn't stop the rest of the scan).
+     */
+    async #previewOneConversation(rawConversation, artifactsById) {
+      try {
         const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
         const stored = await this.#conversationStore.getRecord(mapped.conversationId);
-        rows.push({
+        return {
           conversationId: mapped.conversationId,
           title: mapped.title,
           updatedAt: rawConversation.updated_at,
           promptCount: mapped.messages.filter(message => message.sender === 'human').length,
           classification: ImportMerger.classifyConversation(stored, mapped),
-        });
-        processed += 1;
-        await ImportOrchestrator.#reportProgressIfDue(processed, onProgress);
+        };
+      } catch (error) {
+        console.warn(LOG_PREFIX, 'skipping a conversation that failed to preview', rawConversation?.uuid, error);
+        return null;
       }
-      onProgress?.(processed);
-      return rows;
     }
 
     /**
@@ -9260,11 +9284,11 @@
      * @param {Set<string>} selectedConversationIds Ids of the conversations to write.
      * @param {string} importedAt ISO timestamp of this import.
      * @param {function(number): void} [onProgress] Called with the number processed so far.
-     * @returns {Promise<{new: number, changed: number, renamedOnly: number, unchanged: number}>} The
-     * counts, among the selected conversations only.
+     * @returns {Promise<{new: number, changed: number, renamedOnly: number, unchanged: number, failed: number}>}
+     * The counts, among the selected conversations only.
      */
     async #applyConversations(conversationsFile, artifactsById, selectedConversationIds, importedAt, onProgress) {
-      const tally = { new: 0, changed: 0, renamedOnly: 0, unchanged: 0 };
+      const tally = { new: 0, changed: 0, renamedOnly: 0, unchanged: 0, failed: 0 };
       let processed = 0;
       for await (const rawConversation of StreamingJsonArrayReader.readArray(conversationsFile)) {
         if (selectedConversationIds.has(rawConversation.uuid)) await this.#applyOneConversation(rawConversation, artifactsById, importedAt, tally);
@@ -9280,15 +9304,21 @@
      * @param {object} rawConversation A conversations.json entry.
      * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
      * @param {string} importedAt ISO timestamp of this import.
-     * @param {{new: number, changed: number, renamedOnly: number, unchanged: number}} tally Counts to update.
-     * @returns {Promise<void>} Resolves once written, if anything changed.
+     * @param {{new: number, changed: number, renamedOnly: number, unchanged: number, failed: number}} tally Counts to update.
+     * @returns {Promise<void>} Resolves once written, if anything changed; a failure is logged and
+     * tallied rather than thrown, so it doesn't stop the rest of the selected conversations from importing.
      */
     async #applyOneConversation(rawConversation, artifactsById, importedAt, tally) {
-      const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
-      const stored = await this.#conversationStore.getRecord(mapped.conversationId);
-      tally[ImportMerger.classifyConversation(stored, mapped)] += 1;
-      const merged = ImportMerger.mergeConversation(stored, mapped, importedAt);
-      if (merged) await this.#conversationStore.write(merged);
+      try {
+        const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
+        const stored = await this.#conversationStore.getRecord(mapped.conversationId);
+        tally[ImportMerger.classifyConversation(stored, mapped)] += 1;
+        const merged = ImportMerger.mergeConversation(stored, mapped, importedAt);
+        if (merged) await this.#conversationStore.write(merged);
+      } catch (error) {
+        tally.failed += 1;
+        console.warn(LOG_PREFIX, 'skipping a conversation that failed to import', rawConversation?.uuid, error);
+      }
     }
 
     /**
@@ -12541,7 +12571,7 @@
     }
   }
 
-  var stylesheet$3 = ".claude-plus-import-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-import-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 720px;\n  max-width: 90vw;\n  height: 85vh;\n  box-sizing: border-box;\n  font-size: 13px;\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n}\n\n.claude-plus-import-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-import-dialog__row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin: 12px 0;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__drop-zone {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 8px;\n  margin: 12px 0;\n  padding: 16px;\n  flex-shrink: 0;\n  border: 1px dashed var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  color: var(--claude-plus-color-text-muted);\n  font-size: 12px;\n}\n\n.claude-plus-import-dialog__drop-zone--active {\n  border-color: var(--claude-plus-color-accent);\n  background: var(--claude-plus-color-tool-details);\n}\n\n.claude-plus-import-dialog__file-count {\n  color: var(--claude-plus-color-text-muted);\n  margin: 0 0 4px;\n}\n\n.claude-plus-import-dialog__detection-list {\n  margin: 0;\n  padding-left: 18px;\n}\n\n.claude-plus-import-dialog__progress {\n  color: var(--claude-plus-color-text-muted);\n  font-style: italic;\n}\n\n.claude-plus-import-dialog__categories {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  flex-shrink: 0;\n  margin-bottom: 4px;\n}\n\n.claude-plus-import-dialog__toggle {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n}\n\n.claude-plus-import-dialog__table-host {\n  flex: 1;\n  min-height: 0;\n  display: flex;\n  flex-direction: column;\n}\n\n.claude-plus-import-dialog__badge {\n  display: inline-block;\n  padding: 1px 8px;\n  border-radius: 10px;\n  font-size: 11px;\n  white-space: nowrap;\n}\n\n.claude-plus-import-dialog__badge--new {\n  background: var(--claude-plus-color-accent);\n  color: var(--claude-plus-color-on-accent, #fff);\n}\n\n.claude-plus-import-dialog__badge--changed {\n  background: var(--claude-plus-color-tool-details);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-import-dialog__badge--renamedOnly {\n  background: var(--claude-plus-color-bar);\n  color: var(--claude-plus-color-text-muted);\n  border: 1px solid var(--claude-plus-color-border-strong);\n}\n\n.claude-plus-import-dialog__badge--unchanged {\n  background: transparent;\n  color: var(--claude-plus-color-text-faint);\n  border: 1px solid var(--claude-plus-color-border);\n}\n";
+  var stylesheet$3 = ".claude-plus-import-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-import-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 720px;\n  max-width: 90vw;\n  height: 85vh;\n  box-sizing: border-box;\n  font-size: 13px;\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n}\n\n.claude-plus-import-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-import-dialog__row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin: 12px 0;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__drop-zone {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 8px;\n  margin: 12px 0;\n  padding: 16px;\n  flex-shrink: 0;\n  border: 1px dashed var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  color: var(--claude-plus-color-text-muted);\n  font-size: 12px;\n}\n\n.claude-plus-import-dialog__drop-zone--active {\n  border-color: var(--claude-plus-color-accent);\n  background: var(--claude-plus-color-tool-details);\n}\n\n.claude-plus-import-dialog__file-count {\n  color: var(--claude-plus-color-text-muted);\n  margin: 0 0 4px;\n}\n\n.claude-plus-import-dialog__detection-list {\n  margin: 0;\n  padding-left: 18px;\n}\n\n.claude-plus-import-dialog__progress {\n  color: var(--claude-plus-color-text-muted);\n  font-style: italic;\n}\n\n.claude-plus-import-dialog__warning {\n  color: var(--claude-plus-color-danger, #d9534f);\n  margin: 4px 0 0;\n}\n\n.claude-plus-import-dialog__categories {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  flex-shrink: 0;\n  margin-bottom: 4px;\n}\n\n.claude-plus-import-dialog__toggle {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n}\n\n.claude-plus-import-dialog__table-host {\n  flex: 1;\n  min-height: 0;\n  display: flex;\n  flex-direction: column;\n}\n\n.claude-plus-import-dialog__badge {\n  display: inline-block;\n  padding: 1px 8px;\n  border-radius: 10px;\n  font-size: 11px;\n  white-space: nowrap;\n}\n\n.claude-plus-import-dialog__badge--new {\n  background: var(--claude-plus-color-accent);\n  color: var(--claude-plus-color-on-accent, #fff);\n}\n\n.claude-plus-import-dialog__badge--changed {\n  background: var(--claude-plus-color-tool-details);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-import-dialog__badge--renamedOnly {\n  background: var(--claude-plus-color-bar);\n  color: var(--claude-plus-color-text-muted);\n  border: 1px solid var(--claude-plus-color-border-strong);\n}\n\n.claude-plus-import-dialog__badge--unchanged {\n  background: transparent;\n  color: var(--claude-plus-color-text-faint);\n  border: 1px solid var(--claude-plus-color-border);\n}\n";
 
   StyleRegistry.register(stylesheet$3);
 
@@ -12773,8 +12803,8 @@
      * @returns {void}
      */
     #showReview(preview) {
-      const { classified, conversationRows } = preview;
-      this.#elements.status.innerHTML = ImportDialog.#categoryCountsHtml(conversationRows, classified);
+      const { classified, conversationRows, failedCount } = preview;
+      this.#elements.status.innerHTML = ImportDialog.#categoryCountsHtml(conversationRows, classified, failedCount);
       this.#elements.categories.hidden = false;
       this.#elements.categories.innerHTML = ImportDialog.#categoryToggleHtml(classified);
       this.#selectedIds = new Set(conversationRows.filter(row => ImportDialog.#DEFAULT_SELECTED_CLASSIFICATIONS.has(row.classification)).map(row => row.conversationId));
@@ -12821,12 +12851,14 @@
      * HTML summarizing how many of each category were found.
      * @param {object[]} conversationRows The previewed conversation rows.
      * @param {object} classified The classified files.
+     * @param {number} failedCount Conversations that couldn't be read at all.
      * @returns {string} The summary.
      */
-    static #categoryCountsHtml(conversationRows, classified) {
+    static #categoryCountsHtml(conversationRows, classified, failedCount) {
       const present = ImportDialog.#OPTIONAL_CATEGORIES.filter(category => category.isPresent(classified));
       const lines = [`${conversationRows.length} conversation(s)`, ...present.map(category => `${category.count(classified)} ${category.countNoun}`)];
-      return `<p class="claude-plus-import-dialog__file-count">Found: ${lines.join(', ')}.</p>`;
+      const failedLine = failedCount > 0 ? `<p class="claude-plus-import-dialog__warning">${failedCount} conversation(s) couldn't be read and are not shown below - see the browser console for details.</p>` : '';
+      return `<p class="claude-plus-import-dialog__file-count">Found: ${lines.join(', ')}.</p>${failedLine}`;
     }
 
     /**
@@ -13002,6 +13034,7 @@
       const { conversations } = result;
       const lines = [
         `${conversations.new} new, ${conversations.changed} with new messages, ${conversations.renamedOnly} renamed, ${conversations.unchanged} unchanged among the selected conversations`,
+        conversations.failed > 0 ? `${conversations.failed} selected conversation(s) failed to import - see the browser console for details` : null,
         `${result.memoryFiles.written} of ${result.memoryFiles.total} memory file(s) saved`,
         `${result.artifacts.written} of ${result.artifacts.total} Artifact(s) saved`,
         `${result.projects.written} of ${result.projects.total} Project(s) saved`,

@@ -78,6 +78,11 @@
   font-style: italic;
 }
 
+.claude-plus-import-dialog__warning {
+  color: var(--claude-plus-color-danger, #d9534f);
+  margin: 4px 0 0;
+}
+
 .claude-plus-import-dialog__categories {
   display: flex;
   flex-direction: column;
