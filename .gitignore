@@ -1,3 +1,14 @@
 node_modules/
 *.log
 test-results/
+
+# claude.ai export test fixtures (data/): exclude anything carrying real
+# personal data even though the account itself is a throwaway test account.
+# - light_metadata contains a real login IP address (geolocatable), not fake.
+# - manifest-*.json files carry one-time-use export download URL tokens.
+# - attachments/ is excluded defensively in case a future export ever
+#   includes real binary attachment content (none does today).
+light_metadata-000/
+light_metadata-000.zip
+manifest-*.json
+attachments/
