@@ -382,9 +382,9 @@
     return Object.assign(document.createElement(tagName), properties);
   }
 
-  var stylesheet$p = ".claude-plus-empty-state {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-style: italic;\r\n  padding: 6px 0;\r\n}\r\n\r\n.claude-plus-empty-state--padded {\r\n  padding: 24px;\r\n}\r\n";
+  var stylesheet$q = ".claude-plus-empty-state {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-style: italic;\r\n  padding: 6px 0;\r\n}\r\n\r\n.claude-plus-empty-state--padded {\r\n  padding: 24px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$p);
+  StyleRegistry.register(stylesheet$q);
 
   /**
    * HTML for an empty-state message.
@@ -419,9 +419,9 @@
     return `${seconds}s`;
   }
 
-  var stylesheet$o = ".claude-plus-value-row {\r\n  display: flex;\r\n  justify-content: space-between;\r\n  padding: 2px 0;\r\n  gap: 8px;\r\n}\r\n\r\n.claude-plus-value-row span {\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
+  var stylesheet$p = ".claude-plus-value-row {\r\n  display: flex;\r\n  justify-content: space-between;\r\n  padding: 2px 0;\r\n  gap: 8px;\r\n}\r\n\r\n.claude-plus-value-row span {\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$o);
+  StyleRegistry.register(stylesheet$p);
 
   /**
    * HTML for a label/value row.
@@ -433,9 +433,9 @@
     return `<div class="claude-plus-value-row"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>`;
   }
 
-  var stylesheet$n = ".claude-plus-conversation-stats {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n";
+  var stylesheet$o = ".claude-plus-conversation-stats {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n";
 
-  StyleRegistry.register(stylesheet$n);
+  StyleRegistry.register(stylesheet$o);
 
   /**
    * A sub-pane showing usage stats scoped to just the pane's own conversation (turns, average
@@ -994,9 +994,9 @@
     searchResults: 300,
   });
 
-  var stylesheet$m = ".claude-plus-value-combobox {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  max-height: 240px;\r\n  overflow-y: auto;\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-value-combobox__entry {\r\n  padding: 4px 8px;\r\n  border-radius: 4px;\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-value-combobox__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
+  var stylesheet$n = ".claude-plus-value-combobox {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  max-height: 240px;\r\n  overflow-y: auto;\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-value-combobox__entry {\r\n  padding: 4px 8px;\r\n  border-radius: 4px;\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-value-combobox__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$m);
+  StyleRegistry.register(stylesheet$n);
 
   /**
    * A text input that shows the distinct values it can filter by in a list below it while focused.
@@ -1140,9 +1140,9 @@
     return FILTER_CONTROLS[column.filter ?? 'none'](column);
   }
 
-  var stylesheet$l = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
+  var stylesheet$m = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$l);
+  StyleRegistry.register(stylesheet$m);
 
   /**
    * A reusable table with toggleable columns, sorting by clicking a header (clicking again reverses
@@ -1534,9 +1534,9 @@
     return includesConversation ? [...columns, createConversationColumn()] : columns;
   }
 
-  var stylesheet$k = ".claude-plus-subpane {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  min-height: 0;\r\n  flex: 1;\r\n  padding: 6px;\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  background: var(--claude-plus-color-bar);\r\n}\r\n\r\n.claude-plus-subpane__header {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 2px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-subpane__title {\r\n  flex: 1;\r\n  min-width: 0;\r\n  font-size: 12px;\r\n  font-weight: 600;\r\n  white-space: nowrap;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-subpane__button {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 2px 5px;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-subpane__button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
+  var stylesheet$l = ".claude-plus-subpane {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  min-height: 0;\r\n  flex: 1;\r\n  padding: 6px;\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  background: var(--claude-plus-color-bar);\r\n}\r\n\r\n.claude-plus-subpane__header {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 2px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-subpane__title {\r\n  flex: 1;\r\n  min-width: 0;\r\n  font-size: 12px;\r\n  font-weight: 600;\r\n  white-space: nowrap;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-subpane__button {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 2px 5px;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-subpane__button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$k);
+  StyleRegistry.register(stylesheet$l);
 
   /**
    * A sub-pane inside a chat pane listing the web sources or files of that pane's conversation.
@@ -2030,9 +2030,9 @@
     }
   }
 
-  var stylesheet$j = ".claude-plus-image-viewer-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.8);\r\n  display: flex;\r\n  flex-direction: column;\r\n  align-items: center;\r\n  justify-content: center;\r\n  gap: 12px;\r\n}\r\n\r\n.claude-plus-image-viewer__frame {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  overflow: hidden;\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-image-viewer__image {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  width: auto;\r\n  height: auto;\r\n  cursor: grab;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-image-viewer__open-button {\r\n  flex-shrink: 0;\r\n}\r\n";
+  var stylesheet$k = ".claude-plus-image-viewer-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.8);\r\n  display: flex;\r\n  flex-direction: column;\r\n  align-items: center;\r\n  justify-content: center;\r\n  gap: 12px;\r\n}\r\n\r\n.claude-plus-image-viewer__frame {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  overflow: hidden;\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-image-viewer__image {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  width: auto;\r\n  height: auto;\r\n  cursor: grab;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-image-viewer__open-button {\r\n  flex-shrink: 0;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$j);
+  StyleRegistry.register(stylesheet$k);
 
   /**
    * Shows an image at full size over a dark backdrop, capped at 90% of the viewport. Scrolling zooms;
@@ -2238,9 +2238,9 @@
     }
   }
 
-  var stylesheet$i = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  align-self: flex-end;\n  text-align: right;\n}\n\n.claude-plus-message--human:not(.claude-plus-message--editing) {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__attachments {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message__bubble {\n  background: var(--claude-plus-color-message-human-bg);\n  border-radius: 14px;\n  padding: 8px 12px;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  font-family: var(--claude-plus-message-font-family, inherit);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 6px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
+  var stylesheet$j = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  align-self: flex-end;\n  text-align: right;\n}\n\n.claude-plus-message--human:not(.claude-plus-message--editing) {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__attachments {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message__bubble {\n  background: var(--claude-plus-color-message-human-bg);\n  border-radius: 14px;\n  padding: 8px 12px;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  font-family: var(--claude-plus-message-font-family, inherit);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 6px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n";
 
-  StyleRegistry.register(stylesheet$i);
+  StyleRegistry.register(stylesheet$j);
 
   /**
    * The messages of a chat session: copy, retry, branch navigation between a message's edits and
@@ -2698,9 +2698,9 @@
     }
   }
 
-  var stylesheet$h = ".claude-plus-tool-steps {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n\n.claude-plus-tool-step {\n  background: var(--claude-plus-color-tool-details);\n  border-radius: 6px;\n  padding: 6px 8px;\n  font-size: 12px;\n}\n\n.claude-plus-tool-step--error {\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-error);\n}\n\n.claude-plus-tool-step summary {\n  cursor: pointer;\n  font-weight: 600;\n}\n\n.claude-plus-tool-step__summaries {\n  margin: 6px 0 0;\n  padding-left: 18px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__field-label {\n  margin-top: 8px;\n  font-size: 11px;\n  font-weight: 600;\n  color: var(--claude-plus-color-text-faint);\n  text-transform: uppercase;\n  letter-spacing: 0.03em;\n}\n\n.claude-plus-tool-step__pre {\n  margin: 2px 0 0;\n  white-space: pre-wrap;\n  overflow-wrap: break-word;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__result-status {\n  margin-top: 8px;\n  font-weight: 600;\n}\n";
+  var stylesheet$i = ".claude-plus-tool-steps {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n\n.claude-plus-tool-step {\n  background: var(--claude-plus-color-tool-details);\n  border-radius: 6px;\n  padding: 6px 8px;\n  font-size: 12px;\n}\n\n.claude-plus-tool-step--error {\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-error);\n}\n\n.claude-plus-tool-step summary {\n  cursor: pointer;\n  font-weight: 600;\n}\n\n.claude-plus-tool-step__summaries {\n  margin: 6px 0 0;\n  padding-left: 18px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__field-label {\n  margin-top: 8px;\n  font-size: 11px;\n  font-weight: 600;\n  color: var(--claude-plus-color-text-faint);\n  text-transform: uppercase;\n  letter-spacing: 0.03em;\n}\n\n.claude-plus-tool-step__pre {\n  margin: 2px 0 0;\n  white-space: pre-wrap;\n  overflow-wrap: break-word;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__result-status {\n  margin-top: 8px;\n  font-weight: 600;\n}\n";
 
-  StyleRegistry.register(stylesheet$h);
+  StyleRegistry.register(stylesheet$i);
 
   /**
    * A sub-pane showing one message's thinking and tool-call steps, chronologically, each collapsed
@@ -2993,9 +2993,9 @@
     }
   }
 
-  var stylesheet$g = ".claude-plus-panel {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-panel);\r\n  box-sizing: border-box;\r\n  padding: 10px 12px;\r\n  overflow-y: auto;\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  font-size: 13px;\r\n  background: var(--claude-plus-color-background);\r\n}\r\n\r\n.claude-plus-panel summary {\r\n  cursor: pointer;\r\n  padding: 4px 0;\r\n}\r\n\r\n.claude-plus-panel select,\r\n.claude-plus-panel input[type=text],\r\n.claude-plus-panel input[type=date],\r\n.claude-plus-panel textarea {\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font-size: 12px;\r\n  font-family: inherit;\r\n}\r\n\r\n.claude-plus-panel__section {\r\n  padding: 8px 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-hover);\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-panel__section:last-child {\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-spaced-above {\r\n  margin-top: 6px;\r\n}\r\n\r\n.claude-plus-hint {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-size: 11px;\r\n  margin-top: 4px;\r\n}\r\n\r\n.claude-plus-scrollable {\r\n  overflow-y: auto;\r\n}\r\n\r\n.claude-plus-fill-remaining {\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-pending {\r\n  opacity: 0.4;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-primary-button {\r\n  padding: 8px;\r\n  background: var(--claude-plus-color-accent);\r\n  border: none;\r\n  border-radius: 6px;\r\n  color: #fff;\r\n  font-size: 13px;\r\n  cursor: pointer;\r\n  font-weight: 600;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-primary-button:disabled {\r\n  opacity: 0.6;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-full-width {\r\n  width: 100%;\r\n}\r\n\r\n.claude-plus-search-input {\r\n  flex-shrink: 0;\r\n  padding: 6px 8px;\r\n}\r\n";
+  var stylesheet$h = ".claude-plus-panel {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-panel);\r\n  box-sizing: border-box;\r\n  padding: 10px 12px;\r\n  overflow-y: auto;\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  font-size: 13px;\r\n  background: var(--claude-plus-color-background);\r\n}\r\n\r\n.claude-plus-panel summary {\r\n  cursor: pointer;\r\n  padding: 4px 0;\r\n}\r\n\r\n.claude-plus-panel select,\r\n.claude-plus-panel input[type=text],\r\n.claude-plus-panel input[type=date],\r\n.claude-plus-panel textarea {\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font-size: 12px;\r\n  font-family: inherit;\r\n}\r\n\r\n.claude-plus-panel__section {\r\n  padding: 8px 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-hover);\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-panel__section:last-child {\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-spaced-above {\r\n  margin-top: 6px;\r\n}\r\n\r\n.claude-plus-hint {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-size: 11px;\r\n  margin-top: 4px;\r\n}\r\n\r\n.claude-plus-scrollable {\r\n  overflow-y: auto;\r\n}\r\n\r\n.claude-plus-fill-remaining {\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-pending {\r\n  opacity: 0.4;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-primary-button {\r\n  padding: 8px;\r\n  background: var(--claude-plus-color-accent);\r\n  border: none;\r\n  border-radius: 6px;\r\n  color: #fff;\r\n  font-size: 13px;\r\n  cursor: pointer;\r\n  font-weight: 600;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-primary-button:disabled {\r\n  opacity: 0.6;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-full-width {\r\n  width: 100%;\r\n}\r\n\r\n.claude-plus-search-input {\r\n  flex-shrink: 0;\r\n  padding: 6px 8px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$g);
+  StyleRegistry.register(stylesheet$h);
 
   /**
    * A dockable panel. Its DOM is built on first access and immediately rendered from current state,
@@ -3144,9 +3144,9 @@
     }
   }
 
-  var stylesheet$f = ".claude-plus-panel--active-among-several {\r\n  border: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-panel--inactive-among-several {\r\n  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
+  var stylesheet$g = ".claude-plus-panel--active-among-several {\r\n  border: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-panel--inactive-among-several {\r\n  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$f);
+  StyleRegistry.register(stylesheet$g);
 
   /**
    * A chat pane: one session's messages, plus optional sub-panes listing the conversation's files
@@ -3443,9 +3443,9 @@
    */
   const ATTACHMENT_NAME_FIELDS = Object.freeze(['file_name', 'name', 'filename', 'title']);
 
-  var stylesheet$e = ".claude-plus-code-block {\r\n  background: var(--claude-plus-color-code-block);\r\n  padding: 8px;\r\n  border-radius: 6px;\r\n  overflow-x: auto;\r\n  font-size: 12px;\r\n}\r\n";
+  var stylesheet$f = ".claude-plus-code-block {\r\n  background: var(--claude-plus-color-code-block);\r\n  padding: 8px;\r\n  border-radius: 6px;\r\n  overflow-x: auto;\r\n  font-size: 12px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$e);
+  StyleRegistry.register(stylesheet$f);
 
   /**
    * Minimal markdown renderer: fenced code blocks, inline code, bold, italic and http(s) links.
@@ -3508,9 +3508,9 @@
     }
   }
 
-  var stylesheet$d = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-images {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  margin-bottom: 6px;\r\n}\r\n\r\n.claude-plus-message--human .claude-plus-message-images {\r\n  justify-content: flex-end;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n.claude-plus-artifact-frame {\r\n  display: block;\r\n  width: 100%;\r\n  min-height: 400px;\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  border-radius: 8px;\r\n}\r\n\r\n";
+  var stylesheet$e = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-images {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  margin-bottom: 6px;\r\n}\r\n\r\n.claude-plus-message--human .claude-plus-message-images {\r\n  justify-content: flex-end;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n.claude-plus-artifact-frame {\r\n  display: block;\r\n  width: 100%;\r\n  min-height: 400px;\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  border-radius: 8px;\r\n}\r\n\r\n";
 
-  StyleRegistry.register(stylesheet$d);
+  StyleRegistry.register(stylesheet$e);
 
   /**
    * Reads text, uploads and renderable HTML from API messages. Thinking and ordinary tool-call
@@ -5578,9 +5578,9 @@
     }
   }
 
-  var stylesheet$c = ".claude-plus-dialog-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.5);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-dialog {\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 8px;\r\n  padding: 16px;\r\n  max-width: 360px;\r\n  font-size: 13px;\r\n}\r\n\r\n.claude-plus-dialog__message {\r\n  margin: 0 0 14px;\r\n  line-height: 1.4;\r\n}\r\n\r\n.claude-plus-dialog__input {\r\n  width: 100%;\r\n  box-sizing: border-box;\r\n  margin: 0 0 14px;\r\n  padding: 6px 8px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font: inherit;\r\n}\r\n\r\n.claude-plus-dialog__actions {\r\n  display: flex;\r\n  justify-content: flex-end;\r\n  gap: 8px;\r\n}\r\n";
+  var stylesheet$d = ".claude-plus-dialog-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.5);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-dialog {\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 8px;\r\n  padding: 16px;\r\n  max-width: 360px;\r\n  font-size: 13px;\r\n}\r\n\r\n.claude-plus-dialog__message {\r\n  margin: 0 0 14px;\r\n  line-height: 1.4;\r\n}\r\n\r\n.claude-plus-dialog__input {\r\n  width: 100%;\r\n  box-sizing: border-box;\r\n  margin: 0 0 14px;\r\n  padding: 6px 8px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font: inherit;\r\n}\r\n\r\n.claude-plus-dialog__actions {\r\n  display: flex;\r\n  justify-content: flex-end;\r\n  gap: 8px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$c);
+  StyleRegistry.register(stylesheet$d);
 
   /**
    * A small themed dialog box with a message, an optional body and a row of action buttons. It
@@ -6091,9 +6091,9 @@
     }
   }
 
-  var stylesheet$b = ".claude-plus-popup-menu {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  min-width: 140px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry {\r\n  padding: 6px 10px;\r\n  cursor: pointer;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
+  var stylesheet$c = ".claude-plus-popup-menu {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  min-width: 140px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry {\r\n  padding: 6px 10px;\r\n  cursor: pointer;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$b);
+  StyleRegistry.register(stylesheet$c);
 
   /**
    * A small menu at the pointer that closes on selection or on a press outside it.
@@ -6238,9 +6238,9 @@
     }
   }
 
-  var stylesheet$a = ".claude-plus-staged-files {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 3px 4px 3px 3px;\r\n  font-size: 12px;\r\n  max-width: 200px;\r\n}\r\n\r\n.claude-plus-staged-file--uploading {\r\n  opacity: 0.6;\r\n}\r\n\r\n.claude-plus-staged-file__thumb {\r\n  width: 20px;\r\n  height: 20px;\r\n  border-radius: 4px;\r\n  object-fit: cover;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__icon {\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__name {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-staged-file__remove {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 0 2px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__remove:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
+  var stylesheet$b = ".claude-plus-staged-files {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 3px 4px 3px 3px;\r\n  font-size: 12px;\r\n  max-width: 200px;\r\n}\r\n\r\n.claude-plus-staged-file--uploading {\r\n  opacity: 0.6;\r\n}\r\n\r\n.claude-plus-staged-file__thumb {\r\n  width: 20px;\r\n  height: 20px;\r\n  border-radius: 4px;\r\n  object-fit: cover;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__icon {\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__name {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-staged-file__remove {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 0 2px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__remove:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$a);
+  StyleRegistry.register(stylesheet$b);
 
   /**
    * The files attached to the next prompt, shown as removable chips. Each file is uploaded as soon
@@ -6380,9 +6380,9 @@
     }
   }
 
-  var stylesheet$9 = ".claude-plus-composer__options {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 8px;\r\n  align-items: center;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-composer__options select {\r\n  padding: 4px 6px;\r\n}\r\n\r\n.claude-plus-composer__thinking-toggle {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-panel .claude-plus-composer__input {\r\n  flex: 1;\r\n  resize: none;\r\n  min-height: 40px;\r\n  border-radius: 8px;\r\n  padding: 8px;\r\n  font-size: 14px;\r\n}\r\n\r\n.claude-plus-primary-button.claude-plus-composer__stop-button {\r\n  flex-shrink: 0;\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-composer__readonly-notice {\r\n  padding: 8px;\r\n  font-size: 13px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-style: italic;\r\n}\r\n";
+  var stylesheet$a = ".claude-plus-composer__options {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 8px;\r\n  align-items: center;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-composer__options select {\r\n  padding: 4px 6px;\r\n}\r\n\r\n.claude-plus-composer__thinking-toggle {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-panel .claude-plus-composer__input {\r\n  flex: 1;\r\n  resize: none;\r\n  min-height: 40px;\r\n  border-radius: 8px;\r\n  padding: 8px;\r\n  font-size: 14px;\r\n}\r\n\r\n.claude-plus-primary-button.claude-plus-composer__stop-button {\r\n  flex-shrink: 0;\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-composer__readonly-notice {\r\n  padding: 8px;\r\n  font-size: 13px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-style: italic;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$9);
+  StyleRegistry.register(stylesheet$a);
 
   /**
    * The single message composer. It always targets the active chat (the focused chat pane) and can
@@ -7537,9 +7537,9 @@
     Object.assign(element.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
   }
 
-  var stylesheet$8 = "html.claude-plus-resizing-horizontally,\r\nhtml.claude-plus-resizing-horizontally * {\r\n  cursor: col-resize !important;\r\n  user-select: none;\r\n}\r\n\r\nhtml.claude-plus-resizing-vertically,\r\nhtml.claude-plus-resizing-vertically * {\r\n  cursor: row-resize !important;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-divider-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-divider);\r\n}\r\n\r\n.claude-plus-divider {\r\n  position: fixed;\r\n  pointer-events: auto;\r\n  background: transparent;\r\n}\r\n\r\n.claude-plus-divider--vertical {\r\n  cursor: col-resize;\r\n}\r\n\r\n.claude-plus-divider--horizontal {\r\n  cursor: row-resize;\r\n}\r\n\r\n.claude-plus-divider:hover {\r\n  background: var(--claude-plus-color-accent);\r\n}\r\n";
+  var stylesheet$9 = "html.claude-plus-resizing-horizontally,\r\nhtml.claude-plus-resizing-horizontally * {\r\n  cursor: col-resize !important;\r\n  user-select: none;\r\n}\r\n\r\nhtml.claude-plus-resizing-vertically,\r\nhtml.claude-plus-resizing-vertically * {\r\n  cursor: row-resize !important;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-divider-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-divider);\r\n}\r\n\r\n.claude-plus-divider {\r\n  position: fixed;\r\n  pointer-events: auto;\r\n  background: transparent;\r\n}\r\n\r\n.claude-plus-divider--vertical {\r\n  cursor: col-resize;\r\n}\r\n\r\n.claude-plus-divider--horizontal {\r\n  cursor: row-resize;\r\n}\r\n\r\n.claude-plus-divider:hover {\r\n  background: var(--claude-plus-color-accent);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$8);
+  StyleRegistry.register(stylesheet$9);
 
   /**
    * Draws the dividers between split children on a layer above the panels, so they can be grabbed
@@ -7769,9 +7769,9 @@
     }
   }
 
-  var stylesheet$7 = ".claude-plus-drop-highlight[hidden] {\r\n  display: none !important;\r\n}\r\n\r\n.claude-plus-drag-label {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: var(--claude-plus-color-accent);\r\n  color: #fff;\r\n  padding: 4px 10px;\r\n  border-radius: 6px;\r\n  font-size: 12px;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-drop-highlight {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drop-highlight);\r\n  background: var(--claude-plus-color-accent-overlay);\r\n  border: 2px solid var(--claude-plus-color-accent);\r\n  pointer-events: none;\r\n  box-sizing: border-box;\r\n}\r\n";
+  var stylesheet$8 = ".claude-plus-drop-highlight[hidden] {\r\n  display: none !important;\r\n}\r\n\r\n.claude-plus-drag-label {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: var(--claude-plus-color-accent);\r\n  color: #fff;\r\n  padding: 4px 10px;\r\n  border-radius: 6px;\r\n  font-size: 12px;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-drop-highlight {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drop-highlight);\r\n  background: var(--claude-plus-color-accent-overlay);\r\n  border: 2px solid var(--claude-plus-color-accent);\r\n  pointer-events: none;\r\n  box-sizing: border-box;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$7);
+  StyleRegistry.register(stylesheet$8);
 
   /**
    * One drag of something to dock, a tab or a not yet existing panel: a floating label follows the
@@ -7978,9 +7978,9 @@
     }
   }
 
-  var stylesheet$6 = ".claude-plus-zone-chrome-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-zone-chrome);\r\n}\r\n\r\n.claude-plus-zone-frame {\r\n  position: fixed;\r\n  background: var(--claude-plus-color-background);\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-tab-strip {\r\n  position: fixed;\r\n  display: flex;\r\n  align-items: center;\r\n  background: var(--claude-plus-color-bar);\r\n  overflow-x: auto;\r\n  overflow-y: hidden;\r\n  box-sizing: border-box;\r\n  pointer-events: auto;\r\n}\r\n\r\n/*\r\n * The strip itself carries no border-bottom: a child can never paint over a pixel that belongs to\r\n * its parent's own border (borders live outside the content-box children are confined to), so a\r\n * gap in the strip's own border could never actually open under a child. Instead, every element\r\n * in the strip - each tab, the \"+\" button, the trailing filler - draws this same 1px line itself,\r\n * all sized to the identical height below so their lines stay pixel-aligned with each other. Only\r\n * the active tab of a bordered zone omits its own line, which is a real gap since nothing else\r\n * occupies that stretch, rather than something painted over.\r\n */\r\n.claude-plus-tab {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  padding: 5px 12px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n  border-right: 1px solid var(--claude-plus-color-border-faint);\r\n  box-sizing: border-box;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__border--neutral {\r\n  border-bottom: 1px solid var(--claude-plus-color-border);\r\n}\r\n\r\n.claude-plus-tab-strip__border--active {\r\n  border-bottom: 1px solid var(--claude-plus-color-active-chat);\r\n}\r\n\r\n.claude-plus-tab-strip__border--inactive {\r\n  border-bottom: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n}\r\n\r\n.claude-plus-tab--active {\r\n  color: var(--claude-plus-color-text);\r\n  border-bottom: 2px solid var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-active {\r\n  border-left: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: 1px solid var(--claude-plus-color-active-chat);\r\n  border-right: 1px solid var(--claude-plus-color-active-chat);\r\n  border-bottom: none;\r\n  border-top-left-radius: 6px;\r\n  border-top-right-radius: 6px;\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-inactive {\r\n  border-left: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-bottom: none;\r\n  border-top-left-radius: 6px;\r\n  border-top-right-radius: 6px;\r\n}\r\n\r\n.claude-plus-tab {\r\n  display: flex;\r\n  align-items: center;\r\n  min-width: 0;\r\n  max-width: 220px;\r\n}\r\n\r\n.claude-plus-tab__label {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-tab--chat .claude-plus-tab__label {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-tab__close-button {\r\n  flex-shrink: 0;\r\n  margin-left: 8px;\r\n  padding: 0 3px;\r\n  border-radius: 3px;\r\n  color: var(--claude-plus-color-text-faint);\r\n}\r\n\r\n.claude-plus-tab__close-button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__add-button {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n  padding: 5px 10px;\r\n  cursor: pointer;\r\n  color: var(--claude-plus-color-text-faint);\r\n  box-sizing: border-box;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__add-button:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__filler {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  flex: 1;\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-table-host {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n";
+  var stylesheet$7 = ".claude-plus-zone-chrome-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-zone-chrome);\r\n}\r\n\r\n.claude-plus-zone-frame {\r\n  position: fixed;\r\n  background: var(--claude-plus-color-background);\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-tab-strip {\r\n  position: fixed;\r\n  display: flex;\r\n  align-items: center;\r\n  background: var(--claude-plus-color-bar);\r\n  overflow-x: auto;\r\n  overflow-y: hidden;\r\n  box-sizing: border-box;\r\n  pointer-events: auto;\r\n}\r\n\r\n/*\r\n * The strip itself carries no border-bottom: a child can never paint over a pixel that belongs to\r\n * its parent's own border (borders live outside the content-box children are confined to), so a\r\n * gap in the strip's own border could never actually open under a child. Instead, every element\r\n * in the strip - each tab, the \"+\" button, the trailing filler - draws this same 1px line itself,\r\n * all sized to the identical height below so their lines stay pixel-aligned with each other. Only\r\n * the active tab of a bordered zone omits its own line, which is a real gap since nothing else\r\n * occupies that stretch, rather than something painted over.\r\n */\r\n.claude-plus-tab {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  padding: 5px 12px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n  border-right: 1px solid var(--claude-plus-color-border-faint);\r\n  box-sizing: border-box;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__border--neutral {\r\n  border-bottom: 1px solid var(--claude-plus-color-border);\r\n}\r\n\r\n.claude-plus-tab-strip__border--active {\r\n  border-bottom: 1px solid var(--claude-plus-color-active-chat);\r\n}\r\n\r\n.claude-plus-tab-strip__border--inactive {\r\n  border-bottom: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n}\r\n\r\n.claude-plus-tab--active {\r\n  color: var(--claude-plus-color-text);\r\n  border-bottom: 2px solid var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-active {\r\n  border-left: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: 1px solid var(--claude-plus-color-active-chat);\r\n  border-right: 1px solid var(--claude-plus-color-active-chat);\r\n  border-bottom: none;\r\n  border-top-left-radius: 6px;\r\n  border-top-right-radius: 6px;\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-inactive {\r\n  border-left: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-bottom: none;\r\n  border-top-left-radius: 6px;\r\n  border-top-right-radius: 6px;\r\n}\r\n\r\n.claude-plus-tab {\r\n  display: flex;\r\n  align-items: center;\r\n  min-width: 0;\r\n  max-width: 220px;\r\n}\r\n\r\n.claude-plus-tab__label {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-tab--chat .claude-plus-tab__label {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-tab__close-button {\r\n  flex-shrink: 0;\r\n  margin-left: 8px;\r\n  padding: 0 3px;\r\n  border-radius: 3px;\r\n  color: var(--claude-plus-color-text-faint);\r\n}\r\n\r\n.claude-plus-tab__close-button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__add-button {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n  padding: 5px 10px;\r\n  cursor: pointer;\r\n  color: var(--claude-plus-color-text-faint);\r\n  box-sizing: border-box;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__add-button:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__filler {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  flex: 1;\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-table-host {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$6);
+  StyleRegistry.register(stylesheet$7);
 
   /**
    * Draws each zone's frame and tab strip on a layer below the panels. A tab shows its panel's
@@ -8535,6 +8535,523 @@
   }
 
   /**
+   * Maps a raw conversation from claude.ai's data export into the same shape ClaudeApi's live
+   * responses already produce, so the existing rendering pipeline (ChatSession, ConversationTree,
+   * ChatMessage, MessageContent) renders an imported conversation unmodified.
+   */
+  class ClaudeExportMapper {
+    /**
+     * Maps one exported conversation.
+     * @param {object} rawConversation A conversations.json entry.
+     * @param {Map<string, {html: string}>} artifactsById Imported Artifact content, by artifact id;
+     * empty when the frames file wasn't provided.
+     * @returns {{conversationId: string, title: string, messages: ApiMessage[]}} The mapped conversation.
+     */
+    static mapConversation(rawConversation, artifactsById) {
+      return {
+        conversationId: rawConversation.uuid,
+        title: rawConversation.name,
+        messages: rawConversation.chat_messages.map(rawMessage => ClaudeExportMapper.#mapMessage(rawMessage, artifactsById)),
+      };
+    }
+
+    /**
+     * Maps one exported message.
+     * @param {object} rawMessage A chat_messages entry.
+     * @param {Map<string, {html: string}>} artifactsById Imported Artifact content, by artifact id.
+     * @returns {ApiMessage} The mapped message.
+     */
+    static #mapMessage(rawMessage, artifactsById) {
+      return {
+        uuid: rawMessage.uuid,
+        parent_message_uuid: rawMessage.parent_message_uuid,
+        sender: rawMessage.sender,
+        text: rawMessage.text,
+        created_at: rawMessage.created_at,
+        content: (rawMessage.content ?? []).map(block => ClaudeExportMapper.#mapContentBlock(block, artifactsById)),
+        attachments: ClaudeExportMapper.#mapUploads(rawMessage),
+        files: [],
+      };
+    }
+
+    /**
+     * Maps one content block, resolving an Artifact tool_result's real HTML when available. Every
+     * other block type (including injected_prompt_block, already excluded from the chat log by the
+     * existing renderer) passes through unchanged.
+     * @param {object} block A raw content block.
+     * @param {Map<string, {html: string}>} artifactsById Imported Artifact content, by artifact id.
+     * @returns {ContentBlock} The mapped block.
+     */
+    static #mapContentBlock(block, artifactsById) {
+      const artifactId = block.structured_content?.artifact_id;
+      const artifact = artifactId ? artifactsById.get(artifactId) : null;
+      return artifact ? { ...block, structured_content: { ...block.structured_content, resolvedArtifactHtml: artifact.html } } : block;
+    }
+
+    /**
+     * A message's uploads as one array: its attachments as-is (already carrying full content for
+     * text-based files), plus any files[] entry with no matching attachments[] entry by filename -
+     * the binary case, which renders as a filename-only placeholder through the existing renderer.
+     * @param {object} rawMessage A chat_messages entry.
+     * @returns {object[]} The combined uploads.
+     */
+    static #mapUploads(rawMessage) {
+      const attachments = rawMessage.attachments ?? [];
+      const attachedNames = new Set(attachments.map(attachment => attachment.file_name));
+      const unmatchedFiles = (rawMessage.files ?? []).filter(file => !attachedNames.has(file.file_name));
+      return [...attachments, ...unmatchedFiles];
+    }
+  }
+
+  /**
+   * Extracts the app's own record shapes from claude.ai's data-export JSON, for every category
+   * besides conversations (already the right shape - see ClaudeExportMapper). Each method takes
+   * already-parsed JSON, since how the file itself is selected and read is a UI concern.
+   */
+  class ClaudeExportParser {
+    /**
+     * Memory files from one account's memories export.
+     * @param {{account_uuid: string, memory_files: Array<{path: string, content: string, updated_at: string}>}} memoriesJson Parsed memories-000 content.
+     * @returns {ImportedMemoryFileRecord[]} The memory files.
+     */
+    static memoryFiles(memoriesJson) {
+      return memoriesJson.memory_files.map(file => ({
+        accountId: memoriesJson.account_uuid,
+        path: file.path,
+        content: file.content,
+        updatedAt: file.updated_at,
+      }));
+    }
+
+    /**
+     * One Artifact's content from its frames-000 folder.
+     * @param {{id: string, versions: Array<{id: string, title: string}>, active_version: string}} artifactJson Parsed artifact.json content.
+     * @param {Map<string, string>} htmlByVersionId Each version's HTML, by version id.
+     * @returns {ImportedArtifactRecord} The Artifact record.
+     */
+    static artifact(artifactJson, htmlByVersionId) {
+      return {
+        artifactId: artifactJson.id,
+        title: artifactJson.versions.find(version => version.id === artifactJson.active_version)?.title ?? '',
+        activeVersionId: artifactJson.active_version,
+        html: htmlByVersionId.get(artifactJson.active_version) ?? '',
+        knownVersionIds: artifactJson.versions.map(version => version.id),
+      };
+    }
+
+    /**
+     * One Project's content from its projects-000 file.
+     * @param {object} projectJson Parsed projects-000/projects/<id>.json content.
+     * @returns {ImportedProjectRecord} The Project record.
+     */
+    static project(projectJson) {
+      return {
+        projectId: projectJson.uuid,
+        name: projectJson.name,
+        description: projectJson.description,
+        promptTemplate: projectJson.prompt_template,
+        updatedAt: projectJson.updated_at,
+        docs: projectJson.docs.map(doc => ({ docId: doc.uuid, filename: doc.filename, content: doc.content, createdAt: doc.created_at })),
+      };
+    }
+
+    /**
+     * Feedback/reflection periods from one account's feedback export.
+     * @param {{account_uuid: string, reflections: Array<{period: string, content: object}>}} feedbackJson Parsed feedback-000 content.
+     * @returns {ImportedFeedbackPeriodRecord[]} The periods.
+     */
+    static feedbackPeriods(feedbackJson) {
+      return feedbackJson.reflections.map(reflection => ({
+        accountId: feedbackJson.account_uuid,
+        period: reflection.period,
+        content: reflection.content,
+      }));
+    }
+
+    /**
+     * The account profile from a light_metadata export's users.json.
+     * @param {Array<{uuid: string, full_name: string, email_address: string}>} usersJson Parsed users.json content.
+     * @returns {ImportedAccountProfileRecord} The profile.
+     */
+    static accountProfile(usersJson) {
+      const user = usersJson[0];
+      return { accountId: user.uuid, fullName: user.full_name, emailAddress: user.email_address };
+    }
+
+    /**
+     * Login events from a light_metadata export's login_history.json.
+     * @param {{login_events: Array<object>}} loginHistoryJson Parsed login_history.json content.
+     * @returns {ImportedLoginEventRecord[]} The events.
+     */
+    static loginEvents(loginHistoryJson) {
+      return loginHistoryJson.login_events.map(event => ({
+        accountId: event.account_uuid,
+        timestamp: event.timestamp,
+        ipAddress: event.ip_address,
+        userAgent: event.user_agent,
+        method: event.method,
+        locationInfo: event.location_info,
+      }));
+    }
+  }
+
+  /**
+   * Sorts the files a user selected from an extracted data export into their categories, by content
+   * shape rather than filename - conversations.json is the only export file with a predictable name;
+   * memories/projects/feedback files are named by uuid, and an Artifact's html is named by version id.
+   */
+  class ImportFileClassifier {
+    /**
+     * Detectors tried in turn against a parsed JSON file; the first match wins.
+     * @type {ReadonlyArray<{matches: function(*): boolean, assign: function(object, *): void}>}
+     */
+    static #DETECTORS = [
+      { matches: json => Array.isArray(json) && Boolean(json[0]?.chat_messages), assign: (buckets, json) => { buckets.conversationsJson = json; } },
+      { matches: json => Array.isArray(json) && Boolean(json[0]?.full_name), assign: (buckets, json) => { buckets.usersJson = json; } },
+      { matches: json => Boolean(json?.memory_files), assign: (buckets, json) => buckets.memoriesJsons.push(json) },
+      { matches: json => Boolean(json?.reflections), assign: (buckets, json) => buckets.feedbackJsons.push(json) },
+      { matches: json => Boolean(json?.login_events), assign: (buckets, json) => { buckets.loginHistoryJson = json; } },
+      { matches: json => Array.isArray(json?.versions) && Boolean(json?.active_version), assign: (buckets, json) => buckets.artifactJsons.push(json) },
+      { matches: json => Array.isArray(json?.docs) && 'prompt_template' in json, assign: (buckets, json) => buckets.projectsJsons.push(json) },
+    ];
+
+    /**
+     * Classifies a set of selected files.
+     * @param {File[]} files The selected files.
+     * @returns {Promise<{conversationsJson: ?Array, memoriesJsons: object[], projectsJsons: object[], feedbackJsons: object[], usersJson: ?Array, loginHistoryJson: ?object, artifacts: Array<{artifactJson: object, htmlByVersionId: Map<string, string>}>}>}
+     * The classified files, ready for ClaudeExportParser/ClaudeExportMapper.
+     */
+    static async classify(files) {
+      const htmlByBasename = await ImportFileClassifier.#htmlFilesByBasename(files);
+      const buckets = { conversationsJson: null, memoriesJsons: [], projectsJsons: [], feedbackJsons: [], usersJson: null, loginHistoryJson: null, artifactJsons: [] };
+      await Promise.all(files.filter(file => !file.name.endsWith('.html')).map(file => ImportFileClassifier.#classifyOne(file, buckets)));
+      return { ...buckets, artifacts: buckets.artifactJsons.map(artifactJson => ({ artifactJson, htmlByVersionId: htmlByBasename })) };
+    }
+
+    /**
+     * Every selected .html file's text, by its basename without extension (an Artifact version id).
+     * @param {File[]} files The selected files.
+     * @returns {Promise<Map<string, string>>} The html, by version id.
+     */
+    static async #htmlFilesByBasename(files) {
+      const htmlFiles = files.filter(file => file.name.endsWith('.html'));
+      const entries = await Promise.all(htmlFiles.map(async file => [ImportFileClassifier.#basename(file.name), await file.text()]));
+      return new Map(entries);
+    }
+
+    /**
+     * A filename without its extension.
+     * @param {string} filename The filename.
+     * @returns {string} The basename.
+     */
+    static #basename(filename) {
+      return filename.replace(/\.[^.]+$/, '');
+    }
+
+    /**
+     * Parses one file as JSON and files it into the matching bucket; a file that parses but matches
+     * no known shape, or doesn't parse as JSON at all, is silently ignored.
+     * @param {File} file The file.
+     * @param {object} buckets Buckets accumulated so far.
+     * @returns {Promise<void>} Resolves once classified.
+     */
+    static async #classifyOne(file, buckets) {
+      const json = await ImportFileClassifier.#parseOrNull(file);
+      if (json === null) return;
+      ImportFileClassifier.#DETECTORS.find(detector => detector.matches(json))?.assign(buckets, json);
+    }
+
+    /**
+     * A file's content, parsed as JSON.
+     * @param {File} file The file.
+     * @returns {Promise<*>} The parsed content, or null when it isn't valid JSON.
+     */
+    static async #parseOrNull(file) {
+      try {
+        return JSON.parse(await file.text());
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  /**
+   * Merges a newly parsed data export into what's already stored, per category, so re-running an
+   * import never discards anything and never duplicates anything unchanged. Every rule follows the
+   * same idea: a later export is more information about something already known, not a replacement
+   * for it.
+   */
+  class ImportMerger {
+    /**
+     * How a newly mapped conversation compares to what's already stored.
+     * @param {?ImportedConversationRecord} storedRecord The stored record, or null when not seen before.
+     * @param {{conversationId: string, title: string, messages: ApiMessage[]}} mapped The newly mapped conversation.
+     * @returns {'new'|'changed'|'renamedOnly'|'unchanged'} The classification.
+     */
+    static classifyConversation(storedRecord, mapped) {
+      if (!storedRecord) return 'new';
+      if (ImportMerger.#hasNewMessages(storedRecord, mapped)) return 'changed';
+      return storedRecord.title === mapped.title ? 'unchanged' : 'renamedOnly';
+    }
+
+    /**
+     * Merges a newly mapped conversation into what's already stored.
+     * @param {?ImportedConversationRecord} storedRecord The stored record, or null when not seen before.
+     * @param {{conversationId: string, title: string, messages: ApiMessage[]}} mapped The newly mapped conversation.
+     * @param {string} importedAt ISO timestamp of this import.
+     * @returns {?ImportedConversationRecord} The record to write, or null when nothing changed.
+     */
+    static mergeConversation(storedRecord, mapped, importedAt) {
+      const classification = ImportMerger.classifyConversation(storedRecord, mapped);
+      if (classification === 'unchanged') return null;
+      if (classification === 'renamedOnly') return { ...storedRecord, title: mapped.title, lastImportedAt: importedAt };
+      const messages = classification === 'new' ? mapped.messages : ImportMerger.#addedMessages(storedRecord, mapped);
+      return { conversationId: mapped.conversationId, title: mapped.title, messages, currentLeafId: ImportMerger.defaultLeafOf(messages), lastImportedAt: importedAt };
+    }
+
+    /**
+     * Whether a mapped conversation has any message not already stored.
+     * @param {ImportedConversationRecord} storedRecord The stored record.
+     * @param {{messages: ApiMessage[]}} mapped The newly mapped conversation.
+     * @returns {boolean} True when at least one message is new.
+     */
+    static #hasNewMessages(storedRecord, mapped) {
+      const knownIds = new Set(storedRecord.messages.map(message => message.uuid));
+      return mapped.messages.some(message => !knownIds.has(message.uuid));
+    }
+
+    /**
+     * The stored messages plus every newly mapped message not already among them, each kept exactly
+     * as mapped - a plain continuation and a branch are both just new messages whose parent already
+     * resolves correctly, so nothing here needs to tell them apart.
+     * @param {ImportedConversationRecord} storedRecord The stored record.
+     * @param {{messages: ApiMessage[]}} mapped The newly mapped conversation.
+     * @returns {ApiMessage[]} The combined messages.
+     */
+    static #addedMessages(storedRecord, mapped) {
+      const knownIds = new Set(storedRecord.messages.map(message => message.uuid));
+      return [...storedRecord.messages, ...mapped.messages.filter(message => !knownIds.has(message.uuid))];
+    }
+
+    /**
+     * The leaf a freshly imported or merged conversation should show by default: among messages no
+     * other message names as its parent, the one created most recently.
+     * @param {ApiMessage[]} messages The conversation's messages.
+     * @returns {string} The leaf message's id.
+     */
+    static defaultLeafOf(messages) {
+      const parentIds = new Set(messages.map(message => message.parent_message_uuid));
+      const leaves = messages.filter(message => !parentIds.has(message.uuid));
+      return leaves.reduce((latest, message) => ((message.created_at ?? '') > (latest.created_at ?? '') ? message : latest)).uuid;
+    }
+
+    /**
+     * Merges a newly parsed memory file into what's already stored: only overwritten when the new
+     * version is actually newer.
+     * @param {?ImportedMemoryFileRecord} storedRecord The stored record, or null when not seen before.
+     * @param {ImportedMemoryFileRecord} parsed The newly parsed file.
+     * @returns {?ImportedMemoryFileRecord} The record to write, or null when it isn't newer.
+     */
+    static mergeMemoryFile(storedRecord, parsed) {
+      return !storedRecord || parsed.updatedAt > storedRecord.updatedAt ? parsed : null;
+    }
+
+    /**
+     * Merges newly parsed Artifact content into what's already stored: written only when it brings a
+     * version not already known.
+     * @param {?ImportedArtifactRecord} storedRecord The stored record, or null when not seen before.
+     * @param {ImportedArtifactRecord} parsed The newly parsed Artifact.
+     * @returns {?ImportedArtifactRecord} The record to write, or null when nothing new arrived.
+     */
+    static mergeArtifact(storedRecord, parsed) {
+      if (!storedRecord) return parsed;
+      const knownVersionIds = new Set(storedRecord.knownVersionIds);
+      if (knownVersionIds.has(parsed.activeVersionId)) return null;
+      return { ...parsed, knownVersionIds: [...storedRecord.knownVersionIds, ...parsed.knownVersionIds.filter(id => !knownVersionIds.has(id))] };
+    }
+
+    /**
+     * Merges a newly parsed Project into what's already stored: the project's own fields update when
+     * newer, and each doc is merged independently by the same rule.
+     * @param {?ImportedProjectRecord} storedRecord The stored record, or null when not seen before.
+     * @param {ImportedProjectRecord} parsed The newly parsed Project.
+     * @returns {ImportedProjectRecord} The record to write; unchanged fields are kept as they were.
+     */
+    static mergeProject(storedRecord, parsed) {
+      if (!storedRecord) return parsed;
+      const fields = parsed.updatedAt > storedRecord.updatedAt ? parsed : storedRecord;
+      return { projectId: parsed.projectId, name: fields.name, description: fields.description, promptTemplate: fields.promptTemplate, updatedAt: fields.updatedAt, docs: ImportMerger.#mergedDocs(storedRecord.docs, parsed.docs) };
+    }
+
+    /**
+     * Merges a Project's docs by id: a doc is only replaced when it comes back with a newer createdAt.
+     * @param {ImportedProjectDoc[]} storedDocs Already-stored docs.
+     * @param {ImportedProjectDoc[]} parsedDocs Newly parsed docs.
+     * @returns {ImportedProjectDoc[]} The merged docs.
+     */
+    static #mergedDocs(storedDocs, parsedDocs) {
+      const parsedById = new Map(parsedDocs.map(doc => [doc.docId, doc]));
+      const merged = storedDocs.map(stored => {
+        const parsed = parsedById.get(stored.docId);
+        return parsed && parsed.createdAt > stored.createdAt ? parsed : stored;
+      });
+      const knownIds = new Set(storedDocs.map(doc => doc.docId));
+      return [...merged, ...parsedDocs.filter(doc => !knownIds.has(doc.docId))];
+    }
+
+    /**
+     * Merges a newly parsed Feedback/reflection period into what's already stored: a period already
+     * seen is treated as a fixed historical record and left alone.
+     * @param {?ImportedFeedbackPeriodRecord} storedRecord The stored record, or null when not seen before.
+     * @param {ImportedFeedbackPeriodRecord} parsed The newly parsed period.
+     * @returns {?ImportedFeedbackPeriodRecord} The record to write, or null when already known.
+     */
+    static mergeFeedbackPeriod(storedRecord, parsed) {
+      return storedRecord ? null : parsed;
+    }
+
+    /**
+     * Merges a newly parsed account profile into what's already stored: always the latest snapshot.
+     * @param {ImportedAccountProfileRecord} parsed The newly parsed profile.
+     * @returns {ImportedAccountProfileRecord} The record to write.
+     */
+    static mergeAccountProfile(parsed) {
+      return parsed;
+    }
+
+    /**
+     * Merges a newly parsed login event into what's already stored: a duplicate (same account,
+     * timestamp and IP) is left alone.
+     * @param {?ImportedLoginEventRecord} storedRecord The stored record, or null when not seen before.
+     * @param {ImportedLoginEventRecord} parsed The newly parsed event.
+     * @returns {?ImportedLoginEventRecord} The record to write, or null when already known.
+     */
+    static mergeLoginEvent(storedRecord, parsed) {
+      return storedRecord ? null : parsed;
+    }
+  }
+
+  /**
+   * Runs one import end to end: classifies the selected files, maps and merges each category
+   * against what's already stored, and writes only what actually changed.
+   */
+  class ImportOrchestrator {
+    /**
+     * Backing storage.
+     * @type {IndexedDbStore}
+     */
+    #database;
+
+    /**
+     * Imported conversations, read/written as raw stored records here (see get() for the
+     * ApiConversation-shaped read the rest of the app uses).
+     * @type {ImportedConversationStore}
+     */
+    #conversationStore;
+
+    /**
+     * Creates the orchestrator.
+     * @param {IndexedDbStore} database Backing storage.
+     * @param {ImportedConversationStore} conversationStore Imported conversations.
+     */
+    constructor(database, conversationStore) {
+      this.#database = database;
+      this.#conversationStore = conversationStore;
+    }
+
+    /**
+     * Imports a set of selected files.
+     * @param {File[]} files The files the user selected.
+     * @returns {Promise<object>} Per-category counts: conversations {new, changed, renamedOnly,
+     * unchanged}, and written/total for memoryFiles, artifacts, projects, feedbackPeriods and
+     * loginEvents; accountProfile is true when a profile was written.
+     * @throws {Error} When no conversations.json was among the selected files.
+     */
+    async importFiles(files) {
+      const classified = await ImportFileClassifier.classify(files);
+      if (!classified.conversationsJson) throw new Error('No conversations.json was among the selected files.');
+      const importedAt = new Date().toISOString();
+      const artifacts = await this.#importArtifacts(classified.artifacts);
+      return {
+        conversations: await this.#importConversations(classified.conversationsJson, artifacts.byId, importedAt),
+        memoryFiles: await this.#importEach(DATABASE.stores.importedMemoryFiles, classified.memoriesJsons.flatMap(ClaudeExportParser.memoryFiles), record => [record.accountId, record.path], ImportMerger.mergeMemoryFile),
+        artifacts: artifacts.tally,
+        projects: await this.#importEach(DATABASE.stores.importedProjects, classified.projectsJsons.map(ClaudeExportParser.project), record => record.projectId, ImportMerger.mergeProject),
+        feedbackPeriods: await this.#importEach(DATABASE.stores.importedFeedbackPeriods, classified.feedbackJsons.flatMap(ClaudeExportParser.feedbackPeriods), record => [record.accountId, record.period], ImportMerger.mergeFeedbackPeriod),
+        accountProfile: await this.#importAccountProfile(classified.usersJson),
+        loginEvents: await this.#importEach(DATABASE.stores.importedLoginEvents, classified.loginHistoryJson ? ClaudeExportParser.loginEvents(classified.loginHistoryJson) : [], record => [record.accountId, record.timestamp, record.ipAddress], ImportMerger.mergeLoginEvent),
+      };
+    }
+
+    /**
+     * Imports every conversation, tallying its classification.
+     * @param {Array} conversationsJson The raw conversations.
+     * @param {Map<string, {html: string}>} artifactsById Imported Artifact content, by artifact id.
+     * @param {string} importedAt ISO timestamp of this import.
+     * @returns {Promise<{new: number, changed: number, renamedOnly: number, unchanged: number}>} The counts.
+     */
+    async #importConversations(conversationsJson, artifactsById, importedAt) {
+      const tally = { new: 0, changed: 0, renamedOnly: 0, unchanged: 0 };
+      for (const rawConversation of conversationsJson) {
+        const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
+        const stored = await this.#conversationStore.getRecord(mapped.conversationId);
+        tally[ImportMerger.classifyConversation(stored, mapped)] += 1;
+        const merged = ImportMerger.mergeConversation(stored, mapped, importedAt);
+        if (merged) await this.#conversationStore.write(merged);
+      }
+      return tally;
+    }
+
+    /**
+     * Imports every Artifact, tallying how many were written.
+     * @param {Array<{artifactJson: object, htmlByVersionId: Map<string, string>}>} artifacts Classified Artifact files.
+     * @returns {Promise<{byId: Map<string, {html: string}>, tally: {written: number, total: number}}>}
+     * Every parsed Artifact by id (whether written or already known, for resolving conversations),
+     * and how many were newly written.
+     */
+    async #importArtifacts(artifacts) {
+      const parsed = artifacts.map(({ artifactJson, htmlByVersionId }) => ClaudeExportParser.artifact(artifactJson, htmlByVersionId));
+      let written = 0;
+      for (const record of parsed) {
+        const stored = await this.#database.read(DATABASE.stores.importedArtifacts, record.artifactId);
+        const merged = ImportMerger.mergeArtifact(stored, record);
+        if (merged) { await this.#database.write(DATABASE.stores.importedArtifacts, merged); written += 1; }
+      }
+      return { byId: new Map(parsed.map(record => [record.artifactId, record])), tally: { written, total: parsed.length } };
+    }
+
+    /**
+     * Imports the account profile, if one was selected.
+     * @param {?Array} usersJson Parsed users.json content, or null when not selected.
+     * @returns {Promise<boolean>} True when a profile was written.
+     */
+    async #importAccountProfile(usersJson) {
+      if (!usersJson) return false;
+      const record = ImportMerger.mergeAccountProfile(ClaudeExportParser.accountProfile(usersJson));
+      await this.#database.write(DATABASE.stores.importedAccountProfiles, record);
+      return true;
+    }
+
+    /**
+     * Imports a category of independently-keyed records, tallying how many were written.
+     * @param {string} storeName Object store to write to.
+     * @param {object[]} parsedRecords The parsed records.
+     * @param {function(object): (string|string[])} keyOf The record's store key.
+     * @param {function(?object, object): ?object} mergeFn Merge rule; returns the record to write, or null to skip it.
+     * @returns {Promise<{written: number, total: number}>} The counts.
+     */
+    async #importEach(storeName, parsedRecords, keyOf, mergeFn) {
+      let written = 0;
+      for (const record of parsedRecords) {
+        const stored = await this.#database.read(storeName, keyOf(record));
+        const merged = mergeFn(stored, record);
+        if (merged) { await this.#database.write(storeName, merged); written += 1; }
+      }
+      return { written, total: parsedRecords.length };
+    }
+  }
+
+  /**
    * Persisted imported conversations, read as the app's own conversation shape so they load through
    * the same pipeline as a live fetch, and listed alongside live conversations in the directory.
    */
@@ -8559,8 +9076,17 @@
      * @returns {Promise<?ApiConversation>} The conversation, or null when it isn't an imported one.
      */
     async get(conversationId) {
-      const record = await this.#database.read(DATABASE.stores.importedConversations, conversationId);
+      const record = await this.getRecord(conversationId);
       return record ? ImportedConversationStore.#toApiConversation(record) : null;
+    }
+
+    /**
+     * A conversation's stored record, for merging a newly imported export against it.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<?ImportedConversationRecord>} The record, or undefined when not imported yet.
+     */
+    getRecord(conversationId) {
+      return this.#database.read(DATABASE.stores.importedConversations, conversationId);
     }
 
     /**
@@ -8841,9 +9367,9 @@
     return epochMs ? new Date(epochMs).toLocaleDateString() : '';
   }
 
-  var stylesheet$5 = ".claude-plus-conversation:hover .claude-plus-conversation__action-button {\r\n  visibility: visible;\r\n}\r\n\r\n.claude-plus-conversation {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-conversation:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-conversation--active > td {\r\n  background: var(--claude-plus-color-accent-soft);\r\n}\r\n\r\n.claude-plus-conversation--open-elsewhere > td:first-child {\r\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-conversation__actions {\r\n  display: inline-flex;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-conversation__action-button {\r\n  visibility: hidden;\r\n  background: none;\r\n  border: none;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n  padding: 4px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-conversation__action-button:hover {\r\n  background: rgba(255, 255, 255, 0.1);\r\n}\r\n";
+  var stylesheet$6 = ".claude-plus-conversation:hover .claude-plus-conversation__action-button {\r\n  visibility: visible;\r\n}\r\n\r\n.claude-plus-conversation {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-conversation:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-conversation--active > td {\r\n  background: var(--claude-plus-color-accent-soft);\r\n}\r\n\r\n.claude-plus-conversation--open-elsewhere > td:first-child {\r\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-conversation__actions {\r\n  display: inline-flex;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-conversation__action-button {\r\n  visibility: hidden;\r\n  background: none;\r\n  border: none;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n  padding: 4px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-conversation__action-button:hover {\r\n  background: rgba(255, 255, 255, 0.1);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$5);
+  StyleRegistry.register(stylesheet$6);
 
   /**
    * Conversation list as a column table, with a quick title search, open in a new pane, delete, and
@@ -9617,9 +10143,9 @@
     }
   }
 
-  var stylesheet$4 = ".claude-plus-folder {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-folder:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-breadcrumb {\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  margin-bottom: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-breadcrumb__back-link {\r\n  color: var(--claude-plus-color-accent);\r\n  cursor: pointer;\r\n}\r\n";
+  var stylesheet$5 = ".claude-plus-folder {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-folder:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-breadcrumb {\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  margin-bottom: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-breadcrumb__back-link {\r\n  color: var(--claude-plus-color-accent);\r\n  cursor: pointer;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$4);
+  StyleRegistry.register(stylesheet$5);
 
   /**
    * Uploaded and produced files: a table of conversations with files, and per conversation a table
@@ -10046,9 +10572,9 @@
     }
   }
 
-  var stylesheet$3 = ".claude-plus-search-result {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-search-result:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n";
+  var stylesheet$4 = ".claude-plus-search-result {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-search-result:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$3);
+  StyleRegistry.register(stylesheet$4);
 
   /**
    * Structured search over chats, files, web sources and tool uses, e.g. `file:*.pdf`,
@@ -11716,6 +12242,199 @@
     }
   }
 
+  var stylesheet$3 = ".claude-plus-import-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-import-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 460px;\n  max-width: 90vw;\n  max-height: 85vh;\n  overflow-y: auto;\n  font-size: 13px;\n}\n\n.claude-plus-import-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n}\n\n.claude-plus-import-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-import-dialog__row {\n  display: flex;\n  gap: 8px;\n  margin: 12px 0;\n}\n\n.claude-plus-import-dialog__file-count {\n  color: var(--claude-plus-color-text-muted);\n  margin: 0 0 4px;\n}\n\n.claude-plus-import-dialog__detection-list {\n  margin: 0;\n  padding-left: 18px;\n}\n\n.claude-plus-import-dialog__progress {\n  color: var(--claude-plus-color-text-muted);\n  font-style: italic;\n}\n";
+
+  StyleRegistry.register(stylesheet$3);
+
+  /**
+   * Imports a claude.ai data export: the user selects the files they extracted (conversations.json
+   * is required; memories, Artifacts, Projects, Feedback and light_metadata files are each
+   * independently optional, and detected by content, not filename), reviews what was found, then
+   * imports. Nothing is written until Import is clicked.
+   */
+  class ImportDialog extends Dialog {
+    /**
+     * Runs the import once files are confirmed.
+     * @type {ImportOrchestrator}
+     */
+    #orchestrator;
+
+    /**
+     * Called once an import has actually written anything, so the Chats list can refresh.
+     * @type {function(): void}
+     */
+    #onImported;
+
+    /**
+     * The dialog's named elements, set once the content is built.
+     * @type {?Object<string, HTMLElement>}
+     */
+    #elements = null;
+
+    /**
+     * The files currently selected, classified and ready to import.
+     * @type {?File[]}
+     */
+    #selectedFiles = null;
+
+    /**
+     * Creates the dialog without showing it.
+     * @param {ImportOrchestrator} orchestrator Runs the import once files are confirmed.
+     * @param {function(): void} onImported Called once an import has actually written anything.
+     */
+    constructor(orchestrator, onImported) {
+      super();
+      this.#orchestrator = orchestrator;
+      this.#onImported = onImported;
+    }
+
+    /**
+     * Opens the import screen.
+     * @param {ImportOrchestrator} orchestrator Runs the import once files are confirmed.
+     * @param {function(): void} onImported Called once an import has actually written anything.
+     * @returns {Promise<void>} Resolves once closed.
+     */
+    static open(orchestrator, onImported) {
+      return new ImportDialog(orchestrator, onImported).show();
+    }
+
+    /**
+     * CSS class of the dimmed overlay centering the screen.
+     * @returns {string} The class name.
+     */
+    get overlayClassName() {
+      return 'claude-plus-import-overlay';
+    }
+
+    /**
+     * Builds the screen.
+     * @returns {HTMLElement[]} The screen.
+     */
+    createContent() {
+      const box = createElement('div', { className: 'claude-plus-import-dialog', innerHTML: ImportDialog.#bodyHtml() });
+      this.#elements = collectNamedElements(box);
+      this.#bindEvents();
+      return [box];
+    }
+
+    /**
+     * The screen's static markup.
+     * @returns {string} The HTML.
+     */
+    static #bodyHtml() {
+      return `
+      <div class="claude-plus-import-dialog__header">
+        <h2>Import chat export</h2>
+        <button class="claude-plus-toolbar__close-button" data-name="closeButton" title="Close">✕</button>
+      </div>
+      <p>Select the files you extracted from claude.ai's "Export my data" download: conversations.json is required; memory, Artifact, Project and account files are each optional and detected automatically.</p>
+      <div class="claude-plus-import-dialog__row">
+        <button class="claude-plus-toolbar__button" data-name="chooseButton">Choose files…</button>
+      </div>
+      <div data-name="summary"></div>
+      <div class="claude-plus-import-dialog__row">
+        <button class="claude-plus-primary-button" data-name="importButton" disabled>Import</button>
+      </div>`;
+    }
+
+    /**
+     * Wires the file picker and the buttons.
+     * @returns {void}
+     */
+    #bindEvents() {
+      const elements = this.#elements;
+      elements.closeButton.addEventListener('click', () => this.close());
+      elements.chooseButton.addEventListener('click', () => this.#chooseFiles());
+      elements.importButton.addEventListener('click', () => this.#runImport());
+    }
+
+    /**
+     * Opens a native multi-file picker and classifies whatever was selected.
+     * @returns {void}
+     */
+    #chooseFiles() {
+      const input = createElement('input', { type: 'file', multiple: true, accept: 'application/json,.json,.html' });
+      input.addEventListener('change', () => this.#onFilesChosen([...input.files]));
+      input.click();
+    }
+
+    /**
+     * Classifies the chosen files and shows what was found; Import stays disabled without a
+     * conversations.json among them.
+     * @param {File[]} files The chosen files.
+     * @returns {Promise<void>} Resolves once the summary is shown.
+     */
+    async #onFilesChosen(files) {
+      this.#selectedFiles = files;
+      const classified = await ImportFileClassifier.classify(files);
+      this.#elements.summary.innerHTML = ImportDialog.#detectionSummaryHtml(files.length, classified);
+      this.#elements.importButton.disabled = !classified.conversationsJson;
+    }
+
+    /**
+     * HTML listing what was detected among the chosen files.
+     * @param {number} fileCount Number of files chosen.
+     * @param {object} classified The classification result.
+     * @returns {string} The summary.
+     */
+    static #detectionSummaryHtml(fileCount, classified) {
+      const lines = ImportDialog.#DETECTION_LINES.map(line => line(classified));
+      return `<p class="claude-plus-import-dialog__file-count">${fileCount} file(s) selected:</p><ul class="claude-plus-import-dialog__detection-list">${lines.map(line => `<li>${line}</li>`).join('')}</ul>`;
+    }
+
+    /**
+     * One detection line per export category, each deciding its own found/missing wording.
+     * @type {ReadonlyArray<function(object): string>}
+     */
+    static #DETECTION_LINES = [
+      classified => (classified.conversationsJson ? `✓ Conversations (${classified.conversationsJson.length})` : '✕ No conversations.json found - required'),
+      classified => (classified.memoriesJsons.length ? `✓ Memory files (${classified.memoriesJsons.flatMap(json => json.memory_files).length})` : '– No memory files'),
+      classified => (classified.artifacts.length ? `✓ Artifacts (${classified.artifacts.length})` : '– No Artifacts'),
+      classified => (classified.projectsJsons.length ? `✓ Projects (${classified.projectsJsons.length})` : '– No Projects'),
+      classified => (classified.feedbackJsons.length ? `✓ Feedback periods (${classified.feedbackJsons.flatMap(json => json.reflections).length})` : '– No Feedback/reflections'),
+      classified => (classified.usersJson ? '✓ Account profile' : '– No account profile'),
+      classified => (classified.loginHistoryJson ? `✓ Login history (${classified.loginHistoryJson.login_events.length} events)` : '– No login history'),
+    ];
+
+    /**
+     * Runs the import, shows a progress notice while it writes, then the result summary.
+     * @returns {Promise<void>} Resolves once the result is shown or a failure is reported.
+     */
+    async #runImport() {
+      this.#elements.importButton.disabled = true;
+      this.#elements.summary.innerHTML = '<p class="claude-plus-import-dialog__progress">Importing…</p>';
+      try {
+        const result = await this.#orchestrator.importFiles(this.#selectedFiles);
+        this.#elements.summary.innerHTML = ImportDialog.#resultSummaryHtml(result);
+        this.#elements.chooseButton.hidden = true;
+        this.#elements.importButton.hidden = true;
+        this.#onImported();
+      } catch (error) {
+        await AlertDialog.inform(`Import failed: ${error.message}`);
+        this.#elements.importButton.disabled = false;
+      }
+    }
+
+    /**
+     * HTML of the result summary shown once the import has written everything.
+     * @param {object} result The orchestrator's result.
+     * @returns {string} The summary.
+     */
+    static #resultSummaryHtml(result) {
+      const { conversations } = result;
+      const lines = [
+        `${conversations.new} new conversation(s), ${conversations.changed} with new messages, ${conversations.renamedOnly} renamed, ${conversations.unchanged} unchanged`,
+        `${result.memoryFiles.written} of ${result.memoryFiles.total} memory file(s) saved`,
+        `${result.artifacts.written} of ${result.artifacts.total} Artifact(s) saved`,
+        `${result.projects.written} of ${result.projects.total} Project(s) saved`,
+        `${result.feedbackPeriods.written} of ${result.feedbackPeriods.total} Feedback period(s) saved`,
+        `${result.loginEvents.written} of ${result.loginEvents.total} login event(s) saved`,
+        result.accountProfile ? 'Account profile saved' : null,
+      ].filter(Boolean);
+      return `<p><strong>Import complete.</strong></p><ul class="claude-plus-import-dialog__detection-list">${lines.map(line => `<li>${line}</li>`).join('')}</ul>`;
+    }
+  }
+
   var stylesheet$2 = ".claude-plus-settings-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-settings-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 420px;\n  max-width: 90vw;\n  max-height: 85vh;\n  overflow-y: auto;\n  font-size: 13px;\n}\n\n.claude-plus-settings-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n}\n\n.claude-plus-settings-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-settings-dialog__section {\n  padding: 12px 0;\n  border-top: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-settings-dialog__section:first-of-type {\n  border-top: none;\n}\n\n.claude-plus-settings-dialog__section h3 {\n  margin: 0 0 8px;\n  font-size: 12px;\n  text-transform: uppercase;\n  letter-spacing: 0.04em;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__row {\n  display: flex;\n  gap: 8px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-settings-dialog__layout-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 6px 0;\n}\n\n.claude-plus-settings-dialog__layout-name {\n  flex: 1;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-settings-dialog__colors {\n  display: flex;\n  gap: 14px;\n  flex-wrap: wrap;\n  margin-bottom: 12px;\n}\n\n.claude-plus-settings-dialog__color-field {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__color-field input[type='color'] {\n  width: 36px;\n  height: 28px;\n  padding: 0;\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  background: none;\n  cursor: pointer;\n}\n\n.claude-plus-settings-dialog__field {\n  display: block;\n  margin-bottom: 10px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__field input[type='text'] {\n  display: block;\n  width: 100%;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 6px 8px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font: inherit;\n}\n";
 
   StyleRegistry.register(stylesheet$2);
@@ -11745,6 +12464,18 @@
     #theme;
 
     /**
+     * Runs a data-export import.
+     * @type {ImportOrchestrator}
+     */
+    #importOrchestrator;
+
+    /**
+     * Called once an import has actually written anything.
+     * @type {function(): void}
+     */
+    #onImported;
+
+    /**
      * The dialog's named elements, set once the content is built.
      * @type {?Object<string, HTMLElement>}
      */
@@ -11755,12 +12486,16 @@
      * @param {LayoutLibrary} layoutLibrary Saved layouts.
      * @param {SettingsTransfer} settingsTransfer Settings export and import.
      * @param {Theme} theme Colors and fonts.
+     * @param {ImportOrchestrator} importOrchestrator Runs a data-export import.
+     * @param {function(): void} onImported Called once an import has actually written anything.
      */
-    constructor(layoutLibrary, settingsTransfer, theme) {
+    constructor(layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported) {
       super();
       this.#layoutLibrary = layoutLibrary;
       this.#settingsTransfer = settingsTransfer;
       this.#theme = theme;
+      this.#importOrchestrator = importOrchestrator;
+      this.#onImported = onImported;
     }
 
     /**
@@ -11768,10 +12503,12 @@
      * @param {LayoutLibrary} layoutLibrary Saved layouts.
      * @param {SettingsTransfer} settingsTransfer Settings export and import.
      * @param {Theme} theme Colors and fonts.
+     * @param {ImportOrchestrator} importOrchestrator Runs a data-export import.
+     * @param {function(): void} onImported Called once an import has actually written anything.
      * @returns {Promise<void>} Resolves once closed.
      */
-    static open(layoutLibrary, settingsTransfer, theme) {
-      return new SettingsDialog(layoutLibrary, settingsTransfer, theme).show();
+    static open(layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported) {
+      return new SettingsDialog(layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported).show();
     }
 
     /**
@@ -11818,6 +12555,9 @@
           <button class="claude-plus-toolbar__button" data-name="exportButton">Export settings (JSON)</button>
           <button class="claude-plus-toolbar__button" data-name="importButton">Import settings…</button>
         </div>
+        <div class="claude-plus-settings-dialog__row">
+          <button class="claude-plus-toolbar__button" data-name="importChatExportButton">Import chat export…</button>
+        </div>
       </section>
       <section class="claude-plus-settings-dialog__section">
         <h3>Theme</h3>
@@ -11841,6 +12581,7 @@
       elements.layoutList.addEventListener('click', event => this.#onLayoutListClick(event));
       elements.exportButton.addEventListener('click', () => this.#settingsTransfer.exportSettings());
       elements.importButton.addEventListener('click', () => this.#settingsTransfer.chooseFileAndImport());
+      elements.importChatExportButton.addEventListener('click', () => ImportDialog.open(this.#importOrchestrator, this.#onImported));
       elements.uiFontInput.addEventListener('input', () => this.#saveThemeFromFields());
       elements.chatFontInput.addEventListener('input', () => this.#saveThemeFromFields());
       elements.resetThemeButton.addEventListener('click', () => this.#resetTheme());
@@ -11989,6 +12730,18 @@
     #theme;
 
     /**
+     * Runs a data-export import.
+     * @type {ImportOrchestrator}
+     */
+    #importOrchestrator;
+
+    /**
+     * Called once an import has actually written anything.
+     * @type {function(): void}
+     */
+    #onImported;
+
+    /**
      * Called when the hide button is clicked.
      * @type {function(): void}
      */
@@ -12014,14 +12767,18 @@
      * @param {LayoutLibrary} services.layoutLibrary Saved layouts.
      * @param {SettingsTransfer} services.settingsTransfer Settings export and import.
      * @param {Theme} services.theme Colors and fonts.
+     * @param {ImportOrchestrator} services.importOrchestrator Runs a data-export import.
+     * @param {function(): void} services.onImported Called once an import has actually written anything.
      * @param {function(): void} services.onHide Called when the hide button is clicked.
      */
-    constructor({ preferences, workspace, layoutLibrary, settingsTransfer, theme, onHide }) {
+    constructor({ preferences, workspace, layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported, onHide }) {
       this.#preferences = preferences;
       this.#workspace = workspace;
       this.#layoutLibrary = layoutLibrary;
       this.#settingsTransfer = settingsTransfer;
       this.#theme = theme;
+      this.#importOrchestrator = importOrchestrator;
+      this.#onImported = onImported;
       this.#onHide = onHide;
       const storedSize = Number.parseFloat(preferences.read(STORAGE_KEYS.messageFontSize));
       const { minimum, maximum, fallback } = Toolbar.#FONT_SIZE;
@@ -12052,7 +12809,7 @@
       const elements = collectNamedElements(toolbar);
       elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
       elements.layoutsButton.addEventListener('click', () => this.#showLayoutsMenu(elements.layoutsButton));
-      elements.settingsButton.addEventListener('click', () => SettingsDialog.open(this.#layoutLibrary, this.#settingsTransfer, this.#theme));
+      elements.settingsButton.addEventListener('click', () => SettingsDialog.open(this.#layoutLibrary, this.#settingsTransfer, this.#theme, this.#importOrchestrator, this.#onImported));
       elements.resetLayoutButton.addEventListener('click', () => this.#workspace.resetLayout());
       elements.hideButton.addEventListener('click', () => this.#onHide());
       this.#applyFontSize(elements.fontSizeLabel);
@@ -12839,7 +13596,9 @@
       paneManager.attachWorkspace(workspace);
       panelFactory.attachWorkspace(workspace);
       const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
-      new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, onHide: () => this.hide() }).mount();
+      const importOrchestrator = new ImportOrchestrator(database, importedConversations);
+      const onImported = () => { directory.refreshImported(); stats.refreshAggregate(); };
+      new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, onImported, onHide: () => this.hide() }).mount();
       workspace.mount();
       ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
       new KeyboardShortcuts(workspace).install();

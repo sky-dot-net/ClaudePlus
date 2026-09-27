@@ -25,8 +25,17 @@ export class ImportedConversationStore {
    * @returns {Promise<?ApiConversation>} The conversation, or null when it isn't an imported one.
    */
   async get(conversationId) {
-    const record = await this.#database.read(DATABASE.stores.importedConversations, conversationId);
+    const record = await this.getRecord(conversationId);
     return record ? ImportedConversationStore.#toApiConversation(record) : null;
+  }
+
+  /**
+   * A conversation's stored record, for merging a newly imported export against it.
+   * @param {string} conversationId Conversation id.
+   * @returns {Promise<?ImportedConversationRecord>} The record, or undefined when not imported yet.
+   */
+  getRecord(conversationId) {
+    return this.#database.read(DATABASE.stores.importedConversations, conversationId);
   }
 
   /**

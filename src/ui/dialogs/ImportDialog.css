@@ -1,0 +1,54 @@
+.claude-plus-import-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--claude-plus-layer-drag-label);
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.claude-plus-import-dialog {
+  background: var(--claude-plus-color-raised);
+  border: 1px solid var(--claude-plus-color-border-strong);
+  border-radius: 8px;
+  padding: 16px;
+  width: 460px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+.claude-plus-import-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.claude-plus-import-dialog__header h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.claude-plus-import-dialog__row {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.claude-plus-import-dialog__file-count {
+  color: var(--claude-plus-color-text-muted);
+  margin: 0 0 4px;
+}
+
+.claude-plus-import-dialog__detection-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.claude-plus-import-dialog__progress {
+  color: var(--claude-plus-color-text-muted);
+  font-style: italic;
+}

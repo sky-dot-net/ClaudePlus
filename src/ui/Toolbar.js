@@ -52,6 +52,18 @@ export class Toolbar {
   #theme;
 
   /**
+   * Runs a data-export import.
+   * @type {ImportOrchestrator}
+   */
+  #importOrchestrator;
+
+  /**
+   * Called once an import has actually written anything.
+   * @type {function(): void}
+   */
+  #onImported;
+
+  /**
    * Called when the hide button is clicked.
    * @type {function(): void}
    */
@@ -77,14 +89,18 @@ export class Toolbar {
    * @param {LayoutLibrary} services.layoutLibrary Saved layouts.
    * @param {SettingsTransfer} services.settingsTransfer Settings export and import.
    * @param {Theme} services.theme Colors and fonts.
+   * @param {ImportOrchestrator} services.importOrchestrator Runs a data-export import.
+   * @param {function(): void} services.onImported Called once an import has actually written anything.
    * @param {function(): void} services.onHide Called when the hide button is clicked.
    */
-  constructor({ preferences, workspace, layoutLibrary, settingsTransfer, theme, onHide }) {
+  constructor({ preferences, workspace, layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported, onHide }) {
     this.#preferences = preferences;
     this.#workspace = workspace;
     this.#layoutLibrary = layoutLibrary;
     this.#settingsTransfer = settingsTransfer;
     this.#theme = theme;
+    this.#importOrchestrator = importOrchestrator;
+    this.#onImported = onImported;
     this.#onHide = onHide;
     const storedSize = Number.parseFloat(preferences.read(STORAGE_KEYS.messageFontSize));
     const { minimum, maximum, fallback } = Toolbar.#FONT_SIZE;
@@ -115,7 +131,7 @@ export class Toolbar {
     const elements = collectNamedElements(toolbar);
     elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
     elements.layoutsButton.addEventListener('click', () => this.#showLayoutsMenu(elements.layoutsButton));
-    elements.settingsButton.addEventListener('click', () => SettingsDialog.open(this.#layoutLibrary, this.#settingsTransfer, this.#theme));
+    elements.settingsButton.addEventListener('click', () => SettingsDialog.open(this.#layoutLibrary, this.#settingsTransfer, this.#theme, this.#importOrchestrator, this.#onImported));
     elements.resetLayoutButton.addEventListener('click', () => this.#workspace.resetLayout());
     elements.hideButton.addEventListener('click', () => this.#onHide());
     this.#applyFontSize(elements.fontSizeLabel);

@@ -9,6 +9,7 @@ import { ConversationExporter } from '../export/ConversationExporter.js';
 import { DATABASE } from '../config/DATABASE.js';
 import { DockTree } from '../dock/DockTree.js';
 import { DockWorkspace } from '../dock/DockWorkspace.js';
+import { ImportOrchestrator } from '../import/ImportOrchestrator.js';
 import { ImportedConversationStore } from '../import/ImportedConversationStore.js';
 import { IndexedDbStore } from '../core/IndexedDbStore.js';
 import { KeyboardShortcuts } from '../ui/KeyboardShortcuts.js';
@@ -194,7 +195,9 @@ export class ClaudePlusApp {
     paneManager.attachWorkspace(workspace);
     panelFactory.attachWorkspace(workspace);
     const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
-    new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, onHide: () => this.hide() }).mount();
+    const importOrchestrator = new ImportOrchestrator(database, importedConversations);
+    const onImported = () => { directory.refreshImported(); stats.refreshAggregate(); };
+    new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, onImported, onHide: () => this.hide() }).mount();
     workspace.mount();
     ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
     new KeyboardShortcuts(workspace).install();

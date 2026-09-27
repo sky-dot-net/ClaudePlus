@@ -1,4 +1,5 @@
 import { Dialog } from './Dialog.js';
+import { ImportDialog } from './ImportDialog.js';
 import { PromptDialog } from './PromptDialog.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { THEME_COLOR_FIELDS } from '../../config/THEME_COLOR_FIELDS.js';
@@ -35,6 +36,18 @@ export class SettingsDialog extends Dialog {
   #theme;
 
   /**
+   * Runs a data-export import.
+   * @type {ImportOrchestrator}
+   */
+  #importOrchestrator;
+
+  /**
+   * Called once an import has actually written anything.
+   * @type {function(): void}
+   */
+  #onImported;
+
+  /**
    * The dialog's named elements, set once the content is built.
    * @type {?Object<string, HTMLElement>}
    */
@@ -45,12 +58,16 @@ export class SettingsDialog extends Dialog {
    * @param {LayoutLibrary} layoutLibrary Saved layouts.
    * @param {SettingsTransfer} settingsTransfer Settings export and import.
    * @param {Theme} theme Colors and fonts.
+   * @param {ImportOrchestrator} importOrchestrator Runs a data-export import.
+   * @param {function(): void} onImported Called once an import has actually written anything.
    */
-  constructor(layoutLibrary, settingsTransfer, theme) {
+  constructor(layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported) {
     super();
     this.#layoutLibrary = layoutLibrary;
     this.#settingsTransfer = settingsTransfer;
     this.#theme = theme;
+    this.#importOrchestrator = importOrchestrator;
+    this.#onImported = onImported;
   }
 
   /**
@@ -58,10 +75,12 @@ export class SettingsDialog extends Dialog {
    * @param {LayoutLibrary} layoutLibrary Saved layouts.
    * @param {SettingsTransfer} settingsTransfer Settings export and import.
    * @param {Theme} theme Colors and fonts.
+   * @param {ImportOrchestrator} importOrchestrator Runs a data-export import.
+   * @param {function(): void} onImported Called once an import has actually written anything.
    * @returns {Promise<void>} Resolves once closed.
    */
-  static open(layoutLibrary, settingsTransfer, theme) {
-    return new SettingsDialog(layoutLibrary, settingsTransfer, theme).show();
+  static open(layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported) {
+    return new SettingsDialog(layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported).show();
   }
 
   /**
@@ -108,6 +127,9 @@ export class SettingsDialog extends Dialog {
           <button class="claude-plus-toolbar__button" data-name="exportButton">Export settings (JSON)</button>
           <button class="claude-plus-toolbar__button" data-name="importButton">Import settings…</button>
         </div>
+        <div class="claude-plus-settings-dialog__row">
+          <button class="claude-plus-toolbar__button" data-name="importChatExportButton">Import chat export…</button>
+        </div>
       </section>
       <section class="claude-plus-settings-dialog__section">
         <h3>Theme</h3>
@@ -131,6 +153,7 @@ export class SettingsDialog extends Dialog {
     elements.layoutList.addEventListener('click', event => this.#onLayoutListClick(event));
     elements.exportButton.addEventListener('click', () => this.#settingsTransfer.exportSettings());
     elements.importButton.addEventListener('click', () => this.#settingsTransfer.chooseFileAndImport());
+    elements.importChatExportButton.addEventListener('click', () => ImportDialog.open(this.#importOrchestrator, this.#onImported));
     elements.uiFontInput.addEventListener('input', () => this.#saveThemeFromFields());
     elements.chatFontInput.addEventListener('input', () => this.#saveThemeFromFields());
     elements.resetThemeButton.addEventListener('click', () => this.#resetTheme());
