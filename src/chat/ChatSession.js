@@ -1,14 +1,9 @@
-import { ChatMessage } from '../vendors/anthropic/chat/ChatMessage.js';
-import { ConversationTree } from '../vendors/anthropic/chat/ConversationTree.js';
+import { ChatBranchSwitcher } from './session/ChatBranchSwitcher.js';
+import { ChatConversationLoader } from './session/ChatConversationLoader.js';
+import { ChatDirectorySync } from './session/ChatDirectorySync.js';
+import { ChatReplySender } from './session/ChatReplySender.js';
+import { ChatSessionState } from './session/ChatSessionState.js';
 import { EventEmitter } from '../core/EventEmitter.js';
-import { LOG_PREFIX } from '../config/LOG_PREFIX.js';
-import { NavigationCounter } from './NavigationCounter.js';
-import { ROOT_MESSAGE_UUID } from '../vendors/anthropic/config/ROOT_MESSAGE_UUID.js';
-import { StreamEventApplier } from '../vendors/anthropic/chat/StreamEventApplier.js';
-import { Turn } from './Turn.js';
-import { createErrorNotice } from './createErrorNotice.js';
-import { createLocalMessageId } from './createLocalMessageId.js';
-import { currentBranchMessages } from '../vendors/anthropic/chat/currentBranchMessages.js';
 
 /**
  * One chat: the conversation open in a chat pane, its messages and the prompt being sent. Every
@@ -28,82 +23,28 @@ export class ChatSession extends EventEmitter {
   #api;
 
   /**
-   * Model options for new prompts.
-   * @type {ComposerSettings}
+   * The open conversation, its messages and the sending state.
+   * @type {ChatSessionState}
    */
-  #settings;
+  #state = new ChatSessionState((eventName, payload) => this.publish(eventName, payload));
 
   /**
-   * Shared conversation list, updated when this session creates or reloads a conversation.
-   * @type {CombinedConversationDirectory}
+   * Sends prompts and streams their replies.
+   * @type {ChatReplySender}
    */
-  #directory;
+  #sender;
 
   /**
-   * Imported conversations, checked before the live API when opening one.
-   * @type {ImportedConversationStore}
+   * Switches between conversations.
+   * @type {ChatConversationLoader}
    */
-  #importedConversations;
+  #loader;
 
   /**
-   * Open conversation id, or null for a new chat.
-   * @type {?string}
+   * Switches between sibling versions of a message.
+   * @type {ChatBranchSwitcher}
    */
-  #openConversationId = null;
-
-  /**
-   * Id generated for a new chat's conversation as soon as a file is uploaded to it, so the upload
-   * and the first prompt land in the same conversation. Cleared once the open conversation changes.
-   * @type {?string}
-   */
-  #draftConversationId = null;
-
-  /**
-   * Messages of the open conversation's current branch.
-   * @type {ChatMessage[]}
-   */
-  #messages = [];
-
-  /**
-   * The full conversation last fetched, with every branch; null for a new chat or before the first
-   * load. Used to find a message's sibling versions and switch between them.
-   * @type {?ApiConversation}
-   */
-  #conversation = null;
-
-  /**
-   * Whether the open conversation is an imported one, with no model to reply to.
-   * @type {boolean}
-   */
-  #isImported = false;
-
-  /**
-   * Whether a prompt is being sent.
-   * @type {boolean}
-   */
-  #isSending = false;
-
-  /**
-   * Aborts the prompt being sent.
-   * @type {?AbortController}
-   */
-  #abortController = null;
-
-  /**
-   * Numbers navigations, so late responses for an old one are dropped.
-   * @type {NavigationCounter}
-   */
-  #navigations = new NavigationCounter();
-
-  /**
-   * Applies completion stream events to the turn being sent.
-   * @type {StreamEventApplier}
-   */
-  #streamEvents = new StreamEventApplier({
-    appendMessage: message => this.#setMessages([...this.#messages, message]),
-    registerNewConversation: (conversationId, prompt) => this.#registerNewConversation(conversationId, prompt),
-    publish: (eventName, payload) => this.publish(eventName, payload),
-  });
+  #branches;
 
   /**
    * Creates an empty session showing a new chat.
@@ -114,10 +55,17 @@ export class ChatSession extends EventEmitter {
    */
   constructor(api, settings, directory, importedConversations) {
     super();
+    const state = this.#state;
+    const publish = (eventName, payload) => this.publish(eventName, payload);
+    const sync = new ChatDirectorySync({ api, directory, state, publish });
     this.#api = api;
-    this.#settings = settings;
-    this.#directory = directory;
-    this.#importedConversations = importedConversations;
+    this.#sender = new ChatReplySender({
+      api, settings, state, publish,
+      registerNewConversation: (conversationId, prompt) => sync.registerNewConversation(conversationId, prompt),
+      reloadAfterSend: (conversationId, replaceMessages) => sync.reloadAfterSend(conversationId, replaceMessages),
+    });
+    this.#loader = new ChatConversationLoader({ api, importedConversations, state, stopReply: () => this.stopReply() });
+    this.#branches = new ChatBranchSwitcher(api, state);
   }
 
   /**
@@ -125,7 +73,7 @@ export class ChatSession extends EventEmitter {
    * @returns {?string} Its id, or null for a new chat.
    */
   get openConversationId() {
-    return this.#openConversationId;
+    return this.#state.openConversationId;
   }
 
   /**
@@ -133,7 +81,7 @@ export class ChatSession extends EventEmitter {
    * @returns {ChatMessage[]} The current branch, oldest first.
    */
   get messages() {
-    return this.#messages;
+    return this.#state.messages;
   }
 
   /**
@@ -141,7 +89,7 @@ export class ChatSession extends EventEmitter {
    * @returns {boolean} True while sending.
    */
   get isSending() {
-    return this.#isSending;
+    return this.#state.isSending;
   }
 
   /**
@@ -149,17 +97,15 @@ export class ChatSession extends EventEmitter {
    * @returns {boolean} True for an imported conversation.
    */
   get isReadOnly() {
-    return this.#isImported;
+    return this.#state.isImported;
   }
 
   /**
-   * Id of the conversation a file uploaded right now would belong to: the open conversation, or a
-   * stable id generated on first use so an upload and the prompt that follows it share one
-   * conversation, even before that conversation exists on the server.
+   * Id of the conversation a file uploaded right now would belong to.
    * @returns {string} The conversation id.
    */
   get targetConversationId() {
-    return this.#openConversationId ?? (this.#draftConversationId ??= crypto.randomUUID());
+    return this.#state.targetConversationId;
   }
 
   /**
@@ -173,35 +119,22 @@ export class ChatSession extends EventEmitter {
   }
 
   /**
-   * Position of a message among its siblings (its other edits or retries), for a branch-switch
-   * control. Null when it has no siblings besides itself, or before the conversation has loaded.
+   * Position of a message among its siblings (its other edits or retries), for a branch-switch control.
    * @param {string} messageId Message id.
    * @returns {?{index: number, count: number}} Its zero-based position and the sibling count, or null.
    */
   branchInfoFor(messageId) {
-    if (!this.#conversation) return null;
-    const siblings = ConversationTree.siblingsOf(this.#conversation, messageId);
-    if (siblings.length <= 1) return null;
-    return { index: siblings.findIndex(sibling => sibling.uuid === messageId), count: siblings.length };
+    return this.#branches.branchInfoFor(messageId);
   }
 
   /**
-   * Switches to a sibling version of a message (an edit or a retried reply), landing on that
-   * version's latest leaf, and persists the choice server-side. Ignored while sending, before the
-   * conversation has loaded, or when there is no sibling in that direction.
+   * Switches to a sibling version of a message (an edit or a retried reply).
    * @param {string} messageId Message id.
    * @param {number} step -1 for the previous version, +1 for the next.
    * @returns {Promise<void>} Resolves once switched.
    */
-  async switchBranch(messageId, step) {
-    if (this.#isSending || !this.#conversation) return;
-    const siblings = ConversationTree.siblingsOf(this.#conversation, messageId);
-    const target = siblings[siblings.findIndex(sibling => sibling.uuid === messageId) + step];
-    if (!target) return;
-    const leafId = ConversationTree.latestLeafFrom(this.#conversation, target.uuid);
-    await this.#api.setCurrentLeafMessage(this.#openConversationId, leafId);
-    this.#conversation = ConversationTree.withCurrentLeaf(this.#conversation, leafId);
-    this.#setMessages(currentBranchMessages(this.#conversation));
+  switchBranch(messageId, step) {
+    return this.#branches.switchBranch(messageId, step);
   }
 
   /**
@@ -213,10 +146,10 @@ export class ChatSession extends EventEmitter {
    * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
    */
   editMessage(index, newText) {
-    const message = this.#messages[index];
-    if (this.#isSending || !newText.trim() || !ChatSession.#isEditableHumanMessage(message)) return Promise.resolve();
-    this.#setMessages(this.#messages.slice(0, index));
-    return this.#sendPromptAfter(newText, message.parentId, []);
+    const message = this.#state.messages[index];
+    if (this.#state.isSending || !newText.trim() || !ChatSession.#isEditableHumanMessage(message)) return Promise.resolve();
+    this.#state.setMessages(this.#state.messages.slice(0, index));
+    return this.#sender.sendAfter(newText, message.parentId, []);
   }
 
   /**
@@ -233,26 +166,8 @@ export class ChatSession extends EventEmitter {
    * @param {string} conversationId Conversation id.
    * @returns {Promise<void>} Resolves once the messages or the error notice are shown.
    */
-  async openConversation(conversationId) {
-    const navigation = this.#beginNavigation(conversationId);
-    try {
-      const { conversation, isImported } = await this.#loadConversation(conversationId);
-      if (this.#navigations.isLatest(navigation)) this.#showConversation(conversation, isImported);
-    } catch (error) {
-      this.#showLoadError(navigation, error);
-    }
-  }
-
-  /**
-   * Loads a conversation: its imported copy if it has one, else fetched live.
-   * @param {string} conversationId Conversation id.
-   * @returns {Promise<{conversation: ApiConversation, isImported: boolean}>} The conversation and
-   * whether it came from the imported store.
-   * @throws {ApiError} When it isn't imported and the live fetch fails.
-   */
-  async #loadConversation(conversationId) {
-    const imported = await this.#importedConversations.get(conversationId);
-    return { conversation: imported ?? await this.#api.getConversation(conversationId), isImported: Boolean(imported) };
+  openConversation(conversationId) {
+    return this.#loader.open(conversationId);
   }
 
   /**
@@ -260,7 +175,7 @@ export class ChatSession extends EventEmitter {
    * @returns {void}
    */
   startNewConversation() {
-    this.#beginNavigation(null);
+    this.#loader.beginNavigation(null);
   }
 
   /**
@@ -268,7 +183,7 @@ export class ChatSession extends EventEmitter {
    * @returns {void}
    */
   stopReply() {
-    if (this.#abortController) this.#abortController.abort();
+    this.#sender.stop();
   }
 
   /**
@@ -278,7 +193,7 @@ export class ChatSession extends EventEmitter {
    * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
    */
   sendPrompt(prompt, files = []) {
-    return this.#sendPromptAfter(prompt, this.#lastPersistedMessageIdBefore(this.#messages.length), files);
+    return this.#sender.sendAfter(prompt, this.#state.lastPersistedMessageIdBefore(this.#state.messages.length), files);
   }
 
   /**
@@ -287,226 +202,11 @@ export class ChatSession extends EventEmitter {
    * @returns {void}
    */
   retryLastPrompt() {
-    if (this.#isSending) return;
-    const promptIndex = this.#messages.findLastIndex(message => message.sender === 'human');
-    if (promptIndex === -1) return;
-    const promptMessage = this.#messages[promptIndex];
-    this.#setMessages(this.#messages.slice(0, promptIndex));
-    this.#sendPromptAfter(promptMessage.text, promptMessage.parentId ?? this.#lastPersistedMessageIdBefore(promptIndex), []);
-  }
-
-  /**
-   * Stops any reply, clears the messages and makes a conversation (or a new chat) open.
-   * @param {?string} conversationId Conversation to open, or null for a new chat.
-   * @returns {number} Number identifying this navigation.
-   */
-  #beginNavigation(conversationId) {
-    this.stopReply();
-    const navigation = this.#navigations.begin();
-    this.#setOpenConversation(conversationId);
-    this.#conversation = null;
-    this.#isImported = false;
-    this.#setMessages([]);
-    return navigation;
-  }
-
-  /**
-   * Shows a conversation load failure, unless the user has navigated away since.
-   * @param {number} navigation Number of the failed navigation, from NavigationCounter.begin().
-   * @param {Error} error The failure.
-   * @returns {void}
-   */
-  #showLoadError(navigation, error) {
-    if (!this.#navigations.isLatest(navigation)) return;
-    console.warn(LOG_PREFIX, 'loading conversation failed', error);
-    this.#setMessages([createErrorNotice(`Could not load this conversation (${error.message}).`)]);
-  }
-
-  /**
-   * Sends a prompt as a reply to a given message and streams the answer into the chat.
-   * @param {string} prompt Prompt text; ignored if blank.
-   * @param {?string} parentMessageId Message to reply to; null for the conversation root.
-   * @param {UploadedFile[]} files Files uploaded beforehand to attach.
-   * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
-   */
-  async #sendPromptAfter(prompt, parentMessageId, files) {
-    if (!prompt.trim() || this.#isSending || this.#isImported) return;
-    const turn = this.#beginTurn(prompt, parentMessageId, files);
-    try {
-      await this.#streamReply(turn);
-    } catch (error) {
-      this.#showSendFailure(turn, error);
-    } finally {
-      this.#finishTurn(turn);
-    }
-  }
-
-  /**
-   * Shows the prompt and marks the session as sending.
-   * @param {string} prompt Prompt text.
-   * @param {?string} parentMessageId Message to reply to.
-   * @param {UploadedFile[]} files Files uploaded beforehand to attach.
-   * @returns {Turn} The new turn.
-   */
-  #beginTurn(prompt, parentMessageId, files) {
-    const promptMessage = new ChatMessage({
-      id: createLocalMessageId(), parentId: parentMessageId, sender: 'human', text: prompt, isPersisted: false,
-      apiMessage: files.length ? ChatMessage.draftApiMessage(prompt, files) : null,
-    });
-    const turn = new Turn({
-      conversationId: this.targetConversationId,
-      isNewConversation: this.#openConversationId === null,
-      prompt,
-      promptMessage,
-      files,
-      abortController: new AbortController(),
-    });
-    this.#abortController = turn.abortController;
-    this.#setMessages([...this.#messages, promptMessage]);
-    this.#setSending(true);
-    return turn;
-  }
-
-  /**
-   * Sends the turn's prompt and applies each stream event.
-   * @param {Turn} turn The turn.
-   * @returns {Promise<void>} Resolves when the stream ends.
-   * @throws {ApiError|DOMException} When the request fails or is aborted.
-   */
-  async #streamReply(turn) {
-    const events = this.#api.streamCompletion({
-      conversationId: turn.conversationId,
-      prompt: turn.prompt,
-      parentMessageId: turn.promptMessage.parentId ?? ROOT_MESSAGE_UUID,
-      isNew: turn.isNewConversation,
-      settings: this.#settings.snapshot(),
-      fileUuids: ChatMessage.fileUuidsOf(turn.files),
-      signal: turn.abortController.signal,
-    });
-    for await (const event of events) this.#streamEvents.apply(turn, event);
-  }
-
-  /**
-   * Shows a send failure under the reply, or as a separate notice when no reply exists yet. A user
-   * stop (AbortError) isn't a failure.
-   * @param {Turn} turn The turn.
-   * @param {Error} error The failure.
-   * @returns {void}
-   */
-  #showSendFailure(turn, error) {
-    if (error.name === 'AbortError') return;
-    turn.hasFailed = true;
-    console.warn(LOG_PREFIX, 'send failed', error);
-    if (turn.replyMessage) turn.replyMessage.errorText = error.message;
-    else this.#messages.push(createErrorNotice(error.message));
-  }
-
-  /**
-   * Ends sending and, if the server accepted the prompt, reloads the conversation from the server.
-   * @param {Turn} turn The turn.
-   * @returns {void}
-   */
-  #finishTurn(turn) {
-    if (turn.replyMessage) turn.replyMessage.isStreaming = false;
-    if (this.#abortController === turn.abortController) this.#abortController = null;
-    this.#setSending(false);
-    this.publish('messages');
-    if (turn.promptMessage.isPersisted) this.#reloadAfterSend(turn.conversationId, !turn.hasFailed);
-  }
-
-  /**
-   * Fetches the conversation after a send to update the list and the stats, and replaces the
-   * optimistic messages with the server's copy (real tool blocks and parent ids).
-   * @param {string} conversationId Conversation id.
-   * @param {boolean} replaceMessages False after a failure, so the error stays on screen.
-   * @returns {Promise<void>} Resolves once done; failures are logged.
-   */
-  async #reloadAfterSend(conversationId, replaceMessages) {
-    try {
-      const conversation = await this.#api.getConversation(conversationId);
-      this.#directory.updateListing(conversation);
-      this.publish('conversationLoaded', conversation);
-      if (replaceMessages && this.#isOpenAndIdle(conversationId)) {
-        this.#conversation = conversation;
-        this.#setMessages(currentBranchMessages(conversation));
-      }
-    } catch (error) {
-      console.warn(LOG_PREFIX, 'refreshing conversation failed', error);
-    }
-  }
-
-  /**
-   * Whether a conversation is open here and not sending.
-   * @param {string} conversationId Conversation id.
-   * @returns {boolean} True when its messages can be replaced safely.
-   */
-  #isOpenAndIdle(conversationId) {
-    return this.#openConversationId === conversationId && !this.#isSending;
-  }
-
-  /**
-   * Shows a fetched conversation's current branch and publishes it for the stats.
-   * @param {ApiConversation} conversation The conversation.
-   * @param {boolean} [isImported] Whether it came from the imported store rather than the live API (false).
-   * @returns {void}
-   */
-  #showConversation(conversation, isImported = false) {
-    this.#conversation = conversation;
-    this.#isImported = isImported;
-    this.#setMessages(currentBranchMessages(conversation));
-    this.publish('conversationLoaded', conversation);
-  }
-
-  /**
-   * Lists a just-created conversation and makes it the open one.
-   * @param {string} conversationId Conversation id.
-   * @param {string} prompt First prompt, used as a provisional title.
-   * @returns {void}
-   */
-  #registerNewConversation(conversationId, prompt) {
-    this.#directory.registerNewConversation(conversationId, prompt);
-    this.#setOpenConversation(conversationId);
-  }
-
-  /**
-   * Id of the last persisted message before a position.
-   * @param {number} index Position to search backwards from (exclusive).
-   * @returns {?string} The id, or null when there is none.
-   */
-  #lastPersistedMessageIdBefore(index) {
-    const message = this.#messages.slice(0, index).findLast(candidate => candidate.isPersisted);
-    return message ? message.id : null;
-  }
-
-  /**
-   * Changes the open conversation.
-   * @param {?string} conversationId Conversation id, or null for a new chat.
-   * @returns {void}
-   */
-  #setOpenConversation(conversationId) {
-    if (this.#openConversationId === conversationId) return;
-    this.#openConversationId = conversationId;
-    this.#draftConversationId = null;
-    this.publish('openConversation');
-  }
-
-  /**
-   * Replaces the message list.
-   * @param {ChatMessage[]} messages New list.
-   * @returns {void}
-   */
-  #setMessages(messages) {
-    this.#messages = messages;
-    this.publish('messages');
-  }
-
-  /**
-   * Changes the sending state.
-   * @param {boolean} isSending Whether a prompt is being sent.
-   * @returns {void}
-   */
-  #setSending(isSending) {
-    this.#isSending = isSending;
-    this.publish('sending');
+    const messages = this.#state.messages;
+    const promptIndex = messages.findLastIndex(message => message.sender === 'human');
+    if (this.#state.isSending || promptIndex === -1) return;
+    const promptMessage = messages[promptIndex];
+    this.#state.setMessages(messages.slice(0, promptIndex));
+    this.#sender.sendAfter(promptMessage.text, promptMessage.parentId ?? this.#state.lastPersistedMessageIdBefore(promptIndex), []);
   }
 }

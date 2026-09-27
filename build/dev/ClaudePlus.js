@@ -285,6 +285,54 @@
   }
 
   /**
+   * Whether an id belongs to a chat pane.
+   * @param {*} panelId Panel id.
+   * @returns {boolean} True for ids starting with "chat-".
+   */
+  function isChatPaneId(panelId) {
+    return String(panelId).startsWith('chat-');
+  }
+
+  /**
+   * Decides which border each chat pane shows: borders only appear while more than one chat pane
+   * is visible, so the focused one can be told apart.
+   */
+  class ChatPaneBorders {
+    /**
+     * Whether more than one chat pane is visible at the moment.
+     * @type {boolean}
+     */
+    #hasSeveralVisiblePanes = false;
+
+    /**
+     * Records which panels are visible after a layout.
+     * @param {Set<string>} visiblePanelIds Ids of the visible panels.
+     * @param {string[]} paneIds Ids of every chat pane.
+     * @returns {boolean} True when the "several chat panes visible" state changed.
+     */
+    update(visiblePanelIds, paneIds) {
+      const hasSeveral = paneIds.filter(paneId => visiblePanelIds.has(paneId)).length > 1;
+      if (hasSeveral === this.#hasSeveralVisiblePanes) return false;
+      this.#hasSeveralVisiblePanes = hasSeveral;
+      return true;
+    }
+
+    /**
+     * Which border a chat pane's tab and content should show, so its tab strip, frame and content
+     * all agree: the focused pane gets the active (green) border, every other one a faint
+     * theme-aware border, both only while more than one chat pane is visible. An id that isn't a
+     * chat pane, or a chat pane while only one is visible, gets none.
+     * @param {string} panelId Panel id.
+     * @param {?string} focusedPaneId Id of the focused pane.
+     * @returns {?('active'|'inactive')} The border kind, or null for none.
+     */
+    kindOf(panelId, focusedPaneId) {
+      if (!isChatPaneId(panelId) || !this.#hasSeveralVisiblePanes) return null;
+      return focusedPaneId === panelId ? 'active' : 'inactive';
+    }
+  }
+
+  /**
    * Collects the stylesheets of all components. Every component registers its own stylesheet when
    * its module is evaluated, so the app injects one combined stylesheet without knowing the components.
    */
@@ -382,7 +430,7 @@
     return Object.assign(document.createElement(tagName), properties);
   }
 
-  var stylesheet$q = ".claude-plus-empty-state {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-style: italic;\r\n  padding: 6px 0;\r\n}\r\n\r\n.claude-plus-empty-state--padded {\r\n  padding: 24px;\r\n}\r\n";
+  var stylesheet$q = ".claude-plus-empty-state {\n  color: var(--claude-plus-color-text-faint);\n  font-style: italic;\n  padding: 6px 0;\n}\n\n.claude-plus-empty-state--padded {\n  padding: 24px;\n}\n";
 
   StyleRegistry.register(stylesheet$q);
 
@@ -419,7 +467,7 @@
     return `${seconds}s`;
   }
 
-  var stylesheet$p = ".claude-plus-value-row {\r\n  display: flex;\r\n  justify-content: space-between;\r\n  padding: 2px 0;\r\n  gap: 8px;\r\n}\r\n\r\n.claude-plus-value-row span {\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
+  var stylesheet$p = ".claude-plus-value-row {\n  display: flex;\n  justify-content: space-between;\n  padding: 2px 0;\n  gap: 8px;\n}\n\n.claude-plus-value-row span {\n  color: var(--claude-plus-color-text-muted);\n}\n";
 
   StyleRegistry.register(stylesheet$p);
 
@@ -994,7 +1042,7 @@
     searchResults: 300,
   });
 
-  var stylesheet$n = ".claude-plus-value-combobox {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  max-height: 240px;\r\n  overflow-y: auto;\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-value-combobox__entry {\r\n  padding: 4px 8px;\r\n  border-radius: 4px;\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-value-combobox__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
+  var stylesheet$n = ".claude-plus-value-combobox {\n  position: fixed;\n  z-index: var(--claude-plus-layer-popup-menu);\n  max-height: 240px;\n  overflow-y: auto;\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  padding: 4px;\n  font-size: 12px;\n}\n\n.claude-plus-value-combobox__entry {\n  padding: 4px 8px;\n  border-radius: 4px;\n  cursor: pointer;\n  white-space: nowrap;\n}\n\n.claude-plus-value-combobox__entry:hover {\n  background: var(--claude-plus-color-raised-hover);\n}\n";
 
   StyleRegistry.register(stylesheet$n);
 
@@ -1140,7 +1188,7 @@
     return FILTER_CONTROLS[column.filter ?? 'none'](column);
   }
 
-  var stylesheet$m = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
+  var stylesheet$m = ".claude-plus-column-table__column-picker {\n  flex-shrink: 0;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n\ndetails.claude-plus-column-table__column-picker summary {\n  padding: 0;\n}\n\n.claude-plus-column-table__column-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  margin: 2px 10px 2px 0;\n  cursor: pointer;\n}\n\n.claude-plus-column-table__table {\n  width: 100%;\n  border-collapse: collapse;\n  font-size: 12px;\n}\n\n.claude-plus-column-table__table th {\n  text-align: left;\n  padding: 4px 6px;\n  color: var(--claude-plus-color-text-muted);\n  background: var(--claude-plus-color-raised);\n  position: sticky;\n  z-index: 1;\n  white-space: nowrap;\n  font-weight: 600;\n}\n\n.claude-plus-column-table__table thead tr:first-child th {\n  top: 0;\n}\n\n.claude-plus-column-table__filter-row th {\n  top: 24px;\n  padding-top: 0;\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\n  font-weight: normal;\n}\n\n.claude-plus-column-table__sortable {\n  cursor: pointer;\n  user-select: none;\n}\n\n.claude-plus-column-table__sortable:hover {\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-panel .claude-plus-column-table__filter-input {\n  display: block;\n  width: 100%;\n  min-width: 40px;\n  box-sizing: border-box;\n  padding: 2px 4px;\n  font-size: 11px;\n}\n\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\n  min-width: 0;\n  max-width: 112px;\n  padding: 1px 2px;\n  font-size: 10px;\n}\n\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\n  margin-top: 2px;\n}\n\n.claude-plus-column-table__cell {\n  padding: 4px 6px;\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\n  vertical-align: top;\n}\n\n.claude-plus-column-table__cell--name,\n.claude-plus-column-table__cell--title,\n.claude-plus-column-table__cell--match {\n  width: 100%;\n  max-width: 1px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-column-table__cell a {\n  color: var(--claude-plus-color-accent);\n  text-decoration: none;\n}\n\n.claude-plus-column-table__cell a:hover {\n  text-decoration: underline;\n}\n";
 
   StyleRegistry.register(stylesheet$m);
 
@@ -1534,7 +1582,7 @@
     return includesConversation ? [...columns, createConversationColumn()] : columns;
   }
 
-  var stylesheet$l = ".claude-plus-subpane {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  min-height: 0;\r\n  flex: 1;\r\n  padding: 6px;\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  background: var(--claude-plus-color-bar);\r\n}\r\n\r\n.claude-plus-subpane__header {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 2px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-subpane__title {\r\n  flex: 1;\r\n  min-width: 0;\r\n  font-size: 12px;\r\n  font-weight: 600;\r\n  white-space: nowrap;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-subpane__button {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 2px 5px;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-subpane__button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
+  var stylesheet$l = ".claude-plus-subpane {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  min-height: 0;\n  flex: 1;\n  padding: 6px;\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  background: var(--claude-plus-color-bar);\n}\n\n.claude-plus-subpane__header {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  flex-shrink: 0;\n}\n\n.claude-plus-subpane__title {\n  flex: 1;\n  min-width: 0;\n  font-size: 12px;\n  font-weight: 600;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.claude-plus-subpane__button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-faint);\n  cursor: pointer;\n  padding: 2px 5px;\n  border-radius: 4px;\n}\n\n.claude-plus-subpane__button:hover {\n  background: var(--claude-plus-color-hover);\n  color: var(--claude-plus-color-text);\n}\n";
 
   StyleRegistry.register(stylesheet$l);
 
@@ -2030,7 +2078,7 @@
     }
   }
 
-  var stylesheet$k = ".claude-plus-image-viewer-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.8);\r\n  display: flex;\r\n  flex-direction: column;\r\n  align-items: center;\r\n  justify-content: center;\r\n  gap: 12px;\r\n}\r\n\r\n.claude-plus-image-viewer__frame {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  overflow: hidden;\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-image-viewer__image {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  width: auto;\r\n  height: auto;\r\n  cursor: grab;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-image-viewer__open-button {\r\n  flex-shrink: 0;\r\n}\r\n";
+  var stylesheet$k = ".claude-plus-image-viewer-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.8);\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 12px;\n}\n\n.claude-plus-image-viewer__frame {\n  max-width: 90vw;\n  max-height: 90vh;\n  overflow: hidden;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-image-viewer__image {\n  max-width: 90vw;\n  max-height: 90vh;\n  width: auto;\n  height: auto;\n  cursor: grab;\n  user-select: none;\n}\n\n.claude-plus-image-viewer__open-button {\n  flex-shrink: 0;\n}\n";
 
   StyleRegistry.register(stylesheet$k);
 
@@ -2993,7 +3041,7 @@
     }
   }
 
-  var stylesheet$h = ".claude-plus-panel {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-panel);\r\n  box-sizing: border-box;\r\n  padding: 10px 12px;\r\n  overflow-y: auto;\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  font-size: 13px;\r\n  background: var(--claude-plus-color-background);\r\n}\r\n\r\n.claude-plus-panel summary {\r\n  cursor: pointer;\r\n  padding: 4px 0;\r\n}\r\n\r\n.claude-plus-panel select,\r\n.claude-plus-panel input[type=text],\r\n.claude-plus-panel input[type=date],\r\n.claude-plus-panel textarea {\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font-size: 12px;\r\n  font-family: inherit;\r\n}\r\n\r\n.claude-plus-panel__section {\r\n  padding: 8px 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-hover);\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-panel__section:last-child {\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-spaced-above {\r\n  margin-top: 6px;\r\n}\r\n\r\n.claude-plus-hint {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-size: 11px;\r\n  margin-top: 4px;\r\n}\r\n\r\n.claude-plus-scrollable {\r\n  overflow-y: auto;\r\n}\r\n\r\n.claude-plus-fill-remaining {\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-pending {\r\n  opacity: 0.4;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-primary-button {\r\n  padding: 8px;\r\n  background: var(--claude-plus-color-accent);\r\n  border: none;\r\n  border-radius: 6px;\r\n  color: #fff;\r\n  font-size: 13px;\r\n  cursor: pointer;\r\n  font-weight: 600;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-primary-button:disabled {\r\n  opacity: 0.6;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-full-width {\r\n  width: 100%;\r\n}\r\n\r\n.claude-plus-search-input {\r\n  flex-shrink: 0;\r\n  padding: 6px 8px;\r\n}\r\n";
+  var stylesheet$h = ".claude-plus-panel {\n  position: fixed;\n  z-index: var(--claude-plus-layer-panel);\n  box-sizing: border-box;\n  padding: 10px 12px;\n  overflow-y: auto;\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  font-size: 13px;\n  background: var(--claude-plus-color-background);\n}\n\n.claude-plus-panel summary {\n  cursor: pointer;\n  padding: 4px 0;\n}\n\n.claude-plus-panel select,\n.claude-plus-panel input[type=text],\n.claude-plus-panel input[type=date],\n.claude-plus-panel textarea {\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font-size: 12px;\n  font-family: inherit;\n}\n\n.claude-plus-panel__section {\n  padding: 8px 0;\n  border-bottom: 1px solid var(--claude-plus-color-hover);\n  flex-shrink: 0;\n}\n\n.claude-plus-panel__section:last-child {\n  border-bottom: none;\n}\n\n.claude-plus-spaced-above {\n  margin-top: 6px;\n}\n\n.claude-plus-hint {\n  color: var(--claude-plus-color-text-faint);\n  font-size: 11px;\n  margin-top: 4px;\n}\n\n.claude-plus-scrollable {\n  overflow-y: auto;\n}\n\n.claude-plus-fill-remaining {\n  flex: 1;\n  min-height: 0;\n}\n\n.claude-plus-pending {\n  opacity: 0.4;\n  pointer-events: none;\n}\n\n.claude-plus-primary-button {\n  padding: 8px;\n  background: var(--claude-plus-color-accent);\n  border: none;\n  border-radius: 6px;\n  color: #fff;\n  font-size: 13px;\n  cursor: pointer;\n  font-weight: 600;\n  flex-shrink: 0;\n}\n\n.claude-plus-primary-button:disabled {\n  opacity: 0.6;\n  cursor: default;\n}\n\n.claude-plus-full-width {\n  width: 100%;\n}\n\n.claude-plus-search-input {\n  flex-shrink: 0;\n  padding: 6px 8px;\n}\n";
 
   StyleRegistry.register(stylesheet$h);
 
@@ -3144,7 +3192,7 @@
     }
   }
 
-  var stylesheet$g = ".claude-plus-panel--active-among-several {\r\n  border: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-panel--inactive-among-several {\r\n  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
+  var stylesheet$g = ".claude-plus-panel--active-among-several {\n  border: 1px solid var(--claude-plus-color-active-chat);\n  border-top: none;\n}\n\n.claude-plus-panel--inactive-among-several {\n  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\n  border-top: none;\n}\n\n.claude-plus-chat-layout {\n  display: flex;\n  gap: 8px;\n  flex: 1;\n  min-height: 0;\n}\n\n.claude-plus-chat-layout__center {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  flex: 1;\n  min-width: 0;\n}\n\n.claude-plus-chat-layout__side {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  width: 300px;\n  flex-shrink: 0;\n  min-height: 0;\n}\n\n.claude-plus-chat-layout__top {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  flex-shrink: 0;\n}\n\n.claude-plus-chat-layout__side:empty,\n.claude-plus-chat-layout__top:empty {\n  display: none;\n}\n\n.claude-plus-chat-layout__top .claude-plus-subpane {\n  height: 200px;\n  flex: none;\n}\n";
 
   StyleRegistry.register(stylesheet$g);
 
@@ -3438,12 +3486,210 @@
   }
 
   /**
+   * Selects the branch of a conversation tree that claude.ai shows.
+   */
+  class ConversationTree {
+    /**
+     * The messages from the root to the current leaf. Falls back to every message when the tree
+     * fields aren't present.
+     * @param {ApiConversation} conversation The conversation.
+     * @returns {ApiMessage[]} The branch, oldest first.
+     */
+    static currentBranch(conversation) {
+      const messages = conversation.chat_messages ?? [];
+      const messagesById = new Map(messages.map(message => [message.uuid, message]));
+      const leafMessage = messagesById.get(conversation.current_leaf_message_uuid);
+      return ConversationTree.#hasTreeFields(messages, leafMessage) ? ConversationTree.#pathToRoot(leafMessage, messagesById) : messages;
+    }
+
+    /**
+     * Whether the messages carry enough information to walk the tree.
+     * @param {ApiMessage[]} messages All messages.
+     * @param {ApiMessage|undefined} leafMessage The current leaf, if found.
+     * @returns {boolean} True when the leaf exists and every message has a parent field.
+     */
+    static #hasTreeFields(messages, leafMessage) {
+      return Boolean(leafMessage) && messages.every(message => 'parent_message_uuid' in message);
+    }
+
+    /**
+     * Follows parent links from a message to the root, stopping at a missing or repeated message.
+     * @param {ApiMessage} leafMessage Starting message.
+     * @param {Map<string, ApiMessage>} messagesById Every message by id.
+     * @returns {ApiMessage[]} The path, root first.
+     */
+    static #pathToRoot(leafMessage, messagesById) {
+      const path = [];
+      const visitedIds = new Set();
+      for (let message = leafMessage; message && !visitedIds.has(message.uuid); message = messagesById.get(message.parent_message_uuid)) {
+        visitedIds.add(message.uuid);
+        path.push(message);
+      }
+      return path.reverse();
+    }
+
+    /**
+     * Every message sharing a message's parent, itself included, oldest first: the versions a
+     * branch-switch control cycles through (the original and each edit or retry of it).
+     * @param {ApiConversation} conversation The conversation.
+     * @param {string} messageId A message in the group.
+     * @returns {ApiMessage[]} The sibling group, oldest first; empty if messageId isn't found.
+     */
+    static siblingsOf(conversation, messageId) {
+      const messages = conversation.chat_messages ?? [];
+      const target = messages.find(message => message.uuid === messageId);
+      if (!target) return [];
+      return messages
+        .filter(message => message.parent_message_uuid === target.parent_message_uuid)
+        .sort((earlier, later) => (earlier.created_at ?? '').localeCompare(later.created_at ?? ''));
+    }
+
+    /**
+     * The leaf reached by following each level's most recently created child from a message, so
+     * switching to a sibling branch lands on its latest edit or retry rather than its first reply.
+     * @param {ApiConversation} conversation The conversation.
+     * @param {string} messageId Message to descend from.
+     * @returns {string} The leaf message's id; messageId itself when it has no children.
+     */
+    static latestLeafFrom(conversation, messageId) {
+      const messages = conversation.chat_messages ?? [];
+      let current = messageId;
+      for (
+        let children = ConversationTree.#childrenOf(messages, current);
+        children.length > 0;
+        children = ConversationTree.#childrenOf(messages, current)
+      ) {
+        current = ConversationTree.#latestOf(children).uuid;
+      }
+      return current;
+    }
+
+    /**
+     * A copy of a conversation with its current leaf switched to a different message.
+     * @param {ApiConversation} conversation The conversation.
+     * @param {string} leafId Message id of the new current leaf.
+     * @returns {ApiConversation} The updated conversation.
+     */
+    static withCurrentLeaf(conversation, leafId) {
+      return { ...conversation, current_leaf_message_uuid: leafId };
+    }
+
+    /**
+     * Direct children of a message.
+     * @param {ApiMessage[]} messages Every message of the conversation.
+     * @param {string} parentId Parent message id.
+     * @returns {ApiMessage[]} Its children, in no particular order.
+     */
+    static #childrenOf(messages, parentId) {
+      return messages.filter(message => message.parent_message_uuid === parentId);
+    }
+
+    /**
+     * The most recently created of a group of messages.
+     * @param {ApiMessage[]} messages A non-empty group.
+     * @returns {ApiMessage} The latest one.
+     */
+    static #latestOf(messages) {
+      return messages.reduce((latest, message) => ((message.created_at ?? '') > (latest.created_at ?? '') ? message : latest));
+    }
+  }
+
+  /**
+   * Moves a chat session between sibling versions of a message (its edits or retried replies).
+   */
+  class ChatBranchSwitcher {
+    /**
+     * API client, persisting the chosen branch server-side.
+     * @type {ClaudeApi}
+     */
+    #api;
+
+    /**
+     * The session's state.
+     * @type {ChatSessionState}
+     */
+    #state;
+
+    /**
+     * Creates the switcher.
+     * @param {ClaudeApi} api API client, persisting the chosen branch server-side.
+     * @param {ChatSessionState} state The session's state.
+     */
+    constructor(api, state) {
+      this.#api = api;
+      this.#state = state;
+    }
+
+    /**
+     * Position of a message among its siblings, for a branch-switch control. Null when it has no
+     * siblings besides itself, or before the conversation has loaded.
+     * @param {string} messageId Message id.
+     * @returns {?{index: number, count: number}} Its zero-based position and the sibling count, or null.
+     */
+    branchInfoFor(messageId) {
+      const conversation = this.#state.conversation;
+      if (!conversation) return null;
+      const siblings = ConversationTree.siblingsOf(conversation, messageId);
+      if (siblings.length <= 1) return null;
+      return { index: siblings.findIndex(sibling => sibling.uuid === messageId), count: siblings.length };
+    }
+
+    /**
+     * Switches to a sibling version of a message, landing on that version's latest leaf, and
+     * persists the choice server-side. Ignored while sending, before the conversation has loaded,
+     * or when there is no sibling in that direction.
+     * @param {string} messageId Message id.
+     * @param {number} step -1 for the previous version, +1 for the next.
+     * @returns {Promise<void>} Resolves once switched.
+     */
+    async switchBranch(messageId, step) {
+      const conversation = this.#state.conversation;
+      if (this.#state.isSending || !conversation) return;
+      const siblings = ConversationTree.siblingsOf(conversation, messageId);
+      const target = siblings[siblings.findIndex(sibling => sibling.uuid === messageId) + step];
+      if (!target) return;
+      const leafId = ConversationTree.latestLeafFrom(conversation, target.uuid);
+      await this.#api.setCurrentLeafMessage(this.#state.openConversationId, leafId);
+      this.#state.showBranchOf(ConversationTree.withCurrentLeaf(this.#state.conversation, leafId));
+    }
+  }
+
+  /**
+   * Numbers navigations, so a response arriving for an older navigation can be recognized and dropped.
+   */
+  class NavigationCounter {
+    /**
+     * Number of the latest navigation.
+     * @type {number}
+     */
+    #latestNavigation = 0;
+
+    /**
+     * Starts a new navigation, making every earlier one outdated.
+     * @returns {number} Number identifying the new navigation.
+     */
+    begin() {
+      this.#latestNavigation += 1;
+      return this.#latestNavigation;
+    }
+
+    /**
+     * Whether a navigation is still the latest one.
+     * @param {number} navigation Number returned by begin().
+     * @returns {boolean} True if no navigation began since.
+     */
+    isLatest(navigation) {
+      return navigation === this.#latestNavigation;
+    }
+  }
+
+  /**
    * Upload fields that may hold a display name, in order of preference.
    * @type {ReadonlyArray<string>}
    */
   const ATTACHMENT_NAME_FIELDS = Object.freeze(['file_name', 'name', 'filename', 'title']);
 
-  var stylesheet$f = ".claude-plus-code-block {\r\n  background: var(--claude-plus-color-code-block);\r\n  padding: 8px;\r\n  border-radius: 6px;\r\n  overflow-x: auto;\r\n  font-size: 12px;\r\n}\r\n";
+  var stylesheet$f = ".claude-plus-code-block {\n  background: var(--claude-plus-color-code-block);\n  padding: 8px;\n  border-radius: 6px;\n  overflow-x: auto;\n  font-size: 12px;\n}\n";
 
   StyleRegistry.register(stylesheet$f);
 
@@ -3508,7 +3754,7 @@
     }
   }
 
-  var stylesheet$e = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-images {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  margin-bottom: 6px;\r\n}\r\n\r\n.claude-plus-message--human .claude-plus-message-images {\r\n  justify-content: flex-end;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n.claude-plus-artifact-frame {\r\n  display: block;\r\n  width: 100%;\r\n  min-height: 400px;\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  border-radius: 8px;\r\n}\r\n\r\n";
+  var stylesheet$e = ".claude-plus-message-text {\n  white-space: normal;\n}\n\n.claude-plus-message-text a {\n  color: var(--claude-plus-color-accent);\n}\n\n.claude-plus-message-attachment {\n  color: var(--claude-plus-color-text-muted);\n  font-size: 12px;\n  margin-bottom: 4px;\n}\n\n.claude-plus-message-images {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message-images {\n  justify-content: flex-end;\n}\n\n.claude-plus-message-image {\n  display: block;\n  max-height: 300px;\n  max-width: 100%;\n  border-radius: 8px;\n  cursor: zoom-in;\n}\n\n.claude-plus-artifact-frame {\n  display: block;\n  width: 100%;\n  min-height: 400px;\n  border: 1px solid var(--claude-plus-color-border);\n  border-radius: 8px;\n}\n\n";
 
   StyleRegistry.register(stylesheet$e);
 
@@ -3842,140 +4088,196 @@
   }
 
   /**
-   * Selects the branch of a conversation tree that claude.ai shows.
+   * Creates an id for a message that exists only locally.
+   * @returns {string} A unique id prefixed with "local-".
    */
-  class ConversationTree {
+  function createLocalMessageId() {
+    return `local-${crypto.randomUUID()}`;
+  }
+
+  /**
+   * Creates a local, unpersisted assistant message showing an error.
+   * @param {string} errorText Error text.
+   * @returns {ChatMessage} The notice.
+   */
+  function createErrorNotice(errorText) {
+    return new ChatMessage({ id: createLocalMessageId(), sender: 'assistant', isPersisted: false, errorText });
+  }
+
+  /**
+   * Switches a chat session between conversations: stops any reply, clears what was shown, then
+   * loads the conversation (its imported copy if it has one, else fetched live). Responses arriving
+   * after the user has navigated elsewhere are dropped.
+   */
+  class ChatConversationLoader {
     /**
-     * The messages from the root to the current leaf. Falls back to every message when the tree
-     * fields aren't present.
-     * @param {ApiConversation} conversation The conversation.
-     * @returns {ApiMessage[]} The branch, oldest first.
+     * API client.
+     * @type {ClaudeApi}
      */
-    static currentBranch(conversation) {
-      const messages = conversation.chat_messages ?? [];
-      const messagesById = new Map(messages.map(message => [message.uuid, message]));
-      const leafMessage = messagesById.get(conversation.current_leaf_message_uuid);
-      return ConversationTree.#hasTreeFields(messages, leafMessage) ? ConversationTree.#pathToRoot(leafMessage, messagesById) : messages;
+    #api;
+
+    /**
+     * Imported conversations, checked before the live API.
+     * @type {ImportedConversationStore}
+     */
+    #importedConversations;
+
+    /**
+     * The session's state.
+     * @type {ChatSessionState}
+     */
+    #state;
+
+    /**
+     * Stops the reply in progress.
+     * @type {function(): void}
+     */
+    #stopReply;
+
+    /**
+     * Numbers navigations, so late responses for an old one are dropped.
+     * @type {NavigationCounter}
+     */
+    #navigations = new NavigationCounter();
+
+    /**
+     * Creates the loader.
+     * @param {object} parts Loader parts.
+     * @param {ClaudeApi} parts.api API client.
+     * @param {ImportedConversationStore} parts.importedConversations Imported conversations, checked before the live API.
+     * @param {ChatSessionState} parts.state The session's state.
+     * @param {function(): void} parts.stopReply Stops the reply in progress.
+     */
+    constructor({ api, importedConversations, state, stopReply }) {
+      this.#api = api;
+      this.#importedConversations = importedConversations;
+      this.#state = state;
+      this.#stopReply = stopReply;
     }
 
     /**
-     * Whether the messages carry enough information to walk the tree.
-     * @param {ApiMessage[]} messages All messages.
-     * @param {ApiMessage|undefined} leafMessage The current leaf, if found.
-     * @returns {boolean} True when the leaf exists and every message has a parent field.
+     * Opens a conversation. A load failure is shown as an error notice.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<void>} Resolves once the messages or the error notice are shown.
      */
-    static #hasTreeFields(messages, leafMessage) {
-      return Boolean(leafMessage) && messages.every(message => 'parent_message_uuid' in message);
-    }
-
-    /**
-     * Follows parent links from a message to the root, stopping at a missing or repeated message.
-     * @param {ApiMessage} leafMessage Starting message.
-     * @param {Map<string, ApiMessage>} messagesById Every message by id.
-     * @returns {ApiMessage[]} The path, root first.
-     */
-    static #pathToRoot(leafMessage, messagesById) {
-      const path = [];
-      const visitedIds = new Set();
-      for (let message = leafMessage; message && !visitedIds.has(message.uuid); message = messagesById.get(message.parent_message_uuid)) {
-        visitedIds.add(message.uuid);
-        path.push(message);
+    async open(conversationId) {
+      const navigation = this.beginNavigation(conversationId);
+      try {
+        const { conversation, isImported } = await this.#load(conversationId);
+        if (this.#navigations.isLatest(navigation)) this.#state.showConversation(conversation, isImported);
+      } catch (error) {
+        this.#showLoadError(navigation, error);
       }
-      return path.reverse();
     }
 
     /**
-     * Every message sharing a message's parent, itself included, oldest first: the versions a
-     * branch-switch control cycles through (the original and each edit or retry of it).
-     * @param {ApiConversation} conversation The conversation.
-     * @param {string} messageId A message in the group.
-     * @returns {ApiMessage[]} The sibling group, oldest first; empty if messageId isn't found.
+     * Stops any reply, clears the messages and makes a conversation (or a new chat) open.
+     * @param {?string} conversationId Conversation to open, or null for a new chat.
+     * @returns {number} Number identifying this navigation.
      */
-    static siblingsOf(conversation, messageId) {
-      const messages = conversation.chat_messages ?? [];
-      const target = messages.find(message => message.uuid === messageId);
-      if (!target) return [];
-      return messages
-        .filter(message => message.parent_message_uuid === target.parent_message_uuid)
-        .sort((earlier, later) => (earlier.created_at ?? '').localeCompare(later.created_at ?? ''));
+    beginNavigation(conversationId) {
+      this.#stopReply();
+      const navigation = this.#navigations.begin();
+      this.#state.reset(conversationId);
+      return navigation;
     }
 
     /**
-     * The leaf reached by following each level's most recently created child from a message, so
-     * switching to a sibling branch lands on its latest edit or retry rather than its first reply.
-     * @param {ApiConversation} conversation The conversation.
-     * @param {string} messageId Message to descend from.
-     * @returns {string} The leaf message's id; messageId itself when it has no children.
+     * Loads a conversation: its imported copy if it has one, else fetched live.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<{conversation: ApiConversation, isImported: boolean}>} The conversation and
+     * whether it came from the imported store.
+     * @throws {ApiError} When it isn't imported and the live fetch fails.
      */
-    static latestLeafFrom(conversation, messageId) {
-      const messages = conversation.chat_messages ?? [];
-      let current = messageId;
-      for (
-        let children = ConversationTree.#childrenOf(messages, current);
-        children.length > 0;
-        children = ConversationTree.#childrenOf(messages, current)
-      ) {
-        current = ConversationTree.#latestOf(children).uuid;
-      }
-      return current;
+    async #load(conversationId) {
+      const imported = await this.#importedConversations.get(conversationId);
+      return { conversation: imported ?? await this.#api.getConversation(conversationId), isImported: Boolean(imported) };
     }
 
     /**
-     * A copy of a conversation with its current leaf switched to a different message.
-     * @param {ApiConversation} conversation The conversation.
-     * @param {string} leafId Message id of the new current leaf.
-     * @returns {ApiConversation} The updated conversation.
+     * Shows a conversation load failure, unless the user has navigated away since.
+     * @param {number} navigation Number of the failed navigation, from NavigationCounter.begin().
+     * @param {Error} error The failure.
+     * @returns {void}
      */
-    static withCurrentLeaf(conversation, leafId) {
-      return { ...conversation, current_leaf_message_uuid: leafId };
-    }
-
-    /**
-     * Direct children of a message.
-     * @param {ApiMessage[]} messages Every message of the conversation.
-     * @param {string} parentId Parent message id.
-     * @returns {ApiMessage[]} Its children, in no particular order.
-     */
-    static #childrenOf(messages, parentId) {
-      return messages.filter(message => message.parent_message_uuid === parentId);
-    }
-
-    /**
-     * The most recently created of a group of messages.
-     * @param {ApiMessage[]} messages A non-empty group.
-     * @returns {ApiMessage} The latest one.
-     */
-    static #latestOf(messages) {
-      return messages.reduce((latest, message) => ((message.created_at ?? '') > (latest.created_at ?? '') ? message : latest));
+    #showLoadError(navigation, error) {
+      if (!this.#navigations.isLatest(navigation)) return;
+      console.warn(LOG_PREFIX, 'loading conversation failed', error);
+      this.#state.setMessages([createErrorNotice(`Could not load this conversation (${error.message}).`)]);
     }
   }
 
   /**
-   * Numbers navigations, so a response arriving for an older navigation can be recognized and dropped.
+   * Keeps the shared conversation list in step with what a chat session creates and sends: lists a
+   * just-created conversation, and refreshes a conversation from the server after each send.
    */
-  class NavigationCounter {
+  class ChatDirectorySync {
     /**
-     * Number of the latest navigation.
-     * @type {number}
+     * API client.
+     * @type {ClaudeApi}
      */
-    #latestNavigation = 0;
+    #api;
 
     /**
-     * Starts a new navigation, making every earlier one outdated.
-     * @returns {number} Number identifying the new navigation.
+     * Shared conversation list.
+     * @type {CombinedConversationDirectory}
      */
-    begin() {
-      this.#latestNavigation += 1;
-      return this.#latestNavigation;
+    #directory;
+
+    /**
+     * The session's state.
+     * @type {ChatSessionState}
+     */
+    #state;
+
+    /**
+     * Publishes a session event with an optional payload.
+     * @type {function(string, *=): void}
+     */
+    #publish;
+
+    /**
+     * Creates the sync.
+     * @param {object} parts Sync parts.
+     * @param {ClaudeApi} parts.api API client.
+     * @param {CombinedConversationDirectory} parts.directory Shared conversation list.
+     * @param {ChatSessionState} parts.state The session's state.
+     * @param {function(string, *=): void} parts.publish Publishes a session event with an optional payload.
+     */
+    constructor({ api, directory, state, publish }) {
+      this.#api = api;
+      this.#directory = directory;
+      this.#state = state;
+      this.#publish = publish;
     }
 
     /**
-     * Whether a navigation is still the latest one.
-     * @param {number} navigation Number returned by begin().
-     * @returns {boolean} True if no navigation began since.
+     * Lists a just-created conversation and makes it the open one.
+     * @param {string} conversationId Conversation id.
+     * @param {string} prompt First prompt, used as a provisional title.
+     * @returns {void}
      */
-    isLatest(navigation) {
-      return navigation === this.#latestNavigation;
+    registerNewConversation(conversationId, prompt) {
+      this.#directory.registerNewConversation(conversationId, prompt);
+      this.#state.setOpenConversation(conversationId);
+    }
+
+    /**
+     * Fetches the conversation after a send to update the list and the stats, and replaces the
+     * optimistic messages with the server's copy (real tool blocks and parent ids).
+     * @param {string} conversationId Conversation id.
+     * @param {boolean} replaceMessages False after a failure, so the error stays on screen.
+     * @returns {Promise<void>} Resolves once done; failures are logged.
+     */
+    async reloadAfterSend(conversationId, replaceMessages) {
+      try {
+        const conversation = await this.#api.getConversation(conversationId);
+        this.#directory.updateListing(conversation);
+        this.#publish('conversationLoaded', conversation);
+        if (replaceMessages && this.#state.isOpenAndIdle(conversationId)) this.#state.showBranchOf(conversation);
+      } catch (error) {
+        console.warn(LOG_PREFIX, 'refreshing conversation failed', error);
+      }
     }
   }
 
@@ -4134,42 +4436,10 @@
   }
 
   /**
-   * Creates an id for a message that exists only locally.
-   * @returns {string} A unique id prefixed with "local-".
+   * Sends a chat session's prompts: shows the prompt, streams the reply into the chat, reports a
+   * failure and, once the server has the prompt, reloads the conversation from the server.
    */
-  function createLocalMessageId() {
-    return `local-${crypto.randomUUID()}`;
-  }
-
-  /**
-   * Creates a local, unpersisted assistant message showing an error.
-   * @param {string} errorText Error text.
-   * @returns {ChatMessage} The notice.
-   */
-  function createErrorNotice(errorText) {
-    return new ChatMessage({ id: createLocalMessageId(), sender: 'assistant', isPersisted: false, errorText });
-  }
-
-  /**
-   * Chat messages of a conversation's current branch.
-   * @param {ApiConversation} conversation The conversation.
-   * @returns {ChatMessage[]} The messages, oldest first.
-   */
-  function currentBranchMessages(conversation) {
-    return ConversationTree.currentBranch(conversation).map(apiMessage => ChatMessage.fromApi(apiMessage));
-  }
-
-  /**
-   * One chat: the conversation open in a chat pane, its messages and the prompt being sent. Every
-   * chat pane has its own session, so several conversations can be open and streaming at once.
-   * @fires ChatSession#openConversation The open conversation changed.
-   * @fires ChatSession#messages The message list changed.
-   * @fires ChatSession#messageContent One message's content changed; payload is the ChatMessage.
-   * @fires ChatSession#sending Sending started or ended.
-   * @fires ChatSession#conversationLoaded A conversation was fetched; payload is the ApiConversation.
-   * @fires ChatSession#rateLimits Usage windows arrived in a stream; payload is RateLimits.
-   */
-  class ChatSession extends EventEmitter {
+  class ChatReplySender {
     /**
      * API client.
      * @type {ClaudeApi}
@@ -4183,16 +4453,168 @@
     #settings;
 
     /**
-     * Shared conversation list, updated when this session creates or reloads a conversation.
-     * @type {CombinedConversationDirectory}
+     * The session's state.
+     * @type {ChatSessionState}
      */
-    #directory;
+    #state;
 
     /**
-     * Imported conversations, checked before the live API when opening one.
-     * @type {ImportedConversationStore}
+     * Refreshes the conversation from the server once a send has ended.
+     * @type {function(string, boolean): Promise<void>}
      */
-    #importedConversations;
+    #reloadAfterSend;
+
+    /**
+     * Aborts the prompt being sent.
+     * @type {?AbortController}
+     */
+    #abortController = null;
+
+    /**
+     * Applies completion stream events to the turn being sent.
+     * @type {StreamEventApplier}
+     */
+    #streamEvents;
+
+    /**
+     * Creates the sender.
+     * @param {object} parts Sender parts.
+     * @param {ClaudeApi} parts.api API client.
+     * @param {ComposerSettings} parts.settings Model options for new prompts.
+     * @param {ChatSessionState} parts.state The session's state.
+     * @param {function(string, string): void} parts.registerNewConversation Lists a just-created conversation and makes it the open one.
+     * @param {function(string, boolean): Promise<void>} parts.reloadAfterSend Refreshes the conversation from the server once a send has ended.
+     * @param {function(string, *=): void} parts.publish Publishes a session event with an optional payload.
+     */
+    constructor({ api, settings, state, registerNewConversation, reloadAfterSend, publish }) {
+      this.#api = api;
+      this.#settings = settings;
+      this.#state = state;
+      this.#reloadAfterSend = reloadAfterSend;
+      this.#streamEvents = new StreamEventApplier({ appendMessage: message => state.setMessages([...state.messages, message]), registerNewConversation, publish });
+    }
+
+    /**
+     * Aborts the reply in progress, keeping the text received so far.
+     * @returns {void}
+     */
+    stop() {
+      if (this.#abortController) this.#abortController.abort();
+    }
+
+    /**
+     * Sends a prompt as a reply to a given message and streams the answer into the chat. Ignored for
+     * a blank prompt, while sending, or in an imported conversation.
+     * @param {string} prompt Prompt text.
+     * @param {?string} parentMessageId Message to reply to; null for the conversation root.
+     * @param {UploadedFile[]} files Files uploaded beforehand to attach.
+     * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
+     */
+    async sendAfter(prompt, parentMessageId, files) {
+      if (!prompt.trim() || this.#state.isSending || this.#state.isImported) return;
+      const turn = this.#beginTurn(prompt, parentMessageId, files);
+      try {
+        await this.#streamReply(turn);
+      } catch (error) {
+        this.#showSendFailure(turn, error);
+      } finally {
+        this.#finishTurn(turn);
+      }
+    }
+
+    /**
+     * Shows the prompt and marks the session as sending.
+     * @param {string} prompt Prompt text.
+     * @param {?string} parentMessageId Message to reply to.
+     * @param {UploadedFile[]} files Files uploaded beforehand to attach.
+     * @returns {Turn} The new turn.
+     */
+    #beginTurn(prompt, parentMessageId, files) {
+      const promptMessage = new ChatMessage({
+        id: createLocalMessageId(), parentId: parentMessageId, sender: 'human', text: prompt, isPersisted: false,
+        apiMessage: files.length ? ChatMessage.draftApiMessage(prompt, files) : null,
+      });
+      const turn = new Turn({
+        conversationId: this.#state.targetConversationId,
+        isNewConversation: this.#state.openConversationId === null,
+        prompt,
+        promptMessage,
+        files,
+        abortController: new AbortController(),
+      });
+      this.#abortController = turn.abortController;
+      this.#state.setMessages([...this.#state.messages, promptMessage]);
+      this.#state.setSending(true);
+      return turn;
+    }
+
+    /**
+     * Sends the turn's prompt and applies each stream event.
+     * @param {Turn} turn The turn.
+     * @returns {Promise<void>} Resolves when the stream ends.
+     * @throws {ApiError|DOMException} When the request fails or is aborted.
+     */
+    async #streamReply(turn) {
+      const events = this.#api.streamCompletion({
+        conversationId: turn.conversationId,
+        prompt: turn.prompt,
+        parentMessageId: turn.promptMessage.parentId ?? ROOT_MESSAGE_UUID,
+        isNew: turn.isNewConversation,
+        settings: this.#settings.snapshot(),
+        fileUuids: ChatMessage.fileUuidsOf(turn.files),
+        signal: turn.abortController.signal,
+      });
+      for await (const event of events) this.#streamEvents.apply(turn, event);
+    }
+
+    /**
+     * Shows a send failure under the reply, or as a separate notice when no reply exists yet. A user
+     * stop (AbortError) isn't a failure.
+     * @param {Turn} turn The turn.
+     * @param {Error} error The failure.
+     * @returns {void}
+     */
+    #showSendFailure(turn, error) {
+      if (error.name === 'AbortError') return;
+      turn.hasFailed = true;
+      console.warn(LOG_PREFIX, 'send failed', error);
+      if (turn.replyMessage) turn.replyMessage.errorText = error.message;
+      else this.#state.messages.push(createErrorNotice(error.message));
+    }
+
+    /**
+     * Ends sending and, if the server accepted the prompt, reloads the conversation from the server.
+     * @param {Turn} turn The turn.
+     * @returns {void}
+     */
+    #finishTurn(turn) {
+      if (turn.replyMessage) turn.replyMessage.isStreaming = false;
+      if (this.#abortController === turn.abortController) this.#abortController = null;
+      this.#state.setSending(false);
+      this.#state.setMessages(this.#state.messages);
+      if (turn.promptMessage.isPersisted) this.#reloadAfterSend(turn.conversationId, !turn.hasFailed);
+    }
+  }
+
+  /**
+   * Chat messages of a conversation's current branch.
+   * @param {ApiConversation} conversation The conversation.
+   * @returns {ChatMessage[]} The messages, oldest first.
+   */
+  function currentBranchMessages(conversation) {
+    return ConversationTree.currentBranch(conversation).map(apiMessage => ChatMessage.fromApi(apiMessage));
+  }
+
+  /**
+   * What one chat session shows: the open conversation, its messages and whether a prompt is being
+   * sent. Every change is published through the owning session, so its panels can re-render.
+   */
+  class ChatSessionState {
+    /**
+     * Publishes a session event with an optional payload.
+     * @type {function(string, *=): void}
+     */
+    #publish;
 
     /**
      * Open conversation id, or null for a new chat.
@@ -4233,40 +4655,11 @@
     #isSending = false;
 
     /**
-     * Aborts the prompt being sent.
-     * @type {?AbortController}
+     * Creates the state of an empty new chat.
+     * @param {function(string, *=): void} publish Publishes a session event with an optional payload.
      */
-    #abortController = null;
-
-    /**
-     * Numbers navigations, so late responses for an old one are dropped.
-     * @type {NavigationCounter}
-     */
-    #navigations = new NavigationCounter();
-
-    /**
-     * Applies completion stream events to the turn being sent.
-     * @type {StreamEventApplier}
-     */
-    #streamEvents = new StreamEventApplier({
-      appendMessage: message => this.#setMessages([...this.#messages, message]),
-      registerNewConversation: (conversationId, prompt) => this.#registerNewConversation(conversationId, prompt),
-      publish: (eventName, payload) => this.publish(eventName, payload),
-    });
-
-    /**
-     * Creates an empty session showing a new chat.
-     * @param {ClaudeApi} api API client.
-     * @param {ComposerSettings} settings Model options for new prompts.
-     * @param {CombinedConversationDirectory} directory Shared conversation list.
-     * @param {ImportedConversationStore} importedConversations Imported conversations, checked before the live API when opening one.
-     */
-    constructor(api, settings, directory, importedConversations) {
-      super();
-      this.#api = api;
-      this.#settings = settings;
-      this.#directory = directory;
-      this.#importedConversations = importedConversations;
+    constructor(publish) {
+      this.#publish = publish;
     }
 
     /**
@@ -4286,19 +4679,27 @@
     }
 
     /**
+     * The full conversation last fetched.
+     * @returns {?ApiConversation} It, or null for a new chat or before the first load.
+     */
+    get conversation() {
+      return this.#conversation;
+    }
+
+    /**
+     * Whether the open conversation is an imported one.
+     * @returns {boolean} True for an imported conversation.
+     */
+    get isImported() {
+      return this.#isImported;
+    }
+
+    /**
      * Whether a prompt is being sent.
      * @returns {boolean} True while sending.
      */
     get isSending() {
       return this.#isSending;
-    }
-
-    /**
-     * Whether the open conversation is read-only: an imported chat, with no model to reply to.
-     * @returns {boolean} True for an imported conversation.
-     */
-    get isReadOnly() {
-      return this.#isImported;
     }
 
     /**
@@ -4312,6 +4713,195 @@
     }
 
     /**
+     * Makes a conversation (or a new chat) open, with no messages until it is shown.
+     * @param {?string} conversationId Conversation id, or null for a new chat.
+     * @returns {void}
+     */
+    reset(conversationId) {
+      this.setOpenConversation(conversationId);
+      this.#conversation = null;
+      this.#isImported = false;
+      this.setMessages([]);
+    }
+
+    /**
+     * Shows a fetched conversation's current branch and publishes it for the stats.
+     * @param {ApiConversation} conversation The conversation.
+     * @param {boolean} isImported Whether it came from the imported store rather than the live API.
+     * @returns {void}
+     */
+    showConversation(conversation, isImported) {
+      this.#isImported = isImported;
+      this.showBranchOf(conversation);
+      this.#publish('conversationLoaded', conversation);
+    }
+
+    /**
+     * Shows the current branch of a conversation, keeping it for later branch switches.
+     * @param {ApiConversation} conversation The conversation.
+     * @returns {void}
+     */
+    showBranchOf(conversation) {
+      this.#conversation = conversation;
+      this.setMessages(currentBranchMessages(conversation));
+    }
+
+    /**
+     * Changes the open conversation.
+     * @param {?string} conversationId Conversation id, or null for a new chat.
+     * @returns {void}
+     */
+    setOpenConversation(conversationId) {
+      if (this.#openConversationId === conversationId) return;
+      this.#openConversationId = conversationId;
+      this.#draftConversationId = null;
+      this.#publish('openConversation');
+    }
+
+    /**
+     * Replaces the message list.
+     * @param {ChatMessage[]} messages New list.
+     * @returns {void}
+     */
+    setMessages(messages) {
+      this.#messages = messages;
+      this.#publish('messages');
+    }
+
+    /**
+     * Changes the sending state.
+     * @param {boolean} isSending Whether a prompt is being sent.
+     * @returns {void}
+     */
+    setSending(isSending) {
+      this.#isSending = isSending;
+      this.#publish('sending');
+    }
+
+    /**
+     * Whether a conversation is open here and not sending.
+     * @param {string} conversationId Conversation id.
+     * @returns {boolean} True when its messages can be replaced safely.
+     */
+    isOpenAndIdle(conversationId) {
+      return this.#openConversationId === conversationId && !this.#isSending;
+    }
+
+    /**
+     * Id of the last persisted message before a position.
+     * @param {number} index Position to search backwards from (exclusive).
+     * @returns {?string} The id, or null when there is none.
+     */
+    lastPersistedMessageIdBefore(index) {
+      const message = this.#messages.slice(0, index).findLast(candidate => candidate.isPersisted);
+      return message ? message.id : null;
+    }
+  }
+
+  /**
+   * One chat: the conversation open in a chat pane, its messages and the prompt being sent. Every
+   * chat pane has its own session, so several conversations can be open and streaming at once.
+   * @fires ChatSession#openConversation The open conversation changed.
+   * @fires ChatSession#messages The message list changed.
+   * @fires ChatSession#messageContent One message's content changed; payload is the ChatMessage.
+   * @fires ChatSession#sending Sending started or ended.
+   * @fires ChatSession#conversationLoaded A conversation was fetched; payload is the ApiConversation.
+   * @fires ChatSession#rateLimits Usage windows arrived in a stream; payload is RateLimits.
+   */
+  class ChatSession extends EventEmitter {
+    /**
+     * API client.
+     * @type {ClaudeApi}
+     */
+    #api;
+
+    /**
+     * The open conversation, its messages and the sending state.
+     * @type {ChatSessionState}
+     */
+    #state = new ChatSessionState((eventName, payload) => this.publish(eventName, payload));
+
+    /**
+     * Sends prompts and streams their replies.
+     * @type {ChatReplySender}
+     */
+    #sender;
+
+    /**
+     * Switches between conversations.
+     * @type {ChatConversationLoader}
+     */
+    #loader;
+
+    /**
+     * Switches between sibling versions of a message.
+     * @type {ChatBranchSwitcher}
+     */
+    #branches;
+
+    /**
+     * Creates an empty session showing a new chat.
+     * @param {ClaudeApi} api API client.
+     * @param {ComposerSettings} settings Model options for new prompts.
+     * @param {CombinedConversationDirectory} directory Shared conversation list.
+     * @param {ImportedConversationStore} importedConversations Imported conversations, checked before the live API when opening one.
+     */
+    constructor(api, settings, directory, importedConversations) {
+      super();
+      const state = this.#state;
+      const publish = (eventName, payload) => this.publish(eventName, payload);
+      const sync = new ChatDirectorySync({ api, directory, state, publish });
+      this.#api = api;
+      this.#sender = new ChatReplySender({
+        api, settings, state, publish,
+        registerNewConversation: (conversationId, prompt) => sync.registerNewConversation(conversationId, prompt),
+        reloadAfterSend: (conversationId, replaceMessages) => sync.reloadAfterSend(conversationId, replaceMessages),
+      });
+      this.#loader = new ChatConversationLoader({ api, importedConversations, state, stopReply: () => this.stopReply() });
+      this.#branches = new ChatBranchSwitcher(api, state);
+    }
+
+    /**
+     * Open conversation.
+     * @returns {?string} Its id, or null for a new chat.
+     */
+    get openConversationId() {
+      return this.#state.openConversationId;
+    }
+
+    /**
+     * Messages of the open conversation.
+     * @returns {ChatMessage[]} The current branch, oldest first.
+     */
+    get messages() {
+      return this.#state.messages;
+    }
+
+    /**
+     * Whether a prompt is being sent.
+     * @returns {boolean} True while sending.
+     */
+    get isSending() {
+      return this.#state.isSending;
+    }
+
+    /**
+     * Whether the open conversation is read-only: an imported chat, with no model to reply to.
+     * @returns {boolean} True for an imported conversation.
+     */
+    get isReadOnly() {
+      return this.#state.isImported;
+    }
+
+    /**
+     * Id of the conversation a file uploaded right now would belong to.
+     * @returns {string} The conversation id.
+     */
+    get targetConversationId() {
+      return this.#state.targetConversationId;
+    }
+
+    /**
      * Uploads a file to the conversation a prompt sent right now would use.
      * @param {File} file File to upload.
      * @returns {Promise<UploadedFile>} The server's record of the upload.
@@ -4322,35 +4912,22 @@
     }
 
     /**
-     * Position of a message among its siblings (its other edits or retries), for a branch-switch
-     * control. Null when it has no siblings besides itself, or before the conversation has loaded.
+     * Position of a message among its siblings (its other edits or retries), for a branch-switch control.
      * @param {string} messageId Message id.
      * @returns {?{index: number, count: number}} Its zero-based position and the sibling count, or null.
      */
     branchInfoFor(messageId) {
-      if (!this.#conversation) return null;
-      const siblings = ConversationTree.siblingsOf(this.#conversation, messageId);
-      if (siblings.length <= 1) return null;
-      return { index: siblings.findIndex(sibling => sibling.uuid === messageId), count: siblings.length };
+      return this.#branches.branchInfoFor(messageId);
     }
 
     /**
-     * Switches to a sibling version of a message (an edit or a retried reply), landing on that
-     * version's latest leaf, and persists the choice server-side. Ignored while sending, before the
-     * conversation has loaded, or when there is no sibling in that direction.
+     * Switches to a sibling version of a message (an edit or a retried reply).
      * @param {string} messageId Message id.
      * @param {number} step -1 for the previous version, +1 for the next.
      * @returns {Promise<void>} Resolves once switched.
      */
-    async switchBranch(messageId, step) {
-      if (this.#isSending || !this.#conversation) return;
-      const siblings = ConversationTree.siblingsOf(this.#conversation, messageId);
-      const target = siblings[siblings.findIndex(sibling => sibling.uuid === messageId) + step];
-      if (!target) return;
-      const leafId = ConversationTree.latestLeafFrom(this.#conversation, target.uuid);
-      await this.#api.setCurrentLeafMessage(this.#openConversationId, leafId);
-      this.#conversation = ConversationTree.withCurrentLeaf(this.#conversation, leafId);
-      this.#setMessages(currentBranchMessages(this.#conversation));
+    switchBranch(messageId, step) {
+      return this.#branches.switchBranch(messageId, step);
     }
 
     /**
@@ -4362,10 +4939,10 @@
      * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
      */
     editMessage(index, newText) {
-      const message = this.#messages[index];
-      if (this.#isSending || !newText.trim() || !ChatSession.#isEditableHumanMessage(message)) return Promise.resolve();
-      this.#setMessages(this.#messages.slice(0, index));
-      return this.#sendPromptAfter(newText, message.parentId, []);
+      const message = this.#state.messages[index];
+      if (this.#state.isSending || !newText.trim() || !ChatSession.#isEditableHumanMessage(message)) return Promise.resolve();
+      this.#state.setMessages(this.#state.messages.slice(0, index));
+      return this.#sender.sendAfter(newText, message.parentId, []);
     }
 
     /**
@@ -4382,26 +4959,8 @@
      * @param {string} conversationId Conversation id.
      * @returns {Promise<void>} Resolves once the messages or the error notice are shown.
      */
-    async openConversation(conversationId) {
-      const navigation = this.#beginNavigation(conversationId);
-      try {
-        const { conversation, isImported } = await this.#loadConversation(conversationId);
-        if (this.#navigations.isLatest(navigation)) this.#showConversation(conversation, isImported);
-      } catch (error) {
-        this.#showLoadError(navigation, error);
-      }
-    }
-
-    /**
-     * Loads a conversation: its imported copy if it has one, else fetched live.
-     * @param {string} conversationId Conversation id.
-     * @returns {Promise<{conversation: ApiConversation, isImported: boolean}>} The conversation and
-     * whether it came from the imported store.
-     * @throws {ApiError} When it isn't imported and the live fetch fails.
-     */
-    async #loadConversation(conversationId) {
-      const imported = await this.#importedConversations.get(conversationId);
-      return { conversation: imported ?? await this.#api.getConversation(conversationId), isImported: Boolean(imported) };
+    openConversation(conversationId) {
+      return this.#loader.open(conversationId);
     }
 
     /**
@@ -4409,7 +4968,7 @@
      * @returns {void}
      */
     startNewConversation() {
-      this.#beginNavigation(null);
+      this.#loader.beginNavigation(null);
     }
 
     /**
@@ -4417,7 +4976,7 @@
      * @returns {void}
      */
     stopReply() {
-      if (this.#abortController) this.#abortController.abort();
+      this.#sender.stop();
     }
 
     /**
@@ -4427,7 +4986,7 @@
      * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
      */
     sendPrompt(prompt, files = []) {
-      return this.#sendPromptAfter(prompt, this.#lastPersistedMessageIdBefore(this.#messages.length), files);
+      return this.#sender.sendAfter(prompt, this.#state.lastPersistedMessageIdBefore(this.#state.messages.length), files);
     }
 
     /**
@@ -4436,233 +4995,193 @@
      * @returns {void}
      */
     retryLastPrompt() {
-      if (this.#isSending) return;
-      const promptIndex = this.#messages.findLastIndex(message => message.sender === 'human');
-      if (promptIndex === -1) return;
-      const promptMessage = this.#messages[promptIndex];
-      this.#setMessages(this.#messages.slice(0, promptIndex));
-      this.#sendPromptAfter(promptMessage.text, promptMessage.parentId ?? this.#lastPersistedMessageIdBefore(promptIndex), []);
-    }
-
-    /**
-     * Stops any reply, clears the messages and makes a conversation (or a new chat) open.
-     * @param {?string} conversationId Conversation to open, or null for a new chat.
-     * @returns {number} Number identifying this navigation.
-     */
-    #beginNavigation(conversationId) {
-      this.stopReply();
-      const navigation = this.#navigations.begin();
-      this.#setOpenConversation(conversationId);
-      this.#conversation = null;
-      this.#isImported = false;
-      this.#setMessages([]);
-      return navigation;
-    }
-
-    /**
-     * Shows a conversation load failure, unless the user has navigated away since.
-     * @param {number} navigation Number of the failed navigation, from NavigationCounter.begin().
-     * @param {Error} error The failure.
-     * @returns {void}
-     */
-    #showLoadError(navigation, error) {
-      if (!this.#navigations.isLatest(navigation)) return;
-      console.warn(LOG_PREFIX, 'loading conversation failed', error);
-      this.#setMessages([createErrorNotice(`Could not load this conversation (${error.message}).`)]);
-    }
-
-    /**
-     * Sends a prompt as a reply to a given message and streams the answer into the chat.
-     * @param {string} prompt Prompt text; ignored if blank.
-     * @param {?string} parentMessageId Message to reply to; null for the conversation root.
-     * @param {UploadedFile[]} files Files uploaded beforehand to attach.
-     * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
-     */
-    async #sendPromptAfter(prompt, parentMessageId, files) {
-      if (!prompt.trim() || this.#isSending || this.#isImported) return;
-      const turn = this.#beginTurn(prompt, parentMessageId, files);
-      try {
-        await this.#streamReply(turn);
-      } catch (error) {
-        this.#showSendFailure(turn, error);
-      } finally {
-        this.#finishTurn(turn);
-      }
-    }
-
-    /**
-     * Shows the prompt and marks the session as sending.
-     * @param {string} prompt Prompt text.
-     * @param {?string} parentMessageId Message to reply to.
-     * @param {UploadedFile[]} files Files uploaded beforehand to attach.
-     * @returns {Turn} The new turn.
-     */
-    #beginTurn(prompt, parentMessageId, files) {
-      const promptMessage = new ChatMessage({
-        id: createLocalMessageId(), parentId: parentMessageId, sender: 'human', text: prompt, isPersisted: false,
-        apiMessage: files.length ? ChatMessage.draftApiMessage(prompt, files) : null,
-      });
-      const turn = new Turn({
-        conversationId: this.targetConversationId,
-        isNewConversation: this.#openConversationId === null,
-        prompt,
-        promptMessage,
-        files,
-        abortController: new AbortController(),
-      });
-      this.#abortController = turn.abortController;
-      this.#setMessages([...this.#messages, promptMessage]);
-      this.#setSending(true);
-      return turn;
-    }
-
-    /**
-     * Sends the turn's prompt and applies each stream event.
-     * @param {Turn} turn The turn.
-     * @returns {Promise<void>} Resolves when the stream ends.
-     * @throws {ApiError|DOMException} When the request fails or is aborted.
-     */
-    async #streamReply(turn) {
-      const events = this.#api.streamCompletion({
-        conversationId: turn.conversationId,
-        prompt: turn.prompt,
-        parentMessageId: turn.promptMessage.parentId ?? ROOT_MESSAGE_UUID,
-        isNew: turn.isNewConversation,
-        settings: this.#settings.snapshot(),
-        fileUuids: ChatMessage.fileUuidsOf(turn.files),
-        signal: turn.abortController.signal,
-      });
-      for await (const event of events) this.#streamEvents.apply(turn, event);
-    }
-
-    /**
-     * Shows a send failure under the reply, or as a separate notice when no reply exists yet. A user
-     * stop (AbortError) isn't a failure.
-     * @param {Turn} turn The turn.
-     * @param {Error} error The failure.
-     * @returns {void}
-     */
-    #showSendFailure(turn, error) {
-      if (error.name === 'AbortError') return;
-      turn.hasFailed = true;
-      console.warn(LOG_PREFIX, 'send failed', error);
-      if (turn.replyMessage) turn.replyMessage.errorText = error.message;
-      else this.#messages.push(createErrorNotice(error.message));
-    }
-
-    /**
-     * Ends sending and, if the server accepted the prompt, reloads the conversation from the server.
-     * @param {Turn} turn The turn.
-     * @returns {void}
-     */
-    #finishTurn(turn) {
-      if (turn.replyMessage) turn.replyMessage.isStreaming = false;
-      if (this.#abortController === turn.abortController) this.#abortController = null;
-      this.#setSending(false);
-      this.publish('messages');
-      if (turn.promptMessage.isPersisted) this.#reloadAfterSend(turn.conversationId, !turn.hasFailed);
-    }
-
-    /**
-     * Fetches the conversation after a send to update the list and the stats, and replaces the
-     * optimistic messages with the server's copy (real tool blocks and parent ids).
-     * @param {string} conversationId Conversation id.
-     * @param {boolean} replaceMessages False after a failure, so the error stays on screen.
-     * @returns {Promise<void>} Resolves once done; failures are logged.
-     */
-    async #reloadAfterSend(conversationId, replaceMessages) {
-      try {
-        const conversation = await this.#api.getConversation(conversationId);
-        this.#directory.updateListing(conversation);
-        this.publish('conversationLoaded', conversation);
-        if (replaceMessages && this.#isOpenAndIdle(conversationId)) {
-          this.#conversation = conversation;
-          this.#setMessages(currentBranchMessages(conversation));
-        }
-      } catch (error) {
-        console.warn(LOG_PREFIX, 'refreshing conversation failed', error);
-      }
-    }
-
-    /**
-     * Whether a conversation is open here and not sending.
-     * @param {string} conversationId Conversation id.
-     * @returns {boolean} True when its messages can be replaced safely.
-     */
-    #isOpenAndIdle(conversationId) {
-      return this.#openConversationId === conversationId && !this.#isSending;
-    }
-
-    /**
-     * Shows a fetched conversation's current branch and publishes it for the stats.
-     * @param {ApiConversation} conversation The conversation.
-     * @param {boolean} [isImported] Whether it came from the imported store rather than the live API (false).
-     * @returns {void}
-     */
-    #showConversation(conversation, isImported = false) {
-      this.#conversation = conversation;
-      this.#isImported = isImported;
-      this.#setMessages(currentBranchMessages(conversation));
-      this.publish('conversationLoaded', conversation);
-    }
-
-    /**
-     * Lists a just-created conversation and makes it the open one.
-     * @param {string} conversationId Conversation id.
-     * @param {string} prompt First prompt, used as a provisional title.
-     * @returns {void}
-     */
-    #registerNewConversation(conversationId, prompt) {
-      this.#directory.registerNewConversation(conversationId, prompt);
-      this.#setOpenConversation(conversationId);
-    }
-
-    /**
-     * Id of the last persisted message before a position.
-     * @param {number} index Position to search backwards from (exclusive).
-     * @returns {?string} The id, or null when there is none.
-     */
-    #lastPersistedMessageIdBefore(index) {
-      const message = this.#messages.slice(0, index).findLast(candidate => candidate.isPersisted);
-      return message ? message.id : null;
-    }
-
-    /**
-     * Changes the open conversation.
-     * @param {?string} conversationId Conversation id, or null for a new chat.
-     * @returns {void}
-     */
-    #setOpenConversation(conversationId) {
-      if (this.#openConversationId === conversationId) return;
-      this.#openConversationId = conversationId;
-      this.#draftConversationId = null;
-      this.publish('openConversation');
-    }
-
-    /**
-     * Replaces the message list.
-     * @param {ChatMessage[]} messages New list.
-     * @returns {void}
-     */
-    #setMessages(messages) {
-      this.#messages = messages;
-      this.publish('messages');
-    }
-
-    /**
-     * Changes the sending state.
-     * @param {boolean} isSending Whether a prompt is being sent.
-     * @returns {void}
-     */
-    #setSending(isSending) {
-      this.#isSending = isSending;
-      this.publish('sending');
+      const messages = this.#state.messages;
+      const promptIndex = messages.findLastIndex(message => message.sender === 'human');
+      if (this.#state.isSending || promptIndex === -1) return;
+      const promptMessage = messages[promptIndex];
+      this.#state.setMessages(messages.slice(0, promptIndex));
+      this.#sender.sendAfter(promptMessage.text, promptMessage.parentId ?? this.#state.lastPersistedMessageIdBefore(promptIndex), []);
     }
   }
 
   /**
-   * Owns the chat panes: creates, restores, focuses and closes them, and remembers which
-   * conversation each one shows. The focused pane is the one the sidebar, the URL and the export act on.
+   * Builds a chat pane: its session, its panel, and the forwarding of the session's events.
+   */
+  class ChatPaneFactory {
+    /**
+     * Shared services the sessions and panels need.
+     * @type {{api: ClaudeApi, settings: ComposerSettings, directory: CombinedConversationDirectory, preferences: Preferences, stats: StatsIndex, widgetExtractor: WidgetExtractor, importedConversations: ImportedConversationStore}}
+     */
+    #services;
+
+    /**
+     * The pane manager, handed to every panel.
+     * @type {ChatPaneManager}
+     */
+    #paneManager;
+
+    /**
+     * Called with a pane id when that pane opens another conversation.
+     * @type {function(string): void}
+     */
+    #onPaneConversationChanged;
+
+    /**
+     * Creates the factory.
+     * @param {object} services Shared services the sessions and panels need.
+     * @param {ChatPaneManager} paneManager The pane manager, handed to every panel.
+     * @param {function(string): void} onPaneConversationChanged Called with a pane id when that pane opens another conversation.
+     */
+    constructor(services, paneManager, onPaneConversationChanged) {
+      this.#services = services;
+      this.#paneManager = paneManager;
+      this.#onPaneConversationChanged = onPaneConversationChanged;
+    }
+
+    /**
+     * Creates a pane's session and panel and forwards the session's fetched conversations and usage
+     * windows through the pane manager.
+     * @param {string} paneId Pane id.
+     * @returns {{session: ChatSession, panel: ChatPanel}} The pane.
+     */
+    create(paneId) {
+      const { api, settings, directory, preferences, stats, widgetExtractor, importedConversations } = this.#services;
+      const session = new ChatSession(api, settings, directory, importedConversations);
+      const panel = new ChatPanel({ paneId, session, directory, paneManager: this.#paneManager, stats, preferences, widgetExtractor });
+      session.subscribe('openConversation', () => this.#onPaneConversationChanged(paneId));
+      session.subscribe('conversationLoaded', conversation => this.#paneManager.publish('conversationLoaded', conversation));
+      session.subscribe('rateLimits', limits => this.#paneManager.publish('rateLimits', limits));
+      return { session, panel };
+    }
+  }
+
+  /**
+   * Creates a unique chat pane id.
+   * @returns {string} An id starting with "chat-".
+   */
+  function createChatPaneId() {
+    return `chat-${crypto.randomUUID()}`;
+  }
+
+  /**
+   * Recreates the chat panes stored by the last visit, then reopens their conversations once the
+   * data they need has loaded.
+   */
+  class ChatPaneRestorer {
+    /**
+     * Stored panes.
+     * @type {ChatPaneStore}
+     */
+    #store;
+
+    /**
+     * Creates an undocked pane with a given id.
+     * @type {function(string): {session: ChatSession, panel: ChatPanel}}
+     */
+    #createPane;
+
+    /**
+     * Conversations to reopen in restored panes, by pane id.
+     * @type {Map<string, {session: ChatSession, conversationId: string}>}
+     */
+    #conversationsToRestore = new Map();
+
+    /**
+     * Creates the restorer.
+     * @param {ChatPaneStore} store Stored panes.
+     * @param {function(string): {session: ChatSession, panel: ChatPanel}} createPane Creates an undocked pane with a given id.
+     */
+    constructor(store, createPane) {
+      this.#store = store;
+      this.#createPane = createPane;
+    }
+
+    /**
+     * Recreates the stored panes, or one empty pane, remembering their conversations for
+     * openRemaining.
+     * @param {?string} preferredConversationId Conversation in the URL, or null.
+     * @returns {string} Id of the pane to focus: the one that showed the preferred conversation, otherwise the first one.
+     */
+    restore(preferredConversationId) {
+      const storedPanes = this.#store.read();
+      const panes = storedPanes.length ? storedPanes : [{ paneId: createChatPaneId(), conversationId: null }];
+      panes.forEach(pane => this.#restorePane(pane));
+      const preferredPane = panes.find(pane => pane.conversationId !== null && pane.conversationId === preferredConversationId);
+      return (preferredPane || panes[0]).paneId;
+    }
+
+    /**
+     * Reopens the remembered conversations of every restored pane except the focused one, whose
+     * conversation comes from the URL.
+     * @param {string} focusedPaneId Id of the focused pane.
+     * @returns {void}
+     */
+    openRemaining(focusedPaneId) {
+      this.#conversationsToRestore.delete(focusedPaneId);
+      this.#conversationsToRestore.forEach(({ session, conversationId }) => session.openConversation(conversationId));
+      this.#conversationsToRestore.clear();
+    }
+
+    /**
+     * Creates a pane from its stored state, remembering its conversation for later.
+     * @param {{paneId: string, conversationId: ?string}} storedPane Stored pane.
+     * @returns {void}
+     */
+    #restorePane({ paneId, conversationId }) {
+      const { session } = this.#createPane(paneId);
+      if (conversationId) this.#conversationsToRestore.set(paneId, { session, conversationId });
+    }
+  }
+
+  /**
+   * Stores which chat panes are open and which conversation each one shows, across visits.
+   */
+  class ChatPaneStore {
+    /**
+     * Storage for the open panes.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * Creates the store.
+     * @param {Preferences} preferences Storage for the open panes.
+     */
+    constructor(preferences) {
+      this.#preferences = preferences;
+    }
+
+    /**
+     * The well-formed panes stored by the last visit.
+     * @returns {Array<{paneId: string, conversationId: ?string}>} The panes; empty when nothing valid is stored.
+     */
+    read() {
+      const storedPanes = this.#preferences.readJson(STORAGE_KEYS.chatPanes);
+      return Array.isArray(storedPanes) ? storedPanes.filter(ChatPaneStore.#isValidStoredPane) : [];
+    }
+
+    /**
+     * Stores the panes.
+     * @param {Array<{paneId: string, conversationId: ?string}>} storedPanes Every pane with its conversation.
+     * @returns {void}
+     */
+    write(storedPanes) {
+      this.#preferences.writeJson(STORAGE_KEYS.chatPanes, storedPanes);
+    }
+
+    /**
+     * Whether a stored pane entry is well formed.
+     * @param {*} storedPane Stored entry.
+     * @returns {boolean} True for an object with a "chat-" pane id and a string or null conversation id.
+     */
+    static #isValidStoredPane(storedPane) {
+      return Boolean(storedPane) && isChatPaneId(storedPane.paneId) && (storedPane.conversationId === null || typeof storedPane.conversationId === 'string');
+    }
+  }
+
+  /**
+   * Owns the chat panes: creates, docks, focuses and closes them, and remembers which conversation
+   * each one shows. The focused pane is the one the sidebar, the URL and the export act on.
    * @fires ChatPaneManager#focus The focused pane changed.
    * @fires ChatPaneManager#paneConversations A pane opened another conversation; payload is the pane id.
    * @fires ChatPaneManager#conversationLoaded A pane fetched a conversation; payload is the ApiConversation.
@@ -4671,64 +5190,10 @@
    */
   class ChatPaneManager extends EventEmitter {
     /**
-     * API client.
-     * @type {ClaudeApi}
-     */
-    #api;
-
-    /**
-     * Shared model options.
-     * @type {ComposerSettings}
-     */
-    #settings;
-
-    /**
-     * Shared conversation list.
-     * @type {CombinedConversationDirectory}
-     */
-    #directory;
-
-    /**
-     * Storage for the open panes.
-     * @type {Preferences}
-     */
-    #preferences;
-
-    /**
-     * Conversation statistics, for the panes' sub-panes.
-     * @type {StatsIndex}
-     */
-    #stats;
-
-    /**
-     * Fills a widget's placeholder slot with its real, extracted card.
-     * @type {WidgetExtractor}
-     */
-    #widgetExtractor;
-
-    /**
-     * Imported conversations, checked before the live API when opening one.
-     * @type {ImportedConversationStore}
-     */
-    #importedConversations;
-
-    /**
-     * Whether more than one chat pane is visible at the moment.
-     * @type {boolean}
-     */
-    #hasSeveralVisiblePanes = false;
-
-    /**
      * Session and panel of every pane, by pane id, in creation order.
      * @type {Map<string, {session: ChatSession, panel: ChatPanel}>}
      */
     #panes = new Map();
-
-    /**
-     * Conversations to reopen in restored panes once the data has loaded, by pane id.
-     * @type {Map<string, string>}
-     */
-    #conversationsToRestore = new Map();
 
     /**
      * Id of the focused pane.
@@ -4743,6 +5208,30 @@
     #workspace = null;
 
     /**
+     * Builds each pane's session and panel.
+     * @type {ChatPaneFactory}
+     */
+    #factory;
+
+    /**
+     * Stores the open panes across visits.
+     * @type {ChatPaneStore}
+     */
+    #store;
+
+    /**
+     * Recreates the stored panes.
+     * @type {ChatPaneRestorer}
+     */
+    #restorer;
+
+    /**
+     * Decides each pane's border.
+     * @type {ChatPaneBorders}
+     */
+    #borders = new ChatPaneBorders();
+
+    /**
      * Creates the manager without any pane.
      * @param {object} services Shared services.
      * @param {ClaudeApi} services.api API client.
@@ -4753,16 +5242,12 @@
      * @param {WidgetExtractor} services.widgetExtractor Fills a widget's placeholder slot with its real, extracted card.
      * @param {ImportedConversationStore} services.importedConversations Imported conversations, checked before the live API when opening one.
      */
-    constructor({ api, settings, directory, preferences, stats, widgetExtractor, importedConversations }) {
+    constructor(services) {
       super();
-      this.#api = api;
-      this.#settings = settings;
-      this.#directory = directory;
-      this.#preferences = preferences;
-      this.#stats = stats;
-      this.#widgetExtractor = widgetExtractor;
-      this.#importedConversations = importedConversations;
-      directory.subscribe('conversationDeleted', conversationId => this.#closeDeletedConversation(conversationId));
+      this.#factory = new ChatPaneFactory(services, this, paneId => this.#onPaneConversationChanged(paneId));
+      this.#store = new ChatPaneStore(services.preferences);
+      this.#restorer = new ChatPaneRestorer(this.#store, paneId => this.#createPane(paneId));
+      services.directory.subscribe('conversationDeleted', conversationId => this.#closeDeletedConversation(conversationId));
     }
 
     /**
@@ -4806,33 +5291,21 @@
     }
 
     /**
-     * Whether more than one chat pane is visible at the moment.
-     * @returns {boolean} True with two or more visible chat panes.
-     */
-    get hasSeveralVisiblePanes() {
-      return this.#hasSeveralVisiblePanes;
-    }
-
-    /**
      * Whether an id belongs to a chat pane.
      * @param {string} panelId Panel id.
      * @returns {boolean} True for ids starting with "chat-".
      */
     static isPaneId(panelId) {
-      return String(panelId).startsWith('chat-');
+      return isChatPaneId(panelId);
     }
 
     /**
-     * Which border a chat pane's tab and content should show, so its tab strip, frame and content
-     * all agree: the focused pane gets the active (green) border, every other one a faint
-     * theme-aware border, both only while more than one chat pane is visible. An id that isn't a
-     * chat pane, or a chat pane while only one is visible, gets none.
+     * Which border a chat pane's tab and content should show; see ChatPaneBorders.kindOf.
      * @param {string} panelId Panel id.
      * @returns {?('active'|'inactive')} The border kind, or null for none.
      */
     borderKindOf(panelId) {
-      if (!ChatPaneManager.isPaneId(panelId) || !this.#hasSeveralVisiblePanes) return null;
-      return this.#focusedPaneId === panelId ? 'active' : 'inactive';
+      return this.#borders.kindOf(panelId, this.#focusedPaneId);
     }
 
     /**
@@ -4842,23 +5315,36 @@
      * @returns {void}
      */
     updateVisiblePanels(visiblePanelIds) {
-      const hasSeveral = this.paneIds.filter(paneId => visiblePanelIds.has(paneId)).length > 1;
-      if (hasSeveral === this.#hasSeveralVisiblePanes) return;
-      this.#hasSeveralVisiblePanes = hasSeveral;
-      this.publish('visiblePanes');
+      if (this.#borders.update(visiblePanelIds, this.paneIds)) this.publish('visiblePanes');
     }
 
     /**
-     * Opens a new, empty chat as a tab of a zone and focuses it.
-     * @param {string} leafId Zone id.
+     * Connects the workspace that new panes are docked in.
+     * @param {DockWorkspace} workspace The workspace.
      * @returns {void}
      */
-    openPaneInZone(leafId) {
-      const paneId = ChatPaneManager.#createPaneId();
-      const pane = this.#createPane(paneId);
-      this.#workspace.addPanelToZone(paneId, pane.panel, leafId);
-      this.focusPane(paneId);
-      this.#savePanes();
+    attachWorkspace(workspace) {
+      this.#workspace = workspace;
+    }
+
+    /**
+     * Recreates the panes stored by the last visit, or one empty pane, and focuses the pane that
+     * showed the preferred conversation, otherwise the first one. Their conversations are reopened
+     * later by openRestoredConversations.
+     * @param {?string} preferredConversationId Conversation in the URL, or null.
+     * @returns {void}
+     */
+    restorePanes(preferredConversationId) {
+      this.#focusedPaneId = this.#restorer.restore(preferredConversationId);
+    }
+
+    /**
+     * Reopens the stored conversations of every restored pane except the focused one, whose
+     * conversation comes from the URL.
+     * @returns {void}
+     */
+    openRestoredConversations() {
+      this.#restorer.openRemaining(this.#focusedPaneId);
     }
 
     /**
@@ -4883,21 +5369,6 @@
     }
 
     /**
-     * Recreates the panes stored by the last visit, or one empty pane. Focuses the pane that showed
-     * the preferred conversation, otherwise the first one. Their conversations are reopened later by
-     * openRestoredConversations.
-     * @param {?string} preferredConversationId Conversation in the URL, or null.
-     * @returns {void}
-     */
-    restorePanes(preferredConversationId) {
-      const storedPanes = ChatPaneManager.#validStoredPanes(this.#preferences.readJson(STORAGE_KEYS.chatPanes));
-      const panes = storedPanes.length ? storedPanes : [{ paneId: ChatPaneManager.#createPaneId(), conversationId: null }];
-      panes.forEach(pane => this.#restorePane(pane));
-      const preferredPane = panes.find(pane => pane.conversationId !== null && pane.conversationId === preferredConversationId);
-      this.#focusedPaneId = (preferredPane || panes[0]).paneId;
-    }
-
-    /**
      * The panel of every pane, for docking.
      * @returns {Array<[string, ChatPanel]>} [pane id, panel] pairs.
      */
@@ -4906,23 +5377,12 @@
     }
 
     /**
-     * Connects the workspace that new panes are docked in.
-     * @param {DockWorkspace} workspace The workspace.
+     * Opens a new, empty chat as a tab of a zone and focuses it.
+     * @param {string} leafId Zone id.
      * @returns {void}
      */
-    attachWorkspace(workspace) {
-      this.#workspace = workspace;
-    }
-
-    /**
-     * Reopens the stored conversations of every restored pane except the focused one, whose
-     * conversation comes from the URL.
-     * @returns {void}
-     */
-    openRestoredConversations() {
-      this.#conversationsToRestore.delete(this.#focusedPaneId);
-      this.#conversationsToRestore.forEach((conversationId, paneId) => this.#panes.get(paneId).session.openConversation(conversationId));
-      this.#conversationsToRestore.clear();
+    openPaneInZone(leafId) {
+      this.#openNewPane((paneId, panel) => this.#workspace.addPanelToZone(paneId, panel, leafId), null);
     }
 
     /**
@@ -4931,41 +5391,20 @@
      * @returns {void}
      */
     openPane(conversationId) {
-      const paneId = ChatPaneManager.#createPaneId();
-      const pane = this.#createPane(paneId);
-      this.#workspace.addPanel(paneId, pane.panel, this.#focusedPaneId);
-      this.focusPane(paneId);
-      if (conversationId) pane.session.openConversation(conversationId);
-      this.#savePanes();
-    }
-
-    /**
-     * Opens a conversation as a new pane docked exactly where a drag was released, instead of always
-     * beside the focused pane. Used to compose several chats side by side without switching between
-     * them or mixing their context.
-     * @param {string} conversationId Conversation to show.
-     * @param {DropTarget} dropTarget Where to dock the new pane.
-     * @returns {void}
-     */
-    openPaneAt(conversationId, dropTarget) {
-      const paneId = ChatPaneManager.#createPaneId();
-      const pane = this.#createPane(paneId);
-      this.#workspace.addPanelAt(paneId, pane.panel, dropTarget);
-      this.focusPane(paneId);
-      pane.session.openConversation(conversationId);
-      this.#savePanes();
+      this.#openNewPane((paneId, panel) => this.#workspace.addPanel(paneId, panel, this.#focusedPaneId), conversationId);
     }
 
     /**
      * Starts dragging a conversation out of the sidebar; releasing over a valid drop target opens it
-     * as a new pane docked there.
+     * as a new pane docked exactly there, so several chats can be composed side by side.
      * @param {MouseEvent} startEvent The mousedown that starts the drag.
      * @param {string} conversationId Conversation to open on drop.
      * @param {string} label Text shown in the floating drag label.
      * @returns {void}
      */
     beginDragToOpenPane(startEvent, conversationId, label) {
-      this.#workspace.beginExternalDrag(startEvent, label, dropTarget => this.openPaneAt(conversationId, dropTarget));
+      const openAt = dropTarget => this.#openNewPane((paneId, panel) => this.#workspace.addPanelAt(paneId, panel, dropTarget), conversationId);
+      this.#workspace.beginExternalDrag(startEvent, label, openAt);
     }
 
     /**
@@ -5019,29 +5458,27 @@
     }
 
     /**
-     * Creates a pane from its stored state, remembering its conversation for later.
-     * @param {{paneId: string, conversationId: ?string}} storedPane Stored pane.
+     * Creates a pane, docks it, focuses it, opens its conversation and saves the panes.
+     * @param {function(string, ChatPanel): void} dock Docks the new pane's panel in the workspace.
+     * @param {?string} conversationId Conversation to show, or null for a new chat.
      * @returns {void}
      */
-    #restorePane({ paneId, conversationId }) {
-      this.#createPane(paneId);
-      if (conversationId) this.#conversationsToRestore.set(paneId, conversationId);
+    #openNewPane(dock, conversationId) {
+      const paneId = createChatPaneId();
+      const pane = this.#createPane(paneId);
+      dock(paneId, pane.panel);
+      this.focusPane(paneId);
+      if (conversationId) pane.session.openConversation(conversationId);
+      this.#savePanes();
     }
 
     /**
-     * Creates a pane's session and panel and forwards the session's events.
+     * Creates a pane and registers it.
      * @param {string} paneId Pane id.
      * @returns {{session: ChatSession, panel: ChatPanel}} The pane.
      */
     #createPane(paneId) {
-      const session = new ChatSession(this.#api, this.#settings, this.#directory, this.#importedConversations);
-      const panel = new ChatPanel({
-        paneId, session, directory: this.#directory, paneManager: this, stats: this.#stats, preferences: this.#preferences, widgetExtractor: this.#widgetExtractor,
-      });
-      session.subscribe('openConversation', () => this.#onPaneConversationChanged(paneId));
-      session.subscribe('conversationLoaded', conversation => this.publish('conversationLoaded', conversation));
-      session.subscribe('rateLimits', limits => this.publish('rateLimits', limits));
-      const pane = { session, panel };
+      const pane = this.#factory.create(paneId);
       this.#panes.set(paneId, pane);
       return pane;
     }
@@ -5062,9 +5499,9 @@
      * @returns {void}
      */
     #closeDeletedConversation(conversationId) {
-      for (const pane of this.#panes.values()) {
-        if (pane.session.openConversationId === conversationId) pane.session.startNewConversation();
-      }
+      [...this.#panes.values()]
+        .filter(pane => pane.session.openConversationId === conversationId)
+        .forEach(pane => pane.session.startNewConversation());
     }
 
     /**
@@ -5072,33 +5509,7 @@
      * @returns {void}
      */
     #savePanes() {
-      this.#preferences.writeJson(STORAGE_KEYS.chatPanes, this.storedPanes());
-    }
-
-    /**
-     * Creates a unique pane id.
-     * @returns {string} An id starting with "chat-".
-     */
-    static #createPaneId() {
-      return `chat-${crypto.randomUUID()}`;
-    }
-
-    /**
-     * The well-formed entries of a stored pane list.
-     * @param {*} storedPanes Parsed stored value.
-     * @returns {Array<{paneId: string, conversationId: ?string}>} Valid panes; empty when nothing valid is stored.
-     */
-    static #validStoredPanes(storedPanes) {
-      return Array.isArray(storedPanes) ? storedPanes.filter(ChatPaneManager.#isValidStoredPane) : [];
-    }
-
-    /**
-     * Whether a stored pane entry is well formed.
-     * @param {*} storedPane Stored entry.
-     * @returns {boolean} True for an object with a "chat-" pane id and a string or null conversation id.
-     */
-    static #isValidStoredPane(storedPane) {
-      return Boolean(storedPane) && String(storedPane.paneId).startsWith('chat-') && (storedPane.conversationId === null || typeof storedPane.conversationId === 'string');
+      this.#store.write(this.storedPanes());
     }
   }
 
@@ -5578,7 +5989,7 @@
     }
   }
 
-  var stylesheet$d = ".claude-plus-dialog-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.5);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-dialog {\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 8px;\r\n  padding: 16px;\r\n  max-width: 360px;\r\n  font-size: 13px;\r\n}\r\n\r\n.claude-plus-dialog__message {\r\n  margin: 0 0 14px;\r\n  line-height: 1.4;\r\n}\r\n\r\n.claude-plus-dialog__input {\r\n  width: 100%;\r\n  box-sizing: border-box;\r\n  margin: 0 0 14px;\r\n  padding: 6px 8px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font: inherit;\r\n}\r\n\r\n.claude-plus-dialog__actions {\r\n  display: flex;\r\n  justify-content: flex-end;\r\n  gap: 8px;\r\n}\r\n";
+  var stylesheet$d = ".claude-plus-dialog-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  max-width: 360px;\n  font-size: 13px;\n}\n\n.claude-plus-dialog__message {\n  margin: 0 0 14px;\n  line-height: 1.4;\n}\n\n.claude-plus-dialog__input {\n  width: 100%;\n  box-sizing: border-box;\n  margin: 0 0 14px;\n  padding: 6px 8px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font: inherit;\n}\n\n.claude-plus-dialog__actions {\n  display: flex;\n  justify-content: flex-end;\n  gap: 8px;\n}\n";
 
   StyleRegistry.register(stylesheet$d);
 
@@ -6091,7 +6502,7 @@
     }
   }
 
-  var stylesheet$c = ".claude-plus-popup-menu {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  min-width: 140px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry {\r\n  padding: 6px 10px;\r\n  cursor: pointer;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
+  var stylesheet$c = ".claude-plus-popup-menu {\n  position: fixed;\n  z-index: var(--claude-plus-layer-popup-menu);\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  padding: 4px;\n  min-width: 140px;\n  font-size: 12px;\n}\n\n.claude-plus-popup-menu__entry {\n  padding: 6px 10px;\n  cursor: pointer;\n  border-radius: 4px;\n}\n\n.claude-plus-popup-menu__entry:hover {\n  background: var(--claude-plus-color-raised-hover);\n}\n";
 
   StyleRegistry.register(stylesheet$c);
 
@@ -6238,7 +6649,7 @@
     }
   }
 
-  var stylesheet$b = ".claude-plus-staged-files {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 3px 4px 3px 3px;\r\n  font-size: 12px;\r\n  max-width: 200px;\r\n}\r\n\r\n.claude-plus-staged-file--uploading {\r\n  opacity: 0.6;\r\n}\r\n\r\n.claude-plus-staged-file__thumb {\r\n  width: 20px;\r\n  height: 20px;\r\n  border-radius: 4px;\r\n  object-fit: cover;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__icon {\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__name {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-staged-file__remove {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 0 2px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-staged-file__remove:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
+  var stylesheet$b = ".claude-plus-staged-files {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  padding: 3px 4px 3px 3px;\n  font-size: 12px;\n  max-width: 200px;\n}\n\n.claude-plus-staged-file--uploading {\n  opacity: 0.6;\n}\n\n.claude-plus-staged-file__thumb {\n  width: 20px;\n  height: 20px;\n  border-radius: 4px;\n  object-fit: cover;\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file__icon {\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file__name {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-staged-file__remove {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-faint);\n  cursor: pointer;\n  padding: 0 2px;\n  border-radius: 4px;\n  flex-shrink: 0;\n}\n\n.claude-plus-staged-file__remove:hover {\n  background: var(--claude-plus-color-hover);\n  color: var(--claude-plus-color-text);\n}\n";
 
   StyleRegistry.register(stylesheet$b);
 
@@ -6380,7 +6791,7 @@
     }
   }
 
-  var stylesheet$a = ".claude-plus-composer__options {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 8px;\r\n  align-items: center;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-composer__options select {\r\n  padding: 4px 6px;\r\n}\r\n\r\n.claude-plus-composer__thinking-toggle {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-panel .claude-plus-composer__input {\r\n  flex: 1;\r\n  resize: none;\r\n  min-height: 40px;\r\n  border-radius: 8px;\r\n  padding: 8px;\r\n  font-size: 14px;\r\n}\r\n\r\n.claude-plus-primary-button.claude-plus-composer__stop-button {\r\n  flex-shrink: 0;\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-composer__readonly-notice {\r\n  padding: 8px;\r\n  font-size: 13px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-style: italic;\r\n}\r\n";
+  var stylesheet$a = ".claude-plus-composer__options {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n  align-items: center;\n  flex-shrink: 0;\n}\n\n.claude-plus-composer__options select {\n  padding: 4px 6px;\n}\n\n.claude-plus-composer__thinking-toggle {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n}\n\n.claude-plus-panel .claude-plus-composer__input {\n  flex: 1;\n  resize: none;\n  min-height: 40px;\n  border-radius: 8px;\n  padding: 8px;\n  font-size: 14px;\n}\n\n.claude-plus-primary-button.claude-plus-composer__stop-button {\n  flex-shrink: 0;\n  background: var(--claude-plus-color-button-hover);\n}\n\n.claude-plus-composer__readonly-notice {\n  padding: 8px;\n  font-size: 13px;\n  color: var(--claude-plus-color-text-muted);\n  font-style: italic;\n}\n";
 
   StyleRegistry.register(stylesheet$a);
 
@@ -7537,7 +7948,7 @@
     Object.assign(element.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
   }
 
-  var stylesheet$9 = "html.claude-plus-resizing-horizontally,\r\nhtml.claude-plus-resizing-horizontally * {\r\n  cursor: col-resize !important;\r\n  user-select: none;\r\n}\r\n\r\nhtml.claude-plus-resizing-vertically,\r\nhtml.claude-plus-resizing-vertically * {\r\n  cursor: row-resize !important;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-divider-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-divider);\r\n}\r\n\r\n.claude-plus-divider {\r\n  position: fixed;\r\n  pointer-events: auto;\r\n  background: transparent;\r\n}\r\n\r\n.claude-plus-divider--vertical {\r\n  cursor: col-resize;\r\n}\r\n\r\n.claude-plus-divider--horizontal {\r\n  cursor: row-resize;\r\n}\r\n\r\n.claude-plus-divider:hover {\r\n  background: var(--claude-plus-color-accent);\r\n}\r\n";
+  var stylesheet$9 = "html.claude-plus-resizing-horizontally,\nhtml.claude-plus-resizing-horizontally * {\n  cursor: col-resize !important;\n  user-select: none;\n}\n\nhtml.claude-plus-resizing-vertically,\nhtml.claude-plus-resizing-vertically * {\n  cursor: row-resize !important;\n  user-select: none;\n}\n\n.claude-plus-divider-layer {\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  z-index: var(--claude-plus-layer-divider);\n}\n\n.claude-plus-divider {\n  position: fixed;\n  pointer-events: auto;\n  background: transparent;\n}\n\n.claude-plus-divider--vertical {\n  cursor: col-resize;\n}\n\n.claude-plus-divider--horizontal {\n  cursor: row-resize;\n}\n\n.claude-plus-divider:hover {\n  background: var(--claude-plus-color-accent);\n}\n";
 
   StyleRegistry.register(stylesheet$9);
 
@@ -7769,7 +8180,7 @@
     }
   }
 
-  var stylesheet$8 = ".claude-plus-drop-highlight[hidden] {\r\n  display: none !important;\r\n}\r\n\r\n.claude-plus-drag-label {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: var(--claude-plus-color-accent);\r\n  color: #fff;\r\n  padding: 4px 10px;\r\n  border-radius: 6px;\r\n  font-size: 12px;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-drop-highlight {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-drop-highlight);\r\n  background: var(--claude-plus-color-accent-overlay);\r\n  border: 2px solid var(--claude-plus-color-accent);\r\n  pointer-events: none;\r\n  box-sizing: border-box;\r\n}\r\n";
+  var stylesheet$8 = ".claude-plus-drop-highlight[hidden] {\n  display: none !important;\n}\n\n.claude-plus-drag-label {\n  position: fixed;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n  padding: 4px 10px;\n  border-radius: 6px;\n  font-size: 12px;\n  pointer-events: none;\n}\n\n.claude-plus-drop-highlight {\n  position: fixed;\n  z-index: var(--claude-plus-layer-drop-highlight);\n  background: var(--claude-plus-color-accent-overlay);\n  border: 2px solid var(--claude-plus-color-accent);\n  pointer-events: none;\n  box-sizing: border-box;\n}\n";
 
   StyleRegistry.register(stylesheet$8);
 
@@ -7978,7 +8389,7 @@
     }
   }
 
-  var stylesheet$7 = ".claude-plus-zone-chrome-layer {\r\n  position: fixed;\r\n  inset: 0;\r\n  pointer-events: none;\r\n  z-index: var(--claude-plus-layer-zone-chrome);\r\n}\r\n\r\n.claude-plus-zone-frame {\r\n  position: fixed;\r\n  background: var(--claude-plus-color-background);\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-tab-strip {\r\n  position: fixed;\r\n  display: flex;\r\n  align-items: center;\r\n  background: var(--claude-plus-color-bar);\r\n  overflow-x: auto;\r\n  overflow-y: hidden;\r\n  box-sizing: border-box;\r\n  pointer-events: auto;\r\n}\r\n\r\n/*\r\n * The strip itself carries no border-bottom: a child can never paint over a pixel that belongs to\r\n * its parent's own border (borders live outside the content-box children are confined to), so a\r\n * gap in the strip's own border could never actually open under a child. Instead, every element\r\n * in the strip - each tab, the \"+\" button, the trailing filler - draws this same 1px line itself,\r\n * all sized to the identical height below so their lines stay pixel-aligned with each other. Only\r\n * the active tab of a bordered zone omits its own line, which is a real gap since nothing else\r\n * occupies that stretch, rather than something painted over.\r\n */\r\n.claude-plus-tab {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  padding: 5px 12px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n  border-right: 1px solid var(--claude-plus-color-border-faint);\r\n  box-sizing: border-box;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__border--neutral {\r\n  border-bottom: 1px solid var(--claude-plus-color-border);\r\n}\r\n\r\n.claude-plus-tab-strip__border--active {\r\n  border-bottom: 1px solid var(--claude-plus-color-active-chat);\r\n}\r\n\r\n.claude-plus-tab-strip__border--inactive {\r\n  border-bottom: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n}\r\n\r\n.claude-plus-tab--active {\r\n  color: var(--claude-plus-color-text);\r\n  border-bottom: 2px solid var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-active {\r\n  border-left: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: 1px solid var(--claude-plus-color-active-chat);\r\n  border-right: 1px solid var(--claude-plus-color-active-chat);\r\n  border-bottom: none;\r\n  border-top-left-radius: 6px;\r\n  border-top-right-radius: 6px;\r\n}\r\n\r\n.claude-plus-tab--active.claude-plus-tab--border-inactive {\r\n  border-left: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-bottom: none;\r\n  border-top-left-radius: 6px;\r\n  border-top-right-radius: 6px;\r\n}\r\n\r\n.claude-plus-tab {\r\n  display: flex;\r\n  align-items: center;\r\n  min-width: 0;\r\n  max-width: 220px;\r\n}\r\n\r\n.claude-plus-tab__label {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-tab--chat .claude-plus-tab__label {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-tab__close-button {\r\n  flex-shrink: 0;\r\n  margin-left: 8px;\r\n  padding: 0 3px;\r\n  border-radius: 3px;\r\n  color: var(--claude-plus-color-text-faint);\r\n}\r\n\r\n.claude-plus-tab__close-button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__add-button {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n  padding: 5px 10px;\r\n  cursor: pointer;\r\n  color: var(--claude-plus-color-text-faint);\r\n  box-sizing: border-box;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-tab-strip__add-button:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-tab-strip__filler {\r\n  height: var(--claude-plus-tab-strip-height);\r\n  flex: 1;\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-table-host {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n";
+  var stylesheet$7 = ".claude-plus-zone-chrome-layer {\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  z-index: var(--claude-plus-layer-zone-chrome);\n}\n\n.claude-plus-zone-frame {\n  position: fixed;\n  background: var(--claude-plus-color-background);\n  border: 1px solid var(--claude-plus-color-border);\n  box-sizing: border-box;\n}\n\n.claude-plus-tab-strip {\n  position: fixed;\n  display: flex;\n  align-items: center;\n  background: var(--claude-plus-color-bar);\n  overflow-x: auto;\n  overflow-y: hidden;\n  box-sizing: border-box;\n  pointer-events: auto;\n}\n\n/*\n * The strip itself carries no border-bottom: a child can never paint over a pixel that belongs to\n * its parent's own border (borders live outside the content-box children are confined to), so a\n * gap in the strip's own border could never actually open under a child. Instead, every element\n * in the strip - each tab, the \"+\" button, the trailing filler - draws this same 1px line itself,\n * all sized to the identical height below so their lines stay pixel-aligned with each other. Only\n * the active tab of a bordered zone omits its own line, which is a real gap since nothing else\n * occupies that stretch, rather than something painted over.\n */\n.claude-plus-tab {\n  height: var(--claude-plus-tab-strip-height);\n  padding: 5px 12px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  white-space: nowrap;\n  border-right: 1px solid var(--claude-plus-color-border-faint);\n  box-sizing: border-box;\n  user-select: none;\n}\n\n.claude-plus-tab-strip__border--neutral {\n  border-bottom: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-tab-strip__border--active {\n  border-bottom: 1px solid var(--claude-plus-color-active-chat);\n}\n\n.claude-plus-tab-strip__border--inactive {\n  border-bottom: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\n}\n\n.claude-plus-tab--active {\n  color: var(--claude-plus-color-text);\n  border-bottom: 2px solid var(--claude-plus-color-accent);\n}\n\n.claude-plus-tab--active.claude-plus-tab--border-active {\n  border-left: 1px solid var(--claude-plus-color-active-chat);\n  border-top: 1px solid var(--claude-plus-color-active-chat);\n  border-right: 1px solid var(--claude-plus-color-active-chat);\n  border-bottom: none;\n  border-top-left-radius: 6px;\n  border-top-right-radius: 6px;\n}\n\n.claude-plus-tab--active.claude-plus-tab--border-inactive {\n  border-left: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\n  border-top: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\n  border-right: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\n  border-bottom: none;\n  border-top-left-radius: 6px;\n  border-top-right-radius: 6px;\n}\n\n.claude-plus-tab {\n  display: flex;\n  align-items: center;\n  min-width: 0;\n  max-width: 220px;\n}\n\n.claude-plus-tab__label {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-tab--chat .claude-plus-tab__label {\n  font-weight: 600;\n}\n\n.claude-plus-tab__close-button {\n  flex-shrink: 0;\n  margin-left: 8px;\n  padding: 0 3px;\n  border-radius: 3px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-tab__close-button:hover {\n  background: var(--claude-plus-color-hover);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-tab-strip__add-button {\n  height: var(--claude-plus-tab-strip-height);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 5px 10px;\n  cursor: pointer;\n  color: var(--claude-plus-color-text-faint);\n  box-sizing: border-box;\n  user-select: none;\n}\n\n.claude-plus-tab-strip__add-button:hover {\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-tab-strip__filler {\n  height: var(--claude-plus-tab-strip-height);\n  flex: 1;\n  box-sizing: border-box;\n}\n\n.claude-plus-table-host {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  flex: 1;\n  min-height: 0;\n}\n";
 
   StyleRegistry.register(stylesheet$7);
 
@@ -9713,7 +10124,7 @@
     return epochMs ? new Date(epochMs).toLocaleDateString() : '';
   }
 
-  var stylesheet$6 = ".claude-plus-conversation:hover .claude-plus-conversation__action-button {\r\n  visibility: visible;\r\n}\r\n\r\n.claude-plus-conversation {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-conversation:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-conversation--active > td {\r\n  background: var(--claude-plus-color-accent-soft);\r\n}\r\n\r\n.claude-plus-conversation--open-elsewhere > td:first-child {\r\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-conversation__actions {\r\n  display: inline-flex;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-conversation__action-button {\r\n  visibility: hidden;\r\n  background: none;\r\n  border: none;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n  padding: 4px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-conversation__action-button:hover {\r\n  background: rgba(255, 255, 255, 0.1);\r\n}\r\n";
+  var stylesheet$6 = ".claude-plus-conversation:hover .claude-plus-conversation__action-button {\n  visibility: visible;\n}\n\n.claude-plus-conversation {\n  cursor: pointer;\n}\n\n.claude-plus-conversation:hover > td {\n  background: var(--claude-plus-color-hover);\n}\n\n.claude-plus-conversation--active > td {\n  background: var(--claude-plus-color-accent-soft);\n}\n\n.claude-plus-conversation--open-elsewhere > td:first-child {\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);\n}\n\n.claude-plus-conversation__actions {\n  display: inline-flex;\n  white-space: nowrap;\n}\n\n.claude-plus-conversation__action-button {\n  visibility: hidden;\n  background: none;\n  border: none;\n  cursor: pointer;\n  font-size: 12px;\n  padding: 4px;\n  border-radius: 4px;\n  flex-shrink: 0;\n}\n\n.claude-plus-conversation__action-button:hover {\n  background: rgba(255, 255, 255, 0.1);\n}\n";
 
   StyleRegistry.register(stylesheet$6);
 
@@ -10489,7 +10900,7 @@
     }
   }
 
-  var stylesheet$5 = ".claude-plus-folder {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-folder:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-breadcrumb {\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  margin-bottom: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-breadcrumb__back-link {\r\n  color: var(--claude-plus-color-accent);\r\n  cursor: pointer;\r\n}\r\n";
+  var stylesheet$5 = ".claude-plus-folder {\n  cursor: pointer;\n}\n\n.claude-plus-folder:hover > td {\n  background: var(--claude-plus-color-hover);\n}\n\n.claude-plus-breadcrumb {\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  margin-bottom: 6px;\n  flex-shrink: 0;\n}\n\n.claude-plus-breadcrumb__back-link {\n  color: var(--claude-plus-color-accent);\n  cursor: pointer;\n}\n";
 
   StyleRegistry.register(stylesheet$5);
 
@@ -10918,7 +11329,7 @@
     }
   }
 
-  var stylesheet$4 = ".claude-plus-search-result {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-search-result:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n";
+  var stylesheet$4 = ".claude-plus-search-result {\n  cursor: pointer;\n}\n\n.claude-plus-search-result:hover > td {\n  background: var(--claude-plus-color-hover);\n}\n";
 
   StyleRegistry.register(stylesheet$4);
 
@@ -12588,21 +12999,240 @@
     }
   }
 
-  var stylesheet$3 = ".claude-plus-import-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-import-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 720px;\n  max-width: 90vw;\n  height: 85vh;\n  box-sizing: border-box;\n  font-size: 13px;\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n}\n\n.claude-plus-import-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-import-dialog__row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin: 12px 0;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__drop-zone {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 8px;\n  margin: 12px 0;\n  padding: 16px;\n  flex-shrink: 0;\n  border: 1px dashed var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  color: var(--claude-plus-color-text-muted);\n  font-size: 12px;\n}\n\n.claude-plus-import-dialog__drop-zone--active {\n  border-color: var(--claude-plus-color-accent);\n  background: var(--claude-plus-color-tool-details);\n}\n\n.claude-plus-import-dialog__file-count {\n  color: var(--claude-plus-color-text-muted);\n  margin: 0 0 4px;\n}\n\n.claude-plus-import-dialog__detection-list {\n  margin: 0;\n  padding-left: 18px;\n}\n\n.claude-plus-import-dialog__progress {\n  color: var(--claude-plus-color-text-muted);\n  font-style: italic;\n}\n\n.claude-plus-import-dialog__warning {\n  color: var(--claude-plus-color-danger, #d9534f);\n  margin: 4px 0 0;\n}\n\n.claude-plus-import-dialog__categories {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  flex-shrink: 0;\n  margin-bottom: 4px;\n}\n\n.claude-plus-import-dialog__toggle {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n}\n\n.claude-plus-import-dialog__table-host {\n  flex: 1;\n  min-height: 0;\n  display: flex;\n  flex-direction: column;\n}\n\n.claude-plus-import-dialog__badge {\n  display: inline-block;\n  padding: 1px 8px;\n  border-radius: 10px;\n  font-size: 11px;\n  white-space: nowrap;\n}\n\n.claude-plus-import-dialog__badge--new {\n  background: var(--claude-plus-color-accent);\n  color: var(--claude-plus-color-on-accent, #fff);\n}\n\n.claude-plus-import-dialog__badge--changed {\n  background: var(--claude-plus-color-tool-details);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-import-dialog__badge--renamedOnly {\n  background: var(--claude-plus-color-bar);\n  color: var(--claude-plus-color-text-muted);\n  border: 1px solid var(--claude-plus-color-border-strong);\n}\n\n.claude-plus-import-dialog__badge--unchanged {\n  background: transparent;\n  color: var(--claude-plus-color-text-faint);\n  border: 1px solid var(--claude-plus-color-border);\n}\n";
-
-  StyleRegistry.register(stylesheet$3);
+  /**
+   * Optional categories of a data export: how to detect and count them in a classified result, their
+   * count line's noun phrase, the toggle they show when present (null for a category with no opt-out,
+   * like Artifacts), and the classified fields an unchecked toggle clears.
+   * @type {ReadonlyArray<{isPresent: function(object): boolean, count: function(object): number, countNoun: string, toggleKey: ?string, toggleLabel: ?string, fields: string[]}>}
+   */
+  const IMPORT_OPTIONAL_CATEGORIES = Object.freeze([
+    {
+      isPresent: classified => classified.memoriesJsons.length > 0,
+      count: classified => classified.memoriesJsons.flatMap(json => json.memory_files).length,
+      countNoun: 'memory file(s)', toggleKey: 'memoryFiles', toggleLabel: 'Import memory files', fields: ['memoriesJsons'],
+    },
+    {
+      isPresent: classified => classified.artifacts.length > 0,
+      count: classified => classified.artifacts.length,
+      countNoun: 'Artifact(s)', toggleKey: null, toggleLabel: null, fields: [],
+    },
+    {
+      isPresent: classified => classified.projectsJsons.length > 0,
+      count: classified => classified.projectsJsons.length,
+      countNoun: 'Project(s)', toggleKey: 'projects', toggleLabel: 'Import Projects', fields: ['projectsJsons'],
+    },
+    {
+      isPresent: classified => classified.feedbackJsons.length > 0,
+      count: classified => classified.feedbackJsons.flatMap(json => json.reflections).length,
+      countNoun: 'Feedback period(s)', toggleKey: 'feedbackPeriods', toggleLabel: 'Import Feedback/reflections', fields: ['feedbackJsons'],
+    },
+    {
+      isPresent: classified => Boolean(classified.usersJson) || Boolean(classified.loginHistoryJson),
+      count: classified => (classified.loginHistoryJson?.login_events.length ?? 0),
+      countNoun: 'login event(s), plus the account profile', toggleKey: 'accountMetadata', toggleLabel: 'Import account profile and login history', fields: ['usersJson', 'loginHistoryJson'],
+    },
+  ]);
 
   /**
-   * Imports a claude.ai data export: the user selects the files they extracted (conversations.json
-   * is required; memories, Artifact, Project and account files are each independently optional, and
-   * detected by content, not filename), reviews every conversation found - sortable, filterable,
-   * individually selectable, classified against what's already imported - and the other categories as
-   * simple toggles, then imports. Nothing is written until Import is clicked. conversations.json is
-   * never read whole into memory: it's classified from a small prefix, previewed and imported by
-   * streaming through it (see StreamingJsonArrayReader/ImportOrchestrator), so a real export's file -
-   * routinely hundreds of megabytes - never blocks the tab or is held whole either way.
+   * The import screen's opt-out checkboxes, one per optional category found in the export, and the
+   * classified files they narrow down to what is actually imported.
    */
-  class ImportDialog extends Dialog {
+  class ImportCategoryToggles {
+    /**
+     * Element holding the checkboxes.
+     * @type {HTMLElement}
+     */
+    #container;
+
+    /**
+     * Creates the toggles in a hidden container.
+     * @param {HTMLElement} container Element holding the checkboxes.
+     */
+    constructor(container) {
+      this.#container = container;
+    }
+
+    /**
+     * Shows one checked toggle per toggleable category found.
+     * @param {object} classified The classified files.
+     * @returns {void}
+     */
+    show(classified) {
+      this.#container.hidden = false;
+      this.#container.innerHTML = IMPORT_OPTIONAL_CATEGORIES
+        .filter(category => category.toggleKey && category.isPresent(classified))
+        .map(category => `<label class="claude-plus-import-dialog__toggle"><input type="checkbox" data-category-toggle="${category.toggleKey}" checked /> ${escapeHtml(category.toggleLabel)}</label>`)
+        .join('');
+    }
+
+    /**
+     * Hides the toggles.
+     * @returns {void}
+     */
+    hide() {
+      this.#container.hidden = true;
+    }
+
+    /**
+     * The classified files, with any unchecked category's data cleared.
+     * @param {object} classified The classified files.
+     * @returns {object} The classified files to actually import.
+     */
+    applyTo(classified) {
+      const applied = { ...classified };
+      IMPORT_OPTIONAL_CATEGORIES
+        .filter(category => category.toggleKey && !this.#isChecked(category.toggleKey))
+        .flatMap(category => category.fields)
+        .forEach(field => { applied[field] = Array.isArray(applied[field]) ? [] : null; });
+      return applied;
+    }
+
+    /**
+     * Whether a toggle is checked; missing (not shown, since its category wasn't found) counts as
+     * checked, since there's nothing for it to exclude.
+     * @param {string} toggleKey The toggle's data-category-toggle value.
+     * @returns {boolean} True when checked or absent.
+     */
+    #isChecked(toggleKey) {
+      return this.#container.querySelector(`[data-category-toggle="${toggleKey}"]`)?.checked ?? true;
+    }
+  }
+
+  /**
+   * The import screen's file intake: a native multi-file picker behind a button, plus a drop zone
+   * accepting the same files dragged in. Either way the files go to one callback.
+   */
+  class ImportFilePicker {
+    /**
+     * CSS class marking the drop zone while files are dragged over it.
+     * @type {string}
+     */
+    static #ACTIVE_CLASS = 'claude-plus-import-dialog__drop-zone--active';
+
+    /**
+     * Area accepting dropped files.
+     * @type {HTMLElement}
+     */
+    #dropZone;
+
+    /**
+     * Button opening the native picker.
+     * @type {HTMLElement}
+     */
+    #chooseButton;
+
+    /**
+     * Called with the chosen or dropped files.
+     * @type {function(File[]): Promise<void>}
+     */
+    #onFiles;
+
+    /**
+     * Creates the picker without wiring it.
+     * @param {object} parts Picker parts.
+     * @param {HTMLElement} parts.dropZone Area accepting dropped files.
+     * @param {HTMLElement} parts.chooseButton Button opening the native picker.
+     * @param {function(File[]): Promise<void>} parts.onFiles Called with the chosen or dropped files.
+     */
+    constructor({ dropZone, chooseButton, onFiles }) {
+      this.#dropZone = dropZone;
+      this.#chooseButton = chooseButton;
+      this.#onFiles = onFiles;
+    }
+
+    /**
+     * Wires the choose button and the drop zone.
+     * @returns {void}
+     */
+    install() {
+      const dropZone = this.#dropZone;
+      this.#chooseButton.addEventListener('click', () => this.#chooseFiles());
+      dropZone.addEventListener('dragover', event => ImportFilePicker.#onDragOver(event));
+      dropZone.addEventListener('dragenter', () => dropZone.classList.add(ImportFilePicker.#ACTIVE_CLASS));
+      dropZone.addEventListener('dragleave', event => this.#onDragLeave(event));
+      dropZone.addEventListener('drop', event => this.#onDrop(event));
+    }
+
+    /**
+     * Allows a drop by preventing the browser's default (opening the file instead of dropping it).
+     * @param {DragEvent} event The drag-over.
+     * @returns {void}
+     */
+    static #onDragOver(event) {
+      event.preventDefault();
+    }
+
+    /**
+     * Clears the drop zone's active styling once the drag actually leaves it, ignoring the events
+     * fired for merely entering a child element.
+     * @param {DragEvent} event The drag-leave.
+     * @returns {void}
+     */
+    #onDragLeave(event) {
+      if (!this.#dropZone.contains(event.relatedTarget)) this.#dropZone.classList.remove(ImportFilePicker.#ACTIVE_CLASS);
+    }
+
+    /**
+     * Hands the files dropped onto the drop zone over, the same as if they'd been chosen.
+     * @param {DragEvent} event The drop.
+     * @returns {Promise<void>} Resolves once the dropped files are handled.
+     */
+    #onDrop(event) {
+      event.preventDefault();
+      this.#dropZone.classList.remove(ImportFilePicker.#ACTIVE_CLASS);
+      const files = [...(event.dataTransfer?.files ?? [])];
+      if (files.length) return this.#onFiles(files);
+      return Promise.resolve();
+    }
+
+    /**
+     * Opens a native multi-file picker and hands whatever was selected over.
+     * @returns {void}
+     */
+    #chooseFiles() {
+      const input = createElement('input', { type: 'file', multiple: true, accept: 'application/json,.json,.html' });
+      input.addEventListener('change', () => this.#onFiles([...input.files]));
+      input.click();
+    }
+  }
+
+  /**
+   * Label shown for each classification of a previewed conversation.
+   * @type {Readonly<Record<string, string>>}
+   */
+  const CLASSIFICATION_LABELS = Object.freeze({ new: 'New', changed: 'Changed', renamedOnly: 'Renamed', unchanged: 'Unchanged' });
+
+  /**
+   * HTML of a classification badge.
+   * @param {string} classification The classification.
+   * @returns {string} The badge.
+   */
+  function statusBadgeHtml(classification) {
+    const label = CLASSIFICATION_LABELS[classification] ?? classification;
+    return `<span class="claude-plus-import-dialog__badge claude-plus-import-dialog__badge--${escapeHtml(classification)}">${escapeHtml(label)}</span>`;
+  }
+
+  /**
+   * The import review table's columns: a selection checkbox, then name, date, turns and status.
+   * @param {function(string): boolean} isSelected Whether a conversation id is currently selected.
+   * @returns {TableColumn[]} The columns.
+   */
+  function importReviewColumns(isSelected) {
+    return [
+      { id: 'selected', label: '', isAlwaysVisible: true, isNotSortable: true, sortValue: () => 0, cellHtml: row => `<input type="checkbox" data-select-row${isSelected(row.conversationId) ? ' checked' : ''} />` },
+      { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: row => (row.title || '').toLowerCase(), filterValue: row => row.title || UNTITLED, cellHtml: row => escapeHtml(row.title || UNTITLED) },
+      createDateColumn(row => row.updatedAt),
+      { id: 'turns', label: 'Turns', isVisibleByDefault: true, sortValue: row => row.promptCount, cellHtml: row => String(row.promptCount) },
+      { id: 'status', label: 'Status', isVisibleByDefault: true, filter: 'values', sortValue: row => row.classification, filterValue: row => CLASSIFICATION_LABELS[row.classification], cellHtml: row => statusBadgeHtml(row.classification) },
+    ];
+  }
+
+  /**
+   * The import screen's conversation review table: every previewed conversation, sortable and
+   * filterable, each with a checkbox. The selection is kept outside the table itself so it survives
+   * re-sorting and re-filtering.
+   */
+  class ImportReviewTable {
     /**
      * Rows pre-checked by default: every classification except a truly unchanged conversation.
      * @type {ReadonlySet<string>}
@@ -12610,11 +13240,198 @@
     static #DEFAULT_SELECTED_CLASSIFICATIONS = new Set(['new', 'changed', 'renamedOnly']);
 
     /**
-     * Label shown for each classification.
-     * @type {Readonly<Record<string, string>>}
+     * Element the table is built in.
+     * @type {HTMLElement}
      */
-    static #CLASSIFICATION_LABELS = Object.freeze({ new: 'New', changed: 'Changed', renamedOnly: 'Renamed', unchanged: 'Unchanged' });
+    #host;
 
+    /**
+     * Row holding the select all / none buttons.
+     * @type {HTMLElement}
+     */
+    #selectionRow;
+
+    /**
+     * Table settings storage.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * Called whenever the selection changes.
+     * @type {function(): void}
+     */
+    #onSelectionChange;
+
+    /**
+     * The previewed conversation rows.
+     * @type {object[]}
+     */
+    #rows = [];
+
+    /**
+     * Ids of the conversations currently checked for import.
+     * @type {Set<string>}
+     */
+    #selectedIds = new Set();
+
+    /**
+     * The table, once shown.
+     * @type {?ColumnTable}
+     */
+    #table = null;
+
+    /**
+     * Wires the select all / none buttons; the table itself is built by show().
+     * @param {object} parts Table parts.
+     * @param {HTMLElement} parts.host Element the table is built in.
+     * @param {HTMLElement} parts.selectionRow Row holding the select all / none buttons.
+     * @param {HTMLElement} parts.selectAllButton Button selecting every conversation.
+     * @param {HTMLElement} parts.selectNoneButton Button deselecting every conversation.
+     * @param {Preferences} parts.preferences Table settings storage.
+     * @param {function(): void} parts.onSelectionChange Called whenever the selection changes.
+     */
+    constructor({ host, selectionRow, selectAllButton, selectNoneButton, preferences, onSelectionChange }) {
+      this.#host = host;
+      this.#selectionRow = selectionRow;
+      this.#preferences = preferences;
+      this.#onSelectionChange = onSelectionChange;
+      selectAllButton.addEventListener('click', () => this.#setAllSelected(true));
+      selectNoneButton.addEventListener('click', () => this.#setAllSelected(false));
+    }
+
+    /**
+     * Ids of the conversations currently checked for import.
+     * @returns {Set<string>} The ids.
+     */
+    get selectedIds() {
+      return this.#selectedIds;
+    }
+
+    /**
+     * Shows the table with a smart default selection.
+     * @param {object[]} rows The previewed conversation rows.
+     * @returns {void}
+     */
+    show(rows) {
+      this.#rows = rows;
+      this.#selectedIds = new Set(rows.filter(row => ImportReviewTable.#DEFAULT_SELECTED_CLASSIFICATIONS.has(row.classification)).map(row => row.conversationId));
+      this.#selectionRow.hidden = false;
+      this.#host.hidden = false;
+      this.#table = this.#createTable();
+      this.#table.setRows(rows);
+    }
+
+    /**
+     * Hides the table and its selection buttons.
+     * @returns {void}
+     */
+    hide() {
+      this.#selectionRow.hidden = true;
+      this.#host.hidden = true;
+    }
+
+    /**
+     * Builds the column table and listens to its row checkboxes.
+     * @returns {ColumnTable} The table.
+     */
+    #createTable() {
+      const table = new ColumnTable({
+        container: this.#host,
+        tableId: 'importReview',
+        columns: importReviewColumns(conversationId => this.#selectedIds.has(conversationId)),
+        preferences: this.#preferences,
+        defaultSort: { column: 'date', direction: -1 },
+        rowAttributes: row => `data-conversation-id="${escapeHtml(row.conversationId)}"`,
+        emptyText: 'No conversations found.',
+        maxRenderedRows: 2000,
+      });
+      table.bodyElement.addEventListener('change', event => this.#onRowCheckboxChange(event));
+      return table;
+    }
+
+    /**
+     * Records a row's checkbox change.
+     * @param {Event} event Change of a row checkbox.
+     * @returns {void}
+     */
+    #onRowCheckboxChange(event) {
+      const checkbox = event.target.closest('[data-select-row]');
+      if (!checkbox) return;
+      const conversationId = checkbox.closest('[data-conversation-id]').dataset.conversationId;
+      if (checkbox.checked) this.#selectedIds.add(conversationId);
+      else this.#selectedIds.delete(conversationId);
+      this.#onSelectionChange();
+    }
+
+    /**
+     * Selects or deselects every previewed conversation, then re-renders the table so its checkboxes
+     * reflect the change.
+     * @param {boolean} selected Whether every conversation should be selected.
+     * @returns {void}
+     */
+    #setAllSelected(selected) {
+      this.#selectedIds = selected ? new Set(this.#rows.map(row => row.conversationId)) : new Set();
+      this.#table?.setRows(this.#rows);
+      this.#onSelectionChange();
+    }
+  }
+
+  /**
+   * HTML summarizing how many of each category a scanned export holds, plus notes on the
+   * conversations left out of the review table.
+   * @param {object} preview A previewClassified() result.
+   * @param {object[]} preview.conversationRows The previewed conversation rows.
+   * @param {object} preview.classified The classified files.
+   * @param {number} preview.failedCount Conversations that couldn't be read at all.
+   * @param {number} preview.emptySkippedCount Conversations with no readable content, left out on purpose.
+   * @returns {string} The summary.
+   */
+  function importFoundSummaryHtml({ conversationRows, classified, failedCount, emptySkippedCount }) {
+    const present = IMPORT_OPTIONAL_CATEGORIES.filter(category => category.isPresent(classified));
+    const lines = [`${conversationRows.length} conversation(s)`, ...present.map(category => `${category.count(classified)} ${category.countNoun}`)];
+    const emptyLine = emptySkippedCount > 0 ? `<p class="claude-plus-import-dialog__file-count">${emptySkippedCount} conversation(s) with no readable content (deleted, or never really started) aren't shown below.</p>` : '';
+    const failedLine = failedCount > 0 ? `<p class="claude-plus-import-dialog__warning">${failedCount} conversation(s) couldn't be read and are not shown below - see the browser console for details.</p>` : '';
+    return `<p class="claude-plus-import-dialog__file-count">Found: ${lines.join(', ')}.</p>${emptyLine}${failedLine}`;
+  }
+
+  /**
+   * HTML summarizing what an import wrote.
+   * @param {object} result The orchestrator's apply() result.
+   * @returns {string} The summary.
+   */
+  function importResultHtml(result) {
+    const { conversations } = result;
+    const lines = [
+      `${conversations.new} brand-new conversation(s) saved`,
+      `${conversations.changed} already-imported conversation(s) got new messages (a continuation or branch since last time)`,
+      `${conversations.renamedOnly} already-imported conversation(s) were only renamed`,
+      `${conversations.unchanged} already-imported conversation(s) had nothing new`,
+      conversations.failed > 0 ? `${conversations.failed} selected conversation(s) failed to import - see the browser console for details` : null,
+      `${result.memoryFiles.written} of ${result.memoryFiles.total} memory file(s) saved`,
+      `${result.artifacts.written} of ${result.artifacts.total} Artifact(s) saved`,
+      `${result.projects.written} of ${result.projects.total} Project(s) saved`,
+      `${result.feedbackPeriods.written} of ${result.feedbackPeriods.total} Feedback period(s) saved`,
+      `${result.loginEvents.written} of ${result.loginEvents.total} login event(s) saved`,
+      result.accountProfile ? 'Account profile saved' : null,
+    ].filter(Boolean);
+    return `<p><strong>Import complete.</strong></p><ul class="claude-plus-import-dialog__detection-list">${lines.map(line => `<li>${line}</li>`).join('')}</ul>`;
+  }
+
+  var stylesheet$3 = ".claude-plus-import-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-import-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 720px;\n  max-width: 90vw;\n  height: 85vh;\n  box-sizing: border-box;\n  font-size: 13px;\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n}\n\n.claude-plus-import-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-import-dialog__row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin: 12px 0;\n  flex-shrink: 0;\n}\n\n.claude-plus-import-dialog__drop-zone {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 8px;\n  margin: 12px 0;\n  padding: 16px;\n  flex-shrink: 0;\n  border: 1px dashed var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  color: var(--claude-plus-color-text-muted);\n  font-size: 12px;\n}\n\n.claude-plus-import-dialog__drop-zone--active {\n  border-color: var(--claude-plus-color-accent);\n  background: var(--claude-plus-color-tool-details);\n}\n\n.claude-plus-import-dialog__file-count {\n  color: var(--claude-plus-color-text-muted);\n  margin: 0 0 4px;\n}\n\n.claude-plus-import-dialog__detection-list {\n  margin: 0;\n  padding-left: 18px;\n}\n\n.claude-plus-import-dialog__progress {\n  color: var(--claude-plus-color-text-muted);\n  font-style: italic;\n}\n\n.claude-plus-import-dialog__warning {\n  color: var(--claude-plus-color-danger, #d9534f);\n  margin: 4px 0 0;\n}\n\n.claude-plus-import-dialog__categories {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  flex-shrink: 0;\n  margin-bottom: 4px;\n}\n\n.claude-plus-import-dialog__toggle {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n}\n\n.claude-plus-import-dialog__table-host {\n  flex: 1;\n  min-height: 0;\n  display: flex;\n  flex-direction: column;\n}\n\n.claude-plus-import-dialog__badge {\n  display: inline-block;\n  padding: 1px 8px;\n  border-radius: 10px;\n  font-size: 11px;\n  white-space: nowrap;\n}\n\n.claude-plus-import-dialog__badge--new {\n  background: var(--claude-plus-color-accent);\n  color: var(--claude-plus-color-on-accent, #fff);\n}\n\n.claude-plus-import-dialog__badge--changed {\n  background: var(--claude-plus-color-tool-details);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-import-dialog__badge--renamedOnly {\n  background: var(--claude-plus-color-bar);\n  color: var(--claude-plus-color-text-muted);\n  border: 1px solid var(--claude-plus-color-border-strong);\n}\n\n.claude-plus-import-dialog__badge--unchanged {\n  background: transparent;\n  color: var(--claude-plus-color-text-faint);\n  border: 1px solid var(--claude-plus-color-border);\n}\n";
+
+  StyleRegistry.register(stylesheet$3);
+
+  /**
+   * Imports a claude.ai data export: the user selects the files they extracted (conversations.json
+   * is required; memories, Artifact, Project and account files are each independently optional, and
+   * detected by content, not filename), reviews every conversation found and the other categories as
+   * simple toggles, then imports. Nothing is written until Import is clicked. conversations.json is
+   * never read whole into memory: it's classified from a small prefix, previewed and imported by
+   * streaming through it (see StreamingJsonArrayReader/ImportOrchestrator), so a real export's file -
+   * routinely hundreds of megabytes - never blocks the tab or is held whole either way.
+   */
+  class ImportDialog extends Dialog {
     /**
      * Runs the import once files are confirmed.
      * @type {ImportOrchestrator}
@@ -12646,16 +13463,16 @@
     #preview = null;
 
     /**
-     * Ids of the conversations currently checked for import.
-     * @type {Set<string>}
+     * Opt-out checkboxes of the optional categories; set once the content is built.
+     * @type {?ImportCategoryToggles}
      */
-    #selectedIds = new Set();
+    #toggles = null;
 
     /**
-     * The conversation review table; created once scanning finishes.
-     * @type {?ColumnTable}
+     * The conversation review table; set once the content is built.
+     * @type {?ImportReviewTable}
      */
-    #table = null;
+    #reviewTable = null;
 
     /**
      * Creates the dialog without showing it.
@@ -12690,13 +13507,21 @@
     }
 
     /**
-     * Builds the screen.
+     * Builds the screen and its parts.
      * @returns {HTMLElement[]} The screen.
      */
     createContent() {
       const box = createElement('div', { className: 'claude-plus-import-dialog', innerHTML: ImportDialog.#bodyHtml() });
-      this.#elements = collectNamedElements(box);
-      this.#bindEvents();
+      const elements = collectNamedElements(box);
+      this.#elements = elements;
+      this.#toggles = new ImportCategoryToggles(elements.categories);
+      this.#reviewTable = new ImportReviewTable({
+        host: elements.tableHost, selectionRow: elements.selectionRow, selectAllButton: elements.selectAllButton, selectNoneButton: elements.selectNoneButton,
+        preferences: this.#preferences, onSelectionChange: () => this.#refreshImportButton(),
+      });
+      new ImportFilePicker({ dropZone: elements.dropZone, chooseButton: elements.chooseButton, onFiles: files => this.#onFilesChosen(files) }).install();
+      elements.closeButton.addEventListener('click', () => this.close());
+      elements.importButton.addEventListener('click', () => this.#runImport());
       return [box];
     }
 
@@ -12728,65 +13553,6 @@
     }
 
     /**
-     * Wires the file picker and the buttons.
-     * @returns {void}
-     */
-    #bindEvents() {
-      const elements = this.#elements;
-      elements.closeButton.addEventListener('click', () => this.close());
-      elements.chooseButton.addEventListener('click', () => this.#chooseFiles());
-      elements.selectAllButton.addEventListener('click', () => this.#setAllSelected(true));
-      elements.selectNoneButton.addEventListener('click', () => this.#setAllSelected(false));
-      elements.importButton.addEventListener('click', () => this.#runImport());
-      elements.dropZone.addEventListener('dragover', event => ImportDialog.#onDragOver(event));
-      elements.dropZone.addEventListener('dragenter', () => elements.dropZone.classList.add('claude-plus-import-dialog__drop-zone--active'));
-      elements.dropZone.addEventListener('dragleave', event => this.#onDragLeave(event));
-      elements.dropZone.addEventListener('drop', event => this.#onDrop(event));
-    }
-
-    /**
-     * Allows a drop by preventing the browser's default (opening the file instead of dropping it).
-     * @param {DragEvent} event The drag-over.
-     * @returns {void}
-     */
-    static #onDragOver(event) {
-      event.preventDefault();
-    }
-
-    /**
-     * Clears the drop zone's active styling once the drag actually leaves it, ignoring the events
-     * fired for merely entering a child element.
-     * @param {DragEvent} event The drag-leave.
-     * @returns {void}
-     */
-    #onDragLeave(event) {
-      if (!this.#elements.dropZone.contains(event.relatedTarget)) this.#elements.dropZone.classList.remove('claude-plus-import-dialog__drop-zone--active');
-    }
-
-    /**
-     * Scans the files dropped onto the drop zone, the same as if they'd been chosen.
-     * @param {DragEvent} event The drop.
-     * @returns {Promise<void>} Resolves once the review table is shown or a failure is reported.
-     */
-    #onDrop(event) {
-      event.preventDefault();
-      this.#elements.dropZone.classList.remove('claude-plus-import-dialog__drop-zone--active');
-      const files = [...(event.dataTransfer?.files ?? [])];
-      if (files.length) return this.#onFilesChosen(files);
-      return Promise.resolve();
-    }
-
-    /**
-     * Opens a native multi-file picker and scans whatever was selected.
-     * @returns {void}
-     */
-    #chooseFiles() {
-      const input = createElement('input', { type: 'file', multiple: true, accept: 'application/json,.json,.html' });
-      input.addEventListener('change', () => this.#onFilesChosen([...input.files]));
-      input.click();
-    }
-
-    /**
      * Classifies the chosen files, then previews every conversation found; reports progress as it
      * streams, since a large export can take a while to scan.
      * @param {File[]} files The chosen files.
@@ -12794,184 +13560,23 @@
      */
     async #onFilesChosen(files) {
       this.#elements.importButton.disabled = true;
-      this.#elements.status.innerHTML = `<p class="claude-plus-import-dialog__progress">Scanning ${files.length} file(s)…</p>`;
+      this.#showProgress(`Scanning ${files.length} file(s)…`);
       try {
-        const preview = await this.#orchestrator.previewClassified(files, count => this.#showScanProgress(count));
-        this.#preview = preview;
-        this.#showReview(preview);
+        this.#preview = await this.#orchestrator.previewClassified(files, count => this.#showProgress(`Scanning… ${count} conversation(s) found so far.`));
+        this.#showReview();
       } catch (error) {
-        this.#elements.status.innerHTML = `<p class="claude-plus-import-dialog__progress">${escapeHtml(error.message)}</p>`;
+        this.#showProgress(error.message);
       }
     }
 
     /**
-     * Updates the scanning progress line.
-     * @param {number} count Conversations classified so far.
+     * Shows the category summary and toggles and the conversation review table, and enables Import.
      * @returns {void}
      */
-    #showScanProgress(count) {
-      this.#elements.status.innerHTML = `<p class="claude-plus-import-dialog__progress">Scanning… ${count} conversation(s) found so far.</p>`;
-    }
-
-    /**
-     * Shows the category summary, builds the conversation review table with a smart default
-     * selection, and enables Import.
-     * @param {object} preview A previewClassified() result.
-     * @returns {void}
-     */
-    #showReview(preview) {
-      const { classified, conversationRows, failedCount, emptySkippedCount } = preview;
-      this.#elements.status.innerHTML = ImportDialog.#categoryCountsHtml(conversationRows, classified, failedCount, emptySkippedCount);
-      this.#elements.categories.hidden = false;
-      this.#elements.categories.innerHTML = ImportDialog.#categoryToggleHtml(classified);
-      this.#selectedIds = new Set(conversationRows.filter(row => ImportDialog.#DEFAULT_SELECTED_CLASSIFICATIONS.has(row.classification)).map(row => row.conversationId));
-      this.#elements.selectionRow.hidden = false;
-      this.#elements.tableHost.hidden = false;
-      this.#buildTable(conversationRows);
-      this.#refreshImportButton();
-    }
-
-    /**
-     * Optional categories: how to count them in a classified result, their count line's noun phrase,
-     * and the toggle they show when present (null for a category with no opt-out, like Artifacts).
-     * @type {ReadonlyArray<{isPresent: function(object): boolean, count: function(object): number, countNoun: string, toggleKey: ?string, toggleLabel: ?string}>}
-     */
-    static #OPTIONAL_CATEGORIES = [
-      {
-        isPresent: classified => classified.memoriesJsons.length > 0,
-        count: classified => classified.memoriesJsons.flatMap(json => json.memory_files).length,
-        countNoun: 'memory file(s)', toggleKey: 'memoryFiles', toggleLabel: 'Import memory files',
-      },
-      {
-        isPresent: classified => classified.artifacts.length > 0,
-        count: classified => classified.artifacts.length,
-        countNoun: 'Artifact(s)', toggleKey: null, toggleLabel: null,
-      },
-      {
-        isPresent: classified => classified.projectsJsons.length > 0,
-        count: classified => classified.projectsJsons.length,
-        countNoun: 'Project(s)', toggleKey: 'projects', toggleLabel: 'Import Projects',
-      },
-      {
-        isPresent: classified => classified.feedbackJsons.length > 0,
-        count: classified => classified.feedbackJsons.flatMap(json => json.reflections).length,
-        countNoun: 'Feedback period(s)', toggleKey: 'feedbackPeriods', toggleLabel: 'Import Feedback/reflections',
-      },
-      {
-        isPresent: classified => Boolean(classified.usersJson) || Boolean(classified.loginHistoryJson),
-        count: classified => (classified.loginHistoryJson?.login_events.length ?? 0),
-        countNoun: 'login event(s), plus the account profile', toggleKey: 'accountMetadata', toggleLabel: 'Import account profile and login history',
-      },
-    ];
-
-    /**
-     * HTML summarizing how many of each category were found.
-     * @param {object[]} conversationRows The previewed conversation rows.
-     * @param {object} classified The classified files.
-     * @param {number} failedCount Conversations that couldn't be read at all.
-     * @param {number} emptySkippedCount Conversations with no readable content, left out on purpose.
-     * @returns {string} The summary.
-     */
-    static #categoryCountsHtml(conversationRows, classified, failedCount, emptySkippedCount) {
-      const present = ImportDialog.#OPTIONAL_CATEGORIES.filter(category => category.isPresent(classified));
-      const lines = [`${conversationRows.length} conversation(s)`, ...present.map(category => `${category.count(classified)} ${category.countNoun}`)];
-      const emptyLine = emptySkippedCount > 0 ? `<p class="claude-plus-import-dialog__file-count">${emptySkippedCount} conversation(s) with no readable content (deleted, or never really started) aren't shown below.</p>` : '';
-      const failedLine = failedCount > 0 ? `<p class="claude-plus-import-dialog__warning">${failedCount} conversation(s) couldn't be read and are not shown below - see the browser console for details.</p>` : '';
-      return `<p class="claude-plus-import-dialog__file-count">Found: ${lines.join(', ')}.</p>${emptyLine}${failedLine}`;
-    }
-
-    /**
-     * HTML of the optional-category toggles, one per toggleable category actually found.
-     * @param {object} classified The classified files.
-     * @returns {string} The toggles.
-     */
-    static #categoryToggleHtml(classified) {
-      return ImportDialog.#OPTIONAL_CATEGORIES
-        .filter(category => category.toggleKey && category.isPresent(classified))
-        .map(category => `<label class="claude-plus-import-dialog__toggle"><input type="checkbox" data-category-toggle="${category.toggleKey}" checked /> ${escapeHtml(category.toggleLabel)}</label>`)
-        .join('');
-    }
-
-    /**
-     * Builds the conversation review table, keyed by selection state kept outside the table itself
-     * so it survives re-sorting and re-filtering.
-     * @param {object[]} conversationRows The previewed conversation rows.
-     * @returns {void}
-     */
-    #buildTable(conversationRows) {
-      this.#table = new ColumnTable({
-        container: this.#elements.tableHost,
-        tableId: 'importReview',
-        columns: this.#columns(),
-        preferences: this.#preferences,
-        defaultSort: { column: 'date', direction: -1 },
-        rowAttributes: row => `data-conversation-id="${escapeHtml(row.conversationId)}"`,
-        emptyText: 'No conversations found.',
-        maxRenderedRows: 2000,
-      });
-      this.#table.bodyElement.addEventListener('change', event => this.#onRowCheckboxChange(event));
-      this.#table.setRows(conversationRows);
-    }
-
-    /**
-     * The review table's columns.
-     * @returns {TableColumn[]} The columns.
-     */
-    #columns() {
-      return [
-        { id: 'selected', label: '', isAlwaysVisible: true, isNotSortable: true, sortValue: () => 0, cellHtml: row => ImportDialog.#checkboxHtml(row, this.#selectedIds) },
-        { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: row => (row.title || '').toLowerCase(), filterValue: row => row.title || UNTITLED, cellHtml: row => escapeHtml(row.title || UNTITLED) },
-        createDateColumn(row => row.updatedAt),
-        { id: 'turns', label: 'Turns', isVisibleByDefault: true, sortValue: row => row.promptCount, cellHtml: row => String(row.promptCount) },
-        { id: 'status', label: 'Status', isVisibleByDefault: true, filter: 'values', sortValue: row => row.classification, filterValue: row => ImportDialog.#CLASSIFICATION_LABELS[row.classification], cellHtml: row => ImportDialog.#statusBadgeHtml(row.classification) },
-      ];
-    }
-
-    /**
-     * HTML of one row's selection checkbox.
-     * @param {{conversationId: string}} row The row.
-     * @param {Set<string>} selectedIds Currently selected conversation ids.
-     * @returns {string} The checkbox.
-     */
-    static #checkboxHtml(row, selectedIds) {
-      const checked = selectedIds.has(row.conversationId) ? ' checked' : '';
-      return `<input type="checkbox" data-select-row${checked} />`;
-    }
-
-    /**
-     * HTML of a classification badge.
-     * @param {string} classification The classification.
-     * @returns {string} The badge.
-     */
-    static #statusBadgeHtml(classification) {
-      const label = ImportDialog.#CLASSIFICATION_LABELS[classification] ?? classification;
-      return `<span class="claude-plus-import-dialog__badge claude-plus-import-dialog__badge--${escapeHtml(classification)}">${escapeHtml(label)}</span>`;
-    }
-
-    /**
-     * Records a row's checkbox change and refreshes the Import button's count.
-     * @param {Event} event Change of a row checkbox.
-     * @returns {void}
-     */
-    #onRowCheckboxChange(event) {
-      const checkbox = event.target.closest('[data-select-row]');
-      if (!checkbox) return;
-      const conversationId = checkbox.closest('[data-conversation-id]').dataset.conversationId;
-      if (checkbox.checked) this.#selectedIds.add(conversationId);
-      else this.#selectedIds.delete(conversationId);
-      this.#refreshImportButton();
-    }
-
-    /**
-     * Selects or deselects every previewed conversation, then re-renders the table so its checkboxes
-     * reflect the change.
-     * @param {boolean} selected Whether every conversation should be selected.
-     * @returns {void}
-     */
-    #setAllSelected(selected) {
-      const rows = this.#preview.conversationRows;
-      this.#selectedIds = selected ? new Set(rows.map(row => row.conversationId)) : new Set();
-      this.#table.setRows(rows);
+    #showReview() {
+      this.#elements.status.innerHTML = importFoundSummaryHtml(this.#preview);
+      this.#toggles.show(this.#preview.classified);
+      this.#reviewTable.show(this.#preview.conversationRows);
       this.#refreshImportButton();
     }
 
@@ -12980,7 +13585,7 @@
      * @returns {void}
      */
     #refreshImportButton() {
-      this.#elements.importButton.textContent = `Import selected (${this.#selectedIds.size})`;
+      this.#elements.importButton.textContent = `Import selected (${this.#reviewTable.selectedIds.size})`;
       this.#elements.importButton.disabled = false;
     }
 
@@ -12990,10 +13595,10 @@
      */
     async #runImport() {
       this.#elements.importButton.disabled = true;
-      this.#elements.status.innerHTML = '<p class="claude-plus-import-dialog__progress">Importing…</p>';
+      this.#showProgress('Importing…');
       try {
-        const classified = this.#classifiedWithToggles();
-        const result = await this.#orchestrator.apply(classified, this.#preview.artifactRecords, this.#selectedIds, count => this.#showImportProgress(count));
+        const classified = this.#toggles.applyTo(this.#preview.classified);
+        const result = await this.#orchestrator.apply(classified, this.#preview.artifactRecords, this.#reviewTable.selectedIds, count => this.#showProgress(`Importing… scanned ${count} conversation(s) so far.`));
         this.#showResult(result);
         this.#onImported();
       } catch (error) {
@@ -13003,45 +13608,12 @@
     }
 
     /**
-     * Classified-file fields cleared when a toggle is unchecked, by toggle key.
-     * @type {Readonly<Record<string, string[]>>}
-     */
-    static #TOGGLE_FIELDS = Object.freeze({
-      memoryFiles: ['memoriesJsons'],
-      projects: ['projectsJsons'],
-      feedbackPeriods: ['feedbackJsons'],
-      accountMetadata: ['usersJson', 'loginHistoryJson'],
-    });
-
-    /**
-     * The classified files, with any unchecked category toggle's data cleared.
-     * @returns {object} The classified files to actually import.
-     */
-    #classifiedWithToggles() {
-      const classified = { ...this.#preview.classified };
-      for (const [toggleKey, fields] of Object.entries(ImportDialog.#TOGGLE_FIELDS)) {
-        if (!this.#isToggleChecked(toggleKey)) fields.forEach(field => { classified[field] = Array.isArray(classified[field]) ? [] : null; });
-      }
-      return classified;
-    }
-
-    /**
-     * Whether an optional-category toggle is checked; missing (not shown, since its category wasn't
-     * found) counts as checked, since there's nothing for it to exclude.
-     * @param {string} toggleKey The toggle's data-category-toggle value.
-     * @returns {boolean} True when checked or absent.
-     */
-    #isToggleChecked(toggleKey) {
-      return this.#elements.categories.querySelector(`[data-category-toggle="${toggleKey}"]`)?.checked ?? true;
-    }
-
-    /**
-     * Updates the importing progress line.
-     * @param {number} count Conversations processed so far (selected or not).
+     * Replaces the status line with a progress or failure message.
+     * @param {string} text The message.
      * @returns {void}
      */
-    #showImportProgress(count) {
-      this.#elements.status.innerHTML = `<p class="claude-plus-import-dialog__progress">Importing… scanned ${count} conversation(s) so far.</p>`;
+    #showProgress(text) {
+      this.#elements.status.innerHTML = `<p class="claude-plus-import-dialog__progress">${escapeHtml(text)}</p>`;
     }
 
     /**
@@ -13050,24 +13622,9 @@
      * @returns {void}
      */
     #showResult(result) {
-      const { conversations } = result;
-      const lines = [
-        `${conversations.new} brand-new conversation(s) saved`,
-        `${conversations.changed} already-imported conversation(s) got new messages (a continuation or branch since last time)`,
-        `${conversations.renamedOnly} already-imported conversation(s) were only renamed`,
-        `${conversations.unchanged} already-imported conversation(s) had nothing new`,
-        conversations.failed > 0 ? `${conversations.failed} selected conversation(s) failed to import - see the browser console for details` : null,
-        `${result.memoryFiles.written} of ${result.memoryFiles.total} memory file(s) saved`,
-        `${result.artifacts.written} of ${result.artifacts.total} Artifact(s) saved`,
-        `${result.projects.written} of ${result.projects.total} Project(s) saved`,
-        `${result.feedbackPeriods.written} of ${result.feedbackPeriods.total} Feedback period(s) saved`,
-        `${result.loginEvents.written} of ${result.loginEvents.total} login event(s) saved`,
-        result.accountProfile ? 'Account profile saved' : null,
-      ].filter(Boolean);
-      this.#elements.status.innerHTML = `<p><strong>Import complete.</strong></p><ul class="claude-plus-import-dialog__detection-list">${lines.map(line => `<li>${line}</li>`).join('')}</ul>`;
-      this.#elements.categories.hidden = true;
-      this.#elements.selectionRow.hidden = true;
-      this.#elements.tableHost.hidden = true;
+      this.#elements.status.innerHTML = importResultHtml(result);
+      this.#toggles.hide();
+      this.#reviewTable.hide();
       this.#elements.chooseButton.hidden = true;
       this.#elements.importButton.hidden = true;
     }
@@ -13331,7 +13888,7 @@
     }
   }
 
-  var stylesheet$1 = ".claude-plus-toolbar {\r\n  position: fixed;\r\n  top: 0;\r\n  left: 0;\r\n  right: 0;\r\n  height: var(--claude-plus-toolbar-height);\r\n  z-index: var(--claude-plus-layer-toolbar);\r\n  background: var(--claude-plus-color-bar);\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 14px;\r\n  padding: 0 10px;\r\n  font-size: 12px;\r\n  box-sizing: border-box;\r\n}\r\n\r\n.claude-plus-toolbar__title {\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-toolbar__button {\r\n  background: var(--claude-plus-color-button);\r\n  border: none;\r\n  color: var(--claude-plus-color-text);\r\n  padding: 5px 10px;\r\n  border-radius: 6px;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-toolbar__button:hover {\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-toolbar__button:disabled {\r\n  opacity: 0.5;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-toolbar__font-size {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-toolbar__font-size input[type=range] {\r\n  width: 100px;\r\n}\r\n\r\n.claude-plus-toolbar__close-button {\r\n  background: var(--claude-plus-color-error);\r\n  border: none;\r\n  color: #fff;\r\n  width: 22px;\r\n  height: 22px;\r\n  padding: 0;\r\n  border-radius: 50%;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n  line-height: 1;\r\n}\r\n\r\n.claude-plus-toolbar__close-button:hover {\r\n  filter: brightness(1.15);\r\n}\r\n";
+  var stylesheet$1 = ".claude-plus-toolbar {\n  position: fixed;\n  top: 0;\n  left: 0;\n  right: 0;\n  height: var(--claude-plus-toolbar-height);\n  z-index: var(--claude-plus-layer-toolbar);\n  background: var(--claude-plus-color-bar);\n  display: flex;\n  align-items: center;\n  gap: 14px;\n  padding: 0 10px;\n  font-size: 12px;\n  box-sizing: border-box;\n}\n\n.claude-plus-toolbar__title {\n  font-weight: 600;\n}\n\n.claude-plus-toolbar__button {\n  background: var(--claude-plus-color-button);\n  border: none;\n  color: var(--claude-plus-color-text);\n  padding: 5px 10px;\n  border-radius: 6px;\n  cursor: pointer;\n  font-size: 12px;\n}\n\n.claude-plus-toolbar__button:hover {\n  background: var(--claude-plus-color-button-hover);\n}\n\n.claude-plus-toolbar__button:disabled {\n  opacity: 0.5;\n  cursor: default;\n}\n\n.claude-plus-toolbar__font-size {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex-shrink: 0;\n}\n\n.claude-plus-toolbar__font-size input[type=range] {\n  width: 100px;\n}\n\n.claude-plus-toolbar__close-button {\n  background: var(--claude-plus-color-error);\n  border: none;\n  color: #fff;\n  width: 22px;\n  height: 22px;\n  padding: 0;\n  border-radius: 50%;\n  cursor: pointer;\n  font-size: 12px;\n  line-height: 1;\n}\n\n.claude-plus-toolbar__close-button:hover {\n  filter: brightness(1.15);\n}\n";
 
   StyleRegistry.register(stylesheet$1);
 
@@ -13437,22 +13994,7 @@
      * @returns {void}
      */
     mount() {
-      const { minimum, maximum } = Toolbar.#FONT_SIZE;
-      const toolbar = createElement('div', {
-        className: 'claude-plus-themed claude-plus-toolbar',
-        innerHTML: `
-        <div class="claude-plus-toolbar__title">ClaudePlus</div>
-        <label class="claude-plus-toolbar__font-size">
-          <span>Aa</span>
-          <input type="range" data-name="fontSizeSlider" min="${minimum}" max="${maximum}" step="1" value="${this.#messageFontSize}">
-          <span data-name="fontSizeLabel"></span>
-        </label>
-        <div class="claude-plus-fill-remaining"></div>
-        <button class="claude-plus-toolbar__button" data-name="layoutsButton">Layouts ▾</button>
-        <button class="claude-plus-toolbar__button" data-name="settingsButton">Settings</button>
-        <button class="claude-plus-toolbar__button" data-name="resetLayoutButton">Reset layout</button>
-        <button class="claude-plus-toolbar__close-button" data-name="hideButton" title="Hide ClaudePlus (nothing is lost, click the lightbulb to bring it back)">✕</button>`,
-      });
+      const toolbar = createElement('div', { className: 'claude-plus-themed claude-plus-toolbar', innerHTML: this.#markupHtml() });
       const elements = collectNamedElements(toolbar);
       elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
       elements.layoutsButton.addEventListener('click', () => this.#showLayoutsMenu(elements.layoutsButton));
@@ -13461,6 +14003,27 @@
       elements.hideButton.addEventListener('click', () => this.#onHide());
       this.#applyFontSize(elements.fontSizeLabel);
       document.body.append(toolbar);
+    }
+
+    /**
+     * The toolbar's markup: title, message font size slider, layout, settings and reset buttons,
+     * and the hide button.
+     * @returns {string} The HTML.
+     */
+    #markupHtml() {
+      const { minimum, maximum } = Toolbar.#FONT_SIZE;
+      return `
+      <div class="claude-plus-toolbar__title">ClaudePlus</div>
+      <label class="claude-plus-toolbar__font-size">
+        <span>Aa</span>
+        <input type="range" data-name="fontSizeSlider" min="${minimum}" max="${maximum}" step="1" value="${this.#messageFontSize}">
+        <span data-name="fontSizeLabel"></span>
+      </label>
+      <div class="claude-plus-fill-remaining"></div>
+      <button class="claude-plus-toolbar__button" data-name="layoutsButton">Layouts ▾</button>
+      <button class="claude-plus-toolbar__button" data-name="settingsButton">Settings</button>
+      <button class="claude-plus-toolbar__button" data-name="resetLayoutButton">Reset layout</button>
+      <button class="claude-plus-toolbar__close-button" data-name="hideButton" title="Hide ClaudePlus (nothing is lost, click the lightbulb to bring it back)">✕</button>`;
     }
 
     /**
@@ -14077,9 +14640,9 @@
     }
   }
 
-  var nativeAppHidingStylesheet = "#root,\r\n#portal-root {\r\n  display: none !important;\r\n}\r\n";
+  var nativeAppHidingStylesheet = "#root,\n#portal-root {\n  display: none !important;\n}\n";
 
-  var themeStylesheet = ":root {\r\n  --claude-plus-color-background: #1a1918;\r\n  --claude-plus-color-bar: #1c1b1a;\r\n  --claude-plus-color-raised: #262523;\r\n  --claude-plus-color-raised-hover: #3a3937;\r\n  --claude-plus-color-tool-details: #232221;\r\n  --claude-plus-color-code-block: #101010;\r\n  --claude-plus-color-button: #333;\r\n  --claude-plus-color-button-hover: #444;\r\n  --claude-plus-color-text: #ececec;\r\n  --claude-plus-color-text-muted: #b8b6b3;\r\n  --claude-plus-color-text-faint: #8a8886;\r\n  --claude-plus-color-accent: #d97757;\r\n  --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);\r\n  --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);\r\n  --claude-plus-color-message-human-bg: rgba(255, 255, 255, 0.07);\r\n  --claude-plus-color-error: #e57373;\r\n  --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);\r\n  --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);\r\n  --claude-plus-color-border: rgba(255, 255, 255, 0.08);\r\n  --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);\r\n  --claude-plus-color-hover: rgba(255, 255, 255, 0.06);\r\n  --claude-plus-font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\r\n  --claude-plus-layer-zone-chrome: 2147480000;\r\n  --claude-plus-layer-panel: 2147480500;\r\n  --claude-plus-layer-divider: 2147480600;\r\n  --claude-plus-layer-toolbar: 2147483000;\r\n  --claude-plus-layer-popup-menu: 2147483001;\r\n  --claude-plus-layer-drop-highlight: 2147483646;\r\n  --claude-plus-layer-drag-label: 2147483647;\r\n}\r\n\r\n.claude-plus-themed {\r\n  font-family: var(--claude-plus-font-family);\r\n  color: var(--claude-plus-color-text);\r\n  color-scheme: dark;\r\n}\r\n\r\n.claude-plus-themed [hidden],\r\n.claude-plus-themed[hidden] {\r\n  display: none !important;\r\n}\r\n";
+  var themeStylesheet = ":root {\n  --claude-plus-color-background: #1a1918;\n  --claude-plus-color-bar: #1c1b1a;\n  --claude-plus-color-raised: #262523;\n  --claude-plus-color-raised-hover: #3a3937;\n  --claude-plus-color-tool-details: #232221;\n  --claude-plus-color-code-block: #101010;\n  --claude-plus-color-button: #333;\n  --claude-plus-color-button-hover: #444;\n  --claude-plus-color-text: #ececec;\n  --claude-plus-color-text-muted: #b8b6b3;\n  --claude-plus-color-text-faint: #8a8886;\n  --claude-plus-color-accent: #d97757;\n  --claude-plus-color-accent-soft: rgba(217, 119, 87, 0.18);\n  --claude-plus-color-accent-overlay: rgba(217, 119, 87, 0.35);\n  --claude-plus-color-message-human-bg: rgba(255, 255, 255, 0.07);\n  --claude-plus-color-error: #e57373;\n  --claude-plus-color-active-chat: rgba(94, 200, 120, 0.55);\n  --claude-plus-color-border-faint: rgba(255, 255, 255, 0.05);\n  --claude-plus-color-border: rgba(255, 255, 255, 0.08);\n  --claude-plus-color-border-strong: rgba(255, 255, 255, 0.12);\n  --claude-plus-color-hover: rgba(255, 255, 255, 0.06);\n  --claude-plus-font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n  --claude-plus-layer-zone-chrome: 2147480000;\n  --claude-plus-layer-panel: 2147480500;\n  --claude-plus-layer-divider: 2147480600;\n  --claude-plus-layer-toolbar: 2147483000;\n  --claude-plus-layer-popup-menu: 2147483001;\n  --claude-plus-layer-drop-highlight: 2147483646;\n  --claude-plus-layer-drag-label: 2147483647;\n}\n\n.claude-plus-themed {\n  font-family: var(--claude-plus-font-family);\n  color: var(--claude-plus-color-text);\n  color-scheme: dark;\n}\n\n.claude-plus-themed [hidden],\n.claude-plus-themed[hidden] {\n  display: none !important;\n}\n";
 
   /**
    * Composes every part of the UI and starts it, only once the launcher button is clicked.
@@ -14213,12 +14776,24 @@
     }
 
     /**
-     * Injects the styles, builds every component and mounts the toolbar and the workspace.
-     * @returns {object} The services needing data: directory, router, paneManager, stats, activity and rateLimits.
+     * Injects the styles, builds every service and mounts the toolbar and the workspace.
+     * @returns {object} Every service, including those needing data: directory, router, paneManager, stats, activity and rateLimits.
      * @throws {Error} When any part fails to build or mount.
      */
     #mountInterface() {
       document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: ClaudePlusApp.#interfaceStylesheet() }));
+      const services = ClaudePlusApp.#createServices();
+      ClaudePlusApp.#connectServices(services);
+      services.paneManager.restorePanes(conversationIdFromPath(location.pathname));
+      this.#mountWorkspace(services);
+      return services;
+    }
+
+    /**
+     * Creates the storage, API and data services the interface is built on.
+     * @returns {object} The services: preferences, theme, api, database, modelCatalog, settings, importedConversations, directory, stats, activity, rateLimits, paneManager and router.
+     */
+    static #createServices() {
       const preferences = new Preferences();
       const theme = new Theme(preferences);
       const api = new ClaudeApi();
@@ -14233,10 +14808,16 @@
       const rateLimits = new RateLimitMonitor(api);
       const widgetExtractor = new WidgetExtractor(database);
       const paneManager = new ChatPaneManager({ api, settings, directory, preferences, stats, widgetExtractor, importedConversations });
-      const router = new Router(paneManager);
-      ClaudePlusApp.#connectServices({ directory, paneManager, stats, rateLimits });
-      paneManager.restorePanes(conversationIdFromPath(location.pathname));
+      return { preferences, theme, api, database, modelCatalog, settings, importedConversations, directory, stats, activity, rateLimits, paneManager, router: new Router(paneManager) };
+    }
 
+    /**
+     * Builds the panels, the workspace and the toolbar, mounts them and installs the shortcuts.
+     * @param {object} services The services from #createServices.
+     * @returns {void}
+     */
+    #mountWorkspace(services) {
+      const { preferences, theme, api, database, modelCatalog, settings, importedConversations, directory, stats, activity, rateLimits, paneManager, router } = services;
       const panelFactory = new PanelFactory({ directory, router, paneManager, stats, activity, rateLimits, preferences });
       const composer = new ComposerPanel({ paneManager, settings, stats, exporter: new ConversationExporter(api, paneManager), modelCatalog });
       const workspace = ClaudePlusApp.#createWorkspace({ preferences, paneManager, panelFactory, composer });
@@ -14249,7 +14830,6 @@
       workspace.mount();
       ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
       new KeyboardShortcuts(workspace).install();
-      return { directory, router, paneManager, stats, activity, rateLimits };
     }
 
     /**

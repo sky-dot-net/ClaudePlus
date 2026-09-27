@@ -12,6 +12,7 @@ const { deleteAndShortcut } = require('./scenarios/deleteAndShortcut.cjs');
 const { failedMount } = require('./scenarios/failedMount.cjs');
 const { fileAttachments } = require('./scenarios/fileAttachments.cjs');
 const { imageViewer } = require('./scenarios/imageViewer.cjs');
+const { importChatExport } = require('./scenarios/importChatExport.cjs');
 const { layoutLibrary } = require('./scenarios/layoutLibrary.cjs');
 const { searchPanel } = require('./scenarios/searchPanel.cjs');
 const { settingsTransfer } = require('./scenarios/settingsTransfer.cjs');
@@ -24,7 +25,7 @@ const { storedRecordValidation } = require('./scenarios/storedRecordValidation.c
  */
 const SCENARIOS = [
   storedRecordValidation, conversationTable, sourceAndFilePanels, searchPanel, composerSending, fileAttachments,
-  conversationSubPanes, addPanelMenu, activeChatBorder, imageViewer, layoutLibrary, settingsTransfer, deleteAndShortcut, failedMount,
+  conversationSubPanes, addPanelMenu, activeChatBorder, imageViewer, layoutLibrary, settingsTransfer, deleteAndShortcut, importChatExport, failedMount,
 ];
 
 /**

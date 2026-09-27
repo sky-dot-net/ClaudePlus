@@ -112,22 +112,7 @@ export class Toolbar {
    * @returns {void}
    */
   mount() {
-    const { minimum, maximum } = Toolbar.#FONT_SIZE;
-    const toolbar = createElement('div', {
-      className: 'claude-plus-themed claude-plus-toolbar',
-      innerHTML: `
-        <div class="claude-plus-toolbar__title">ClaudePlus</div>
-        <label class="claude-plus-toolbar__font-size">
-          <span>Aa</span>
-          <input type="range" data-name="fontSizeSlider" min="${minimum}" max="${maximum}" step="1" value="${this.#messageFontSize}">
-          <span data-name="fontSizeLabel"></span>
-        </label>
-        <div class="claude-plus-fill-remaining"></div>
-        <button class="claude-plus-toolbar__button" data-name="layoutsButton">Layouts ▾</button>
-        <button class="claude-plus-toolbar__button" data-name="settingsButton">Settings</button>
-        <button class="claude-plus-toolbar__button" data-name="resetLayoutButton">Reset layout</button>
-        <button class="claude-plus-toolbar__close-button" data-name="hideButton" title="Hide ClaudePlus (nothing is lost, click the lightbulb to bring it back)">✕</button>`,
-    });
+    const toolbar = createElement('div', { className: 'claude-plus-themed claude-plus-toolbar', innerHTML: this.#markupHtml() });
     const elements = collectNamedElements(toolbar);
     elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
     elements.layoutsButton.addEventListener('click', () => this.#showLayoutsMenu(elements.layoutsButton));
@@ -136,6 +121,27 @@ export class Toolbar {
     elements.hideButton.addEventListener('click', () => this.#onHide());
     this.#applyFontSize(elements.fontSizeLabel);
     document.body.append(toolbar);
+  }
+
+  /**
+   * The toolbar's markup: title, message font size slider, layout, settings and reset buttons,
+   * and the hide button.
+   * @returns {string} The HTML.
+   */
+  #markupHtml() {
+    const { minimum, maximum } = Toolbar.#FONT_SIZE;
+    return `
+      <div class="claude-plus-toolbar__title">ClaudePlus</div>
+      <label class="claude-plus-toolbar__font-size">
+        <span>Aa</span>
+        <input type="range" data-name="fontSizeSlider" min="${minimum}" max="${maximum}" step="1" value="${this.#messageFontSize}">
+        <span data-name="fontSizeLabel"></span>
+      </label>
+      <div class="claude-plus-fill-remaining"></div>
+      <button class="claude-plus-toolbar__button" data-name="layoutsButton">Layouts ▾</button>
+      <button class="claude-plus-toolbar__button" data-name="settingsButton">Settings</button>
+      <button class="claude-plus-toolbar__button" data-name="resetLayoutButton">Reset layout</button>
+      <button class="claude-plus-toolbar__close-button" data-name="hideButton" title="Hide ClaudePlus (nothing is lost, click the lightbulb to bring it back)">✕</button>`;
   }
 
   /**

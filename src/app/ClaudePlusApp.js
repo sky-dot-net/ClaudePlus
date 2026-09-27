@@ -165,12 +165,24 @@ export class ClaudePlusApp {
   }
 
   /**
-   * Injects the styles, builds every component and mounts the toolbar and the workspace.
-   * @returns {object} The services needing data: directory, router, paneManager, stats, activity and rateLimits.
+   * Injects the styles, builds every service and mounts the toolbar and the workspace.
+   * @returns {object} Every service, including those needing data: directory, router, paneManager, stats, activity and rateLimits.
    * @throws {Error} When any part fails to build or mount.
    */
   #mountInterface() {
     document.head.append(createElement('style', { className: 'claude-plus-styles', textContent: ClaudePlusApp.#interfaceStylesheet() }));
+    const services = ClaudePlusApp.#createServices();
+    ClaudePlusApp.#connectServices(services);
+    services.paneManager.restorePanes(conversationIdFromPath(location.pathname));
+    this.#mountWorkspace(services);
+    return services;
+  }
+
+  /**
+   * Creates the storage, API and data services the interface is built on.
+   * @returns {object} The services: preferences, theme, api, database, modelCatalog, settings, importedConversations, directory, stats, activity, rateLimits, paneManager and router.
+   */
+  static #createServices() {
     const preferences = new Preferences();
     const theme = new Theme(preferences);
     const api = new ClaudeApi();
@@ -185,10 +197,16 @@ export class ClaudePlusApp {
     const rateLimits = new RateLimitMonitor(api);
     const widgetExtractor = new WidgetExtractor(database);
     const paneManager = new ChatPaneManager({ api, settings, directory, preferences, stats, widgetExtractor, importedConversations });
-    const router = new Router(paneManager);
-    ClaudePlusApp.#connectServices({ directory, paneManager, stats, rateLimits });
-    paneManager.restorePanes(conversationIdFromPath(location.pathname));
+    return { preferences, theme, api, database, modelCatalog, settings, importedConversations, directory, stats, activity, rateLimits, paneManager, router: new Router(paneManager) };
+  }
 
+  /**
+   * Builds the panels, the workspace and the toolbar, mounts them and installs the shortcuts.
+   * @param {object} services The services from #createServices.
+   * @returns {void}
+   */
+  #mountWorkspace(services) {
+    const { preferences, theme, api, database, modelCatalog, settings, importedConversations, directory, stats, activity, rateLimits, paneManager, router } = services;
     const panelFactory = new PanelFactory({ directory, router, paneManager, stats, activity, rateLimits, preferences });
     const composer = new ComposerPanel({ paneManager, settings, stats, exporter: new ConversationExporter(api, paneManager), modelCatalog });
     const workspace = ClaudePlusApp.#createWorkspace({ preferences, paneManager, panelFactory, composer });
@@ -201,7 +219,6 @@ export class ClaudePlusApp {
     workspace.mount();
     ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
     new KeyboardShortcuts(workspace).install();
-    return { directory, router, paneManager, stats, activity, rateLimits };
   }
 
   /**
