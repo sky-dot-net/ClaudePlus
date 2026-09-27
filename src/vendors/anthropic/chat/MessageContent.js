@@ -100,8 +100,33 @@ export class MessageContent {
    */
   static #bodyBlock(block, resultByUseId) {
     if (block.type === 'text' && block.text) return { html: MessageContent.textHtml(block.text), widget: null };
-    if (block.type === 'tool_use' && WidgetToolCall.isRendered(block, resultByUseId.get(block.id))) return MessageContent.#widgetBlock(block);
+    const resultBlock = resultByUseId.get(block.id);
+    if (block.type === 'tool_use' && WidgetToolCall.isRendered(block, resultBlock)) return MessageContent.#renderedToolBlock(block, resultBlock);
     return { html: '', widget: null };
+  }
+
+  /**
+   * HTML (and, for a widget, the extraction job) of a tool call already known to have a card:
+   * an Artifact's real HTML, resolved at import time, or an ordinary widget awaiting extraction.
+   * @param {ContentBlock} useBlock The tool_use block.
+   * @param {ContentBlock} resultBlock Its tool_result block.
+   * @returns {{html: string, widget: ?{toolName: string, data: object, toolUseId: string}}} The block's HTML and its widget job, if it has one.
+   */
+  static #renderedToolBlock(useBlock, resultBlock) {
+    return useBlock.name === 'Artifact' ? MessageContent.#artifactBlock(useBlock, resultBlock) : MessageContent.#widgetBlock(useBlock);
+  }
+
+  /**
+   * HTML of an Artifact whose real HTML was resolved at import time: a sandboxed iframe given the
+   * document directly, with no extraction step, since the whole file is already known.
+   * @param {ContentBlock} useBlock The tool_use block.
+   * @param {ContentBlock} resultBlock Its tool_result block, carrying the resolved HTML.
+   * @returns {{html: string, widget: null}} The iframe's HTML.
+   */
+  static #artifactBlock(useBlock, resultBlock) {
+    const srcdoc = escapeHtml(resultBlock.structured_content.resolvedArtifactHtml);
+    const title = escapeHtml(useBlock.input?.title || 'Artifact');
+    return { html: `<iframe class="claude-plus-artifact-frame" srcdoc="${srcdoc}" sandbox="allow-scripts" title="${title}"></iframe>`, widget: null };
   }
 
   /**

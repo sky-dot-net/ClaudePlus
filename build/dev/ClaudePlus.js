@@ -2119,19 +2119,40 @@
 
   /**
    * Whether a widget tool call actually has a card to show: a known widget tool name with a
-   * completed, non-error result. A widget call without one (still streaming, or a failed attempt
-   * superseded by a later retry) has nothing to render and is treated as an ordinary tool call
-   * instead, so it doesn't leave an empty or duplicate slot in the chat log.
+   * completed, non-error result, or an Artifact call whose real HTML was resolved at import time
+   * (see ClaudeExportMapper). A call without a card to show (still streaming, a failed attempt
+   * superseded by a later retry, or an Artifact with nothing resolved for it) is treated as an
+   * ordinary tool call instead, so it doesn't leave an empty or duplicate slot in the chat log.
    */
   class WidgetToolCall {
     /**
-     * Whether a tool call rendered a widget card.
+     * Whether a tool call rendered a widget or Artifact card.
+     * @param {ContentBlock} useBlock The tool_use block.
+     * @param {?ContentBlock} resultBlock Its tool_result block, if the call has completed.
+     * @returns {boolean} True when it has a card to show.
+     */
+    static isRendered(useBlock, resultBlock) {
+      return WidgetToolCall.#isKnownWidget(useBlock, resultBlock) || WidgetToolCall.#isResolvedArtifact(useBlock, resultBlock);
+    }
+
+    /**
+     * Whether a tool call is a known widget tool with a completed, non-error result.
      * @param {ContentBlock} useBlock The tool_use block.
      * @param {?ContentBlock} resultBlock Its tool_result block, if the call has completed.
      * @returns {boolean} True when it's a widget tool with a successful result.
      */
-    static isRendered(useBlock, resultBlock) {
+    static #isKnownWidget(useBlock, resultBlock) {
       return WIDGET_TOOL_NAMES.includes(useBlock.name) && Boolean(resultBlock) && !resultBlock.is_error;
+    }
+
+    /**
+     * Whether a tool call is an Artifact publish whose real HTML was resolved at import time.
+     * @param {ContentBlock} useBlock The tool_use block.
+     * @param {?ContentBlock} resultBlock Its tool_result block, if the call has completed.
+     * @returns {boolean} True when it's an Artifact call with resolved HTML to show.
+     */
+    static #isResolvedArtifact(useBlock, resultBlock) {
+      return useBlock.name === 'Artifact' && Boolean(resultBlock?.structured_content?.resolvedArtifactHtml);
     }
   }
 
@@ -3487,7 +3508,7 @@
     }
   }
 
-  var stylesheet$d = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-images {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  margin-bottom: 6px;\r\n}\r\n\r\n.claude-plus-message--human .claude-plus-message-images {\r\n  justify-content: flex-end;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n";
+  var stylesheet$d = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-images {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  margin-bottom: 6px;\r\n}\r\n\r\n.claude-plus-message--human .claude-plus-message-images {\r\n  justify-content: flex-end;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n.claude-plus-artifact-frame {\r\n  display: block;\r\n  width: 100%;\r\n  min-height: 400px;\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  border-radius: 8px;\r\n}\r\n\r\n";
 
   StyleRegistry.register(stylesheet$d);
 
@@ -3584,8 +3605,33 @@
      */
     static #bodyBlock(block, resultByUseId) {
       if (block.type === 'text' && block.text) return { html: MessageContent.textHtml(block.text), widget: null };
-      if (block.type === 'tool_use' && WidgetToolCall.isRendered(block, resultByUseId.get(block.id))) return MessageContent.#widgetBlock(block);
+      const resultBlock = resultByUseId.get(block.id);
+      if (block.type === 'tool_use' && WidgetToolCall.isRendered(block, resultBlock)) return MessageContent.#renderedToolBlock(block, resultBlock);
       return { html: '', widget: null };
+    }
+
+    /**
+     * HTML (and, for a widget, the extraction job) of a tool call already known to have a card:
+     * an Artifact's real HTML, resolved at import time, or an ordinary widget awaiting extraction.
+     * @param {ContentBlock} useBlock The tool_use block.
+     * @param {ContentBlock} resultBlock Its tool_result block.
+     * @returns {{html: string, widget: ?{toolName: string, data: object, toolUseId: string}}} The block's HTML and its widget job, if it has one.
+     */
+    static #renderedToolBlock(useBlock, resultBlock) {
+      return useBlock.name === 'Artifact' ? MessageContent.#artifactBlock(useBlock, resultBlock) : MessageContent.#widgetBlock(useBlock);
+    }
+
+    /**
+     * HTML of an Artifact whose real HTML was resolved at import time: a sandboxed iframe given the
+     * document directly, with no extraction step, since the whole file is already known.
+     * @param {ContentBlock} useBlock The tool_use block.
+     * @param {ContentBlock} resultBlock Its tool_result block, carrying the resolved HTML.
+     * @returns {{html: string, widget: null}} The iframe's HTML.
+     */
+    static #artifactBlock(useBlock, resultBlock) {
+      const srcdoc = escapeHtml(resultBlock.structured_content.resolvedArtifactHtml);
+      const title = escapeHtml(useBlock.input?.title || 'Artifact');
+      return { html: `<iframe class="claude-plus-artifact-frame" srcdoc="${srcdoc}" sandbox="allow-scripts" title="${title}"></iframe>`, widget: null };
     }
 
     /**

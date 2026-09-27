@@ -31,3 +31,11 @@
   cursor: zoom-in;
 }
 
+.claude-plus-artifact-frame {
+  display: block;
+  width: 100%;
+  min-height: 400px;
+  border: 1px solid var(--claude-plus-color-border);
+  border-radius: 8px;
+}
+
