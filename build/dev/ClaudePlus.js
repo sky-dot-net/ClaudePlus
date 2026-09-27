@@ -4221,6 +4221,12 @@
     #conversation = null;
 
     /**
+     * Whether the open conversation is an imported one, with no model to reply to.
+     * @type {boolean}
+     */
+    #isImported = false;
+
+    /**
      * Whether a prompt is being sent.
      * @type {boolean}
      */
@@ -4285,6 +4291,14 @@
      */
     get isSending() {
       return this.#isSending;
+    }
+
+    /**
+     * Whether the open conversation is read-only: an imported chat, with no model to reply to.
+     * @returns {boolean} True for an imported conversation.
+     */
+    get isReadOnly() {
+      return this.#isImported;
     }
 
     /**
@@ -4371,8 +4385,8 @@
     async openConversation(conversationId) {
       const navigation = this.#beginNavigation(conversationId);
       try {
-        const conversation = await this.#loadConversation(conversationId);
-        if (this.#navigations.isLatest(navigation)) this.#showConversation(conversation);
+        const { conversation, isImported } = await this.#loadConversation(conversationId);
+        if (this.#navigations.isLatest(navigation)) this.#showConversation(conversation, isImported);
       } catch (error) {
         this.#showLoadError(navigation, error);
       }
@@ -4381,12 +4395,13 @@
     /**
      * Loads a conversation: its imported copy if it has one, else fetched live.
      * @param {string} conversationId Conversation id.
-     * @returns {Promise<ApiConversation>} The conversation.
+     * @returns {Promise<{conversation: ApiConversation, isImported: boolean}>} The conversation and
+     * whether it came from the imported store.
      * @throws {ApiError} When it isn't imported and the live fetch fails.
      */
     async #loadConversation(conversationId) {
       const imported = await this.#importedConversations.get(conversationId);
-      return imported ?? this.#api.getConversation(conversationId);
+      return { conversation: imported ?? await this.#api.getConversation(conversationId), isImported: Boolean(imported) };
     }
 
     /**
@@ -4439,6 +4454,7 @@
       const navigation = this.#navigations.begin();
       this.#setOpenConversation(conversationId);
       this.#conversation = null;
+      this.#isImported = false;
       this.#setMessages([]);
       return navigation;
     }
@@ -4463,7 +4479,7 @@
      * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
      */
     async #sendPromptAfter(prompt, parentMessageId, files) {
-      if (!prompt.trim() || this.#isSending) return;
+      if (!prompt.trim() || this.#isSending || this.#isImported) return;
       const turn = this.#beginTurn(prompt, parentMessageId, files);
       try {
         await this.#streamReply(turn);
@@ -4580,10 +4596,12 @@
     /**
      * Shows a fetched conversation's current branch and publishes it for the stats.
      * @param {ApiConversation} conversation The conversation.
+     * @param {boolean} [isImported] Whether it came from the imported store rather than the live API (false).
      * @returns {void}
      */
-    #showConversation(conversation) {
+    #showConversation(conversation, isImported = false) {
       this.#conversation = conversation;
+      this.#isImported = isImported;
       this.#setMessages(currentBranchMessages(conversation));
       this.publish('conversationLoaded', conversation);
     }
@@ -6362,7 +6380,7 @@
     }
   }
 
-  var stylesheet$9 = ".claude-plus-composer__options {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 8px;\r\n  align-items: center;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-composer__options select {\r\n  padding: 4px 6px;\r\n}\r\n\r\n.claude-plus-composer__thinking-toggle {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-panel .claude-plus-composer__input {\r\n  flex: 1;\r\n  resize: none;\r\n  min-height: 40px;\r\n  border-radius: 8px;\r\n  padding: 8px;\r\n  font-size: 14px;\r\n}\r\n\r\n.claude-plus-primary-button.claude-plus-composer__stop-button {\r\n  flex-shrink: 0;\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n";
+  var stylesheet$9 = ".claude-plus-composer__options {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 8px;\r\n  align-items: center;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-composer__options select {\r\n  padding: 4px 6px;\r\n}\r\n\r\n.claude-plus-composer__thinking-toggle {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-panel .claude-plus-composer__input {\r\n  flex: 1;\r\n  resize: none;\r\n  min-height: 40px;\r\n  border-radius: 8px;\r\n  padding: 8px;\r\n  font-size: 14px;\r\n}\r\n\r\n.claude-plus-primary-button.claude-plus-composer__stop-button {\r\n  flex-shrink: 0;\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-composer__readonly-notice {\r\n  padding: 8px;\r\n  font-size: 13px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-style: italic;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$9);
 
@@ -6452,7 +6470,7 @@
      */
     createBodyHtml() {
       return `
-      <div class="claude-plus-composer__options">
+      <div class="claude-plus-composer__options" data-name="optionsRow">
         <select data-name="modelSelect">${optionsHtml(this.#modelCatalog.models, '')}</select>
         <select data-name="effortSelect">${optionsHtml(this.#modelCatalog.efforts, '')}</select>
         <label class="claude-plus-composer__thinking-toggle"><input type="checkbox" data-name="thinkingCheckbox" /> Extended thinking</label>
@@ -6463,6 +6481,7 @@
         <button class="claude-plus-toolbar__button" data-name="exportButton" title="Export the active chat">Export ▾</button>
       </div>
       <div class="claude-plus-staged-files" data-name="stagedFiles" hidden></div>
+      <div class="claude-plus-composer__readonly-notice" data-name="readonlyNotice" hidden>This is an imported chat — read-only, there's no model to reply to.</div>
       <textarea class="claude-plus-composer__input" data-name="promptInput" placeholder="Message Claude… (Enter sends, Shift+Enter adds a line — paste or drop files to attach them)" rows="3"></textarea>
       <button class="claude-plus-primary-button claude-plus-composer__stop-button" data-name="stopButton" hidden>Stop</button>`;
     }
@@ -6488,21 +6507,27 @@
       this.listenTo(this.#modelCatalog, 'catalog', () => this.#optionsView.refreshChoices(this.#modelCatalog));
       this.listenTo(this.#paneManager, 'focus', () => this.#followActiveChat());
       this.listenTo(this.#paneManager, 'paneConversations', () => this.render());
+      this.listenTo(this.#paneManager, 'conversationLoaded', () => this.render());
       this.listenTo(this.#stats, 'aggregate', () => this.render());
       this.#followActiveChat();
     }
 
     /**
      * Shows Stop only while the active chat streams a reply, enables export only for a saved
-     * conversation, and shows the files/sources buttons only when the active chat has any.
+     * conversation, shows the files/sources buttons only when the active chat has any, and replaces
+     * the whole input area with a read-only notice for an imported chat.
      * @returns {void}
      */
     render() {
       const session = this.#paneManager.focusedSession;
-      this.elements.stopButton.hidden = !session.isSending;
+      const { optionsRow, promptInput, stopButton, readonlyNotice, filesButton, sourcesButton } = this.elements;
+      optionsRow.hidden = session.isReadOnly;
+      promptInput.hidden = session.isReadOnly;
+      readonlyNotice.hidden = !session.isReadOnly;
+      stopButton.hidden = session.isReadOnly || !session.isSending;
       this.#exportButton.setEnabled(Boolean(session.openConversationId));
-      this.elements.filesButton.hidden = !this.#activeChatHas('folders');
-      this.elements.sourcesButton.hidden = !this.#activeChatHas('sources');
+      filesButton.hidden = !this.#activeChatHas('folders');
+      sourcesButton.hidden = !this.#activeChatHas('sources');
     }
 
     /**

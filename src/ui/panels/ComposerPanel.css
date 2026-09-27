@@ -32,3 +32,10 @@
   flex-shrink: 0;
   background: var(--claude-plus-color-button-hover);
 }
+
+.claude-plus-composer__readonly-notice {
+  padding: 8px;
+  font-size: 13px;
+  color: var(--claude-plus-color-text-muted);
+  font-style: italic;
+}

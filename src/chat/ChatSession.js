@@ -72,6 +72,12 @@ export class ChatSession extends EventEmitter {
   #conversation = null;
 
   /**
+   * Whether the open conversation is an imported one, with no model to reply to.
+   * @type {boolean}
+   */
+  #isImported = false;
+
+  /**
    * Whether a prompt is being sent.
    * @type {boolean}
    */
@@ -136,6 +142,14 @@ export class ChatSession extends EventEmitter {
    */
   get isSending() {
     return this.#isSending;
+  }
+
+  /**
+   * Whether the open conversation is read-only: an imported chat, with no model to reply to.
+   * @returns {boolean} True for an imported conversation.
+   */
+  get isReadOnly() {
+    return this.#isImported;
   }
 
   /**
@@ -222,8 +236,8 @@ export class ChatSession extends EventEmitter {
   async openConversation(conversationId) {
     const navigation = this.#beginNavigation(conversationId);
     try {
-      const conversation = await this.#loadConversation(conversationId);
-      if (this.#navigations.isLatest(navigation)) this.#showConversation(conversation);
+      const { conversation, isImported } = await this.#loadConversation(conversationId);
+      if (this.#navigations.isLatest(navigation)) this.#showConversation(conversation, isImported);
     } catch (error) {
       this.#showLoadError(navigation, error);
     }
@@ -232,12 +246,13 @@ export class ChatSession extends EventEmitter {
   /**
    * Loads a conversation: its imported copy if it has one, else fetched live.
    * @param {string} conversationId Conversation id.
-   * @returns {Promise<ApiConversation>} The conversation.
+   * @returns {Promise<{conversation: ApiConversation, isImported: boolean}>} The conversation and
+   * whether it came from the imported store.
    * @throws {ApiError} When it isn't imported and the live fetch fails.
    */
   async #loadConversation(conversationId) {
     const imported = await this.#importedConversations.get(conversationId);
-    return imported ?? this.#api.getConversation(conversationId);
+    return { conversation: imported ?? await this.#api.getConversation(conversationId), isImported: Boolean(imported) };
   }
 
   /**
@@ -290,6 +305,7 @@ export class ChatSession extends EventEmitter {
     const navigation = this.#navigations.begin();
     this.#setOpenConversation(conversationId);
     this.#conversation = null;
+    this.#isImported = false;
     this.#setMessages([]);
     return navigation;
   }
@@ -314,7 +330,7 @@ export class ChatSession extends EventEmitter {
    * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
    */
   async #sendPromptAfter(prompt, parentMessageId, files) {
-    if (!prompt.trim() || this.#isSending) return;
+    if (!prompt.trim() || this.#isSending || this.#isImported) return;
     const turn = this.#beginTurn(prompt, parentMessageId, files);
     try {
       await this.#streamReply(turn);
@@ -431,10 +447,12 @@ export class ChatSession extends EventEmitter {
   /**
    * Shows a fetched conversation's current branch and publishes it for the stats.
    * @param {ApiConversation} conversation The conversation.
+   * @param {boolean} [isImported] Whether it came from the imported store rather than the live API (false).
    * @returns {void}
    */
-  #showConversation(conversation) {
+  #showConversation(conversation, isImported = false) {
     this.#conversation = conversation;
+    this.#isImported = isImported;
     this.#setMessages(currentBranchMessages(conversation));
     this.publish('conversationLoaded', conversation);
   }

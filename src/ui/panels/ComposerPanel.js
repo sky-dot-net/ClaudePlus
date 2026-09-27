@@ -94,7 +94,7 @@ export class ComposerPanel extends Panel {
    */
   createBodyHtml() {
     return `
-      <div class="claude-plus-composer__options">
+      <div class="claude-plus-composer__options" data-name="optionsRow">
         <select data-name="modelSelect">${optionsHtml(this.#modelCatalog.models, '')}</select>
         <select data-name="effortSelect">${optionsHtml(this.#modelCatalog.efforts, '')}</select>
         <label class="claude-plus-composer__thinking-toggle"><input type="checkbox" data-name="thinkingCheckbox" /> Extended thinking</label>
@@ -105,6 +105,7 @@ export class ComposerPanel extends Panel {
         <button class="claude-plus-toolbar__button" data-name="exportButton" title="Export the active chat">Export ▾</button>
       </div>
       <div class="claude-plus-staged-files" data-name="stagedFiles" hidden></div>
+      <div class="claude-plus-composer__readonly-notice" data-name="readonlyNotice" hidden>This is an imported chat — read-only, there's no model to reply to.</div>
       <textarea class="claude-plus-composer__input" data-name="promptInput" placeholder="Message Claude… (Enter sends, Shift+Enter adds a line — paste or drop files to attach them)" rows="3"></textarea>
       <button class="claude-plus-primary-button claude-plus-composer__stop-button" data-name="stopButton" hidden>Stop</button>`;
   }
@@ -130,21 +131,27 @@ export class ComposerPanel extends Panel {
     this.listenTo(this.#modelCatalog, 'catalog', () => this.#optionsView.refreshChoices(this.#modelCatalog));
     this.listenTo(this.#paneManager, 'focus', () => this.#followActiveChat());
     this.listenTo(this.#paneManager, 'paneConversations', () => this.render());
+    this.listenTo(this.#paneManager, 'conversationLoaded', () => this.render());
     this.listenTo(this.#stats, 'aggregate', () => this.render());
     this.#followActiveChat();
   }
 
   /**
    * Shows Stop only while the active chat streams a reply, enables export only for a saved
-   * conversation, and shows the files/sources buttons only when the active chat has any.
+   * conversation, shows the files/sources buttons only when the active chat has any, and replaces
+   * the whole input area with a read-only notice for an imported chat.
    * @returns {void}
    */
   render() {
     const session = this.#paneManager.focusedSession;
-    this.elements.stopButton.hidden = !session.isSending;
+    const { optionsRow, promptInput, stopButton, readonlyNotice, filesButton, sourcesButton } = this.elements;
+    optionsRow.hidden = session.isReadOnly;
+    promptInput.hidden = session.isReadOnly;
+    readonlyNotice.hidden = !session.isReadOnly;
+    stopButton.hidden = session.isReadOnly || !session.isSending;
     this.#exportButton.setEnabled(Boolean(session.openConversationId));
-    this.elements.filesButton.hidden = !this.#activeChatHas('folders');
-    this.elements.sourcesButton.hidden = !this.#activeChatHas('sources');
+    filesButton.hidden = !this.#activeChatHas('folders');
+    sourcesButton.hidden = !this.#activeChatHas('sources');
   }
 
   /**
