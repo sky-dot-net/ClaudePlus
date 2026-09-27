@@ -2,12 +2,14 @@ import { ActivityTracker } from '../stats/ActivityTracker.js';
 import { ChatPaneManager } from '../chat/ChatPaneManager.js';
 import { ClaudeApi } from '../vendors/anthropic/api/ClaudeApi.js';
 import { ComposerPanel } from '../ui/panels/ComposerPanel.js';
+import { CombinedConversationDirectory } from '../import/CombinedConversationDirectory.js';
 import { ComposerSettings } from '../chat/ComposerSettings.js';
 import { ConversationDirectory } from '../vendors/anthropic/chat/ConversationDirectory.js';
 import { ConversationExporter } from '../export/ConversationExporter.js';
 import { DATABASE } from '../config/DATABASE.js';
 import { DockTree } from '../dock/DockTree.js';
 import { DockWorkspace } from '../dock/DockWorkspace.js';
+import { ImportedConversationStore } from '../import/ImportedConversationStore.js';
 import { IndexedDbStore } from '../core/IndexedDbStore.js';
 import { KeyboardShortcuts } from '../ui/KeyboardShortcuts.js';
 import { LAYOUT } from '../config/LAYOUT.js';
@@ -175,12 +177,13 @@ export class ClaudePlusApp {
     const modelCatalog = new ModelCatalog(preferences);
     modelCatalog.refresh();
     const settings = new ComposerSettings(preferences, modelCatalog);
-    const directory = new ConversationDirectory(api);
+    const importedConversations = new ImportedConversationStore(database);
+    const directory = new CombinedConversationDirectory(new ConversationDirectory(api), importedConversations);
     const stats = new StatsIndex(api, database);
     const activity = new ActivityTracker(database);
     const rateLimits = new RateLimitMonitor(api);
     const widgetExtractor = new WidgetExtractor(database);
-    const paneManager = new ChatPaneManager({ api, settings, directory, preferences, stats, widgetExtractor });
+    const paneManager = new ChatPaneManager({ api, settings, directory, preferences, stats, widgetExtractor, importedConversations });
     const router = new Router(paneManager);
     ClaudePlusApp.#connectServices({ directory, paneManager, stats, rateLimits });
     paneManager.restorePanes(conversationIdFromPath(location.pathname));
@@ -262,7 +265,7 @@ export class ClaudePlusApp {
   /**
    * Feeds loaded and deleted conversations to the stats and streamed usage windows to the monitor.
    * @param {object} services Services to connect.
-   * @param {ConversationDirectory} services.directory Shared conversation list.
+   * @param {CombinedConversationDirectory} services.directory Shared conversation list.
    * @param {ChatPaneManager} services.paneManager Chat panes.
    * @param {StatsIndex} services.stats Conversation statistics.
    * @param {RateLimitMonitor} services.rateLimits Usage windows.
@@ -277,7 +280,7 @@ export class ClaudePlusApp {
   /**
    * Redraws the tab strips when a chat pane's title can have changed.
    * @param {DockWorkspace} workspace The workspace.
-   * @param {ConversationDirectory} directory Shared conversation list, whose titles the chat tabs show.
+   * @param {CombinedConversationDirectory} directory Shared conversation list, whose titles the chat tabs show.
    * @param {ChatPaneManager} paneManager Chat panes.
    * @returns {void}
    */
@@ -299,7 +302,7 @@ export class ClaudePlusApp {
    * Starts polling, loads stats, activity and the conversation list, opens the URL's conversation
    * in the focused pane and reopens the other panes' conversations.
    * @param {object} services Services created by #mountInterface.
-   * @param {ConversationDirectory} services.directory Shared conversation list.
+   * @param {CombinedConversationDirectory} services.directory Shared conversation list.
    * @param {Router} services.router Navigation.
    * @param {ChatPaneManager} services.paneManager Chat panes.
    * @param {StatsIndex} services.stats Conversation statistics.
@@ -309,7 +312,7 @@ export class ClaudePlusApp {
    */
   static async #loadData({ directory, router, paneManager, stats, activity, rateLimits }) {
     rateLimits.start();
-    await Promise.all([stats.refreshAggregate(), activity.start(), directory.refresh()]);
+    await Promise.all([stats.refreshAggregate(), activity.start(), directory.refresh(), directory.refreshImported()]);
     paneManager.openRestoredConversations();
     await router.start();
   }

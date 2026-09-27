@@ -25,7 +25,7 @@ export class SearchPanel extends Panel {
 
   /**
    * Shared conversation list.
-   * @type {ConversationDirectory}
+   * @type {CombinedConversationDirectory}
    */
   #directory;
 
@@ -57,7 +57,7 @@ export class SearchPanel extends Panel {
    * Creates the panel.
    * @param {object} services Panel dependencies.
    * @param {StatsIndex} services.stats Conversation statistics.
-   * @param {ConversationDirectory} services.directory Shared conversation list.
+   * @param {CombinedConversationDirectory} services.directory Shared conversation list.
    * @param {Router} services.router Navigation.
    * @param {Preferences} services.preferences Table settings storage.
    */

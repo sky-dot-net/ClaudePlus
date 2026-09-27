@@ -35,9 +35,15 @@ export class ChatSession extends EventEmitter {
 
   /**
    * Shared conversation list, updated when this session creates or reloads a conversation.
-   * @type {ConversationDirectory}
+   * @type {CombinedConversationDirectory}
    */
   #directory;
+
+  /**
+   * Imported conversations, checked before the live API when opening one.
+   * @type {ImportedConversationStore}
+   */
+  #importedConversations;
 
   /**
    * Open conversation id, or null for a new chat.
@@ -97,13 +103,15 @@ export class ChatSession extends EventEmitter {
    * Creates an empty session showing a new chat.
    * @param {ClaudeApi} api API client.
    * @param {ComposerSettings} settings Model options for new prompts.
-   * @param {ConversationDirectory} directory Shared conversation list.
+   * @param {CombinedConversationDirectory} directory Shared conversation list.
+   * @param {ImportedConversationStore} importedConversations Imported conversations, checked before the live API when opening one.
    */
-  constructor(api, settings, directory) {
+  constructor(api, settings, directory, importedConversations) {
     super();
     this.#api = api;
     this.#settings = settings;
     this.#directory = directory;
+    this.#importedConversations = importedConversations;
   }
 
   /**
@@ -214,11 +222,22 @@ export class ChatSession extends EventEmitter {
   async openConversation(conversationId) {
     const navigation = this.#beginNavigation(conversationId);
     try {
-      const conversation = await this.#api.getConversation(conversationId);
+      const conversation = await this.#loadConversation(conversationId);
       if (this.#navigations.isLatest(navigation)) this.#showConversation(conversation);
     } catch (error) {
       this.#showLoadError(navigation, error);
     }
+  }
+
+  /**
+   * Loads a conversation: its imported copy if it has one, else fetched live.
+   * @param {string} conversationId Conversation id.
+   * @returns {Promise<ApiConversation>} The conversation.
+   * @throws {ApiError} When it isn't imported and the live fetch fails.
+   */
+  async #loadConversation(conversationId) {
+    const imported = await this.#importedConversations.get(conversationId);
+    return imported ?? this.#api.getConversation(conversationId);
   }
 
   /**

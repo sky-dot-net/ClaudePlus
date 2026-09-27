@@ -29,7 +29,7 @@ export class ImportMerger {
     if (classification === 'unchanged') return null;
     if (classification === 'renamedOnly') return { ...storedRecord, title: mapped.title, lastImportedAt: importedAt };
     const messages = classification === 'new' ? mapped.messages : ImportMerger.#addedMessages(storedRecord, mapped);
-    return { conversationId: mapped.conversationId, title: mapped.title, messages, lastImportedAt: importedAt };
+    return { conversationId: mapped.conversationId, title: mapped.title, messages, currentLeafId: ImportMerger.defaultLeafOf(messages), lastImportedAt: importedAt };
   }
 
   /**

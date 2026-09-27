@@ -6,6 +6,7 @@
  * @property {string} title Conversation title.
  * @property {ApiMessage[]} messages Every message ever seen for this conversation across all
  * imports, with parent links; may contain more than one branch.
+ * @property {string} currentLeafId Id of the branch shown by default; recomputed on every merge.
  * @property {string} lastImportedAt ISO timestamp of the most recent import that touched this
  * conversation.
  */

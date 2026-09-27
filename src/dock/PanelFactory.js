@@ -38,7 +38,7 @@ export class PanelFactory {
   /**
    * Creates the factory.
    * @param {object} services Services passed to the panel constructors.
-   * @param {ConversationDirectory} services.directory Shared conversation list.
+   * @param {CombinedConversationDirectory} services.directory Shared conversation list.
    * @param {Router} services.router Navigation.
    * @param {ChatPaneManager} services.paneManager Chat panes.
    * @param {StatsIndex} services.stats Conversation statistics.

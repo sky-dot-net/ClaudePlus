@@ -3175,7 +3175,7 @@
 
     /**
      * Shared conversation list, for the tab title.
-     * @type {ConversationDirectory}
+     * @type {CombinedConversationDirectory}
      */
     #directory;
 
@@ -3222,7 +3222,7 @@
      * @param {object} services Panel dependencies.
      * @param {string} services.paneId Pane id.
      * @param {ChatSession} services.session Session shown in this pane.
-     * @param {ConversationDirectory} services.directory Shared conversation list, for the tab title.
+     * @param {CombinedConversationDirectory} services.directory Shared conversation list, for the tab title.
      * @param {ChatPaneManager} services.paneManager Chat panes, for focus and closing.
      * @param {StatsIndex} services.stats Conversation statistics, for the sub-panes.
      * @param {Preferences} services.preferences Table settings storage, for the sub-panes.
@@ -4184,9 +4184,15 @@
 
     /**
      * Shared conversation list, updated when this session creates or reloads a conversation.
-     * @type {ConversationDirectory}
+     * @type {CombinedConversationDirectory}
      */
     #directory;
+
+    /**
+     * Imported conversations, checked before the live API when opening one.
+     * @type {ImportedConversationStore}
+     */
+    #importedConversations;
 
     /**
      * Open conversation id, or null for a new chat.
@@ -4246,13 +4252,15 @@
      * Creates an empty session showing a new chat.
      * @param {ClaudeApi} api API client.
      * @param {ComposerSettings} settings Model options for new prompts.
-     * @param {ConversationDirectory} directory Shared conversation list.
+     * @param {CombinedConversationDirectory} directory Shared conversation list.
+     * @param {ImportedConversationStore} importedConversations Imported conversations, checked before the live API when opening one.
      */
-    constructor(api, settings, directory) {
+    constructor(api, settings, directory, importedConversations) {
       super();
       this.#api = api;
       this.#settings = settings;
       this.#directory = directory;
+      this.#importedConversations = importedConversations;
     }
 
     /**
@@ -4363,11 +4371,22 @@
     async openConversation(conversationId) {
       const navigation = this.#beginNavigation(conversationId);
       try {
-        const conversation = await this.#api.getConversation(conversationId);
+        const conversation = await this.#loadConversation(conversationId);
         if (this.#navigations.isLatest(navigation)) this.#showConversation(conversation);
       } catch (error) {
         this.#showLoadError(navigation, error);
       }
+    }
+
+    /**
+     * Loads a conversation: its imported copy if it has one, else fetched live.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<ApiConversation>} The conversation.
+     * @throws {ApiError} When it isn't imported and the live fetch fails.
+     */
+    async #loadConversation(conversationId) {
+      const imported = await this.#importedConversations.get(conversationId);
+      return imported ?? this.#api.getConversation(conversationId);
     }
 
     /**
@@ -4647,7 +4666,7 @@
 
     /**
      * Shared conversation list.
-     * @type {ConversationDirectory}
+     * @type {CombinedConversationDirectory}
      */
     #directory;
 
@@ -4668,6 +4687,12 @@
      * @type {WidgetExtractor}
      */
     #widgetExtractor;
+
+    /**
+     * Imported conversations, checked before the live API when opening one.
+     * @type {ImportedConversationStore}
+     */
+    #importedConversations;
 
     /**
      * Whether more than one chat pane is visible at the moment.
@@ -4704,12 +4729,13 @@
      * @param {object} services Shared services.
      * @param {ClaudeApi} services.api API client.
      * @param {ComposerSettings} services.settings Shared model options.
-     * @param {ConversationDirectory} services.directory Shared conversation list.
+     * @param {CombinedConversationDirectory} services.directory Shared conversation list.
      * @param {Preferences} services.preferences Storage for the open panes and table settings.
      * @param {StatsIndex} services.stats Conversation statistics, for the panes' sub-panes.
      * @param {WidgetExtractor} services.widgetExtractor Fills a widget's placeholder slot with its real, extracted card.
+     * @param {ImportedConversationStore} services.importedConversations Imported conversations, checked before the live API when opening one.
      */
-    constructor({ api, settings, directory, preferences, stats, widgetExtractor }) {
+    constructor({ api, settings, directory, preferences, stats, widgetExtractor, importedConversations }) {
       super();
       this.#api = api;
       this.#settings = settings;
@@ -4717,6 +4743,7 @@
       this.#preferences = preferences;
       this.#stats = stats;
       this.#widgetExtractor = widgetExtractor;
+      this.#importedConversations = importedConversations;
       directory.subscribe('conversationDeleted', conversationId => this.#closeDeletedConversation(conversationId));
     }
 
@@ -4989,7 +5016,7 @@
      * @returns {{session: ChatSession, panel: ChatPanel}} The pane.
      */
     #createPane(paneId) {
-      const session = new ChatSession(this.#api, this.#settings, this.#directory);
+      const session = new ChatSession(this.#api, this.#settings, this.#directory, this.#importedConversations);
       const panel = new ChatPanel({
         paneId, session, directory: this.#directory, paneManager: this, stats: this.#stats, preferences: this.#preferences, widgetExtractor: this.#widgetExtractor,
       });
@@ -6576,6 +6603,129 @@
     #onDrop(event) {
       event.preventDefault();
       [...(event.dataTransfer?.files ?? [])].forEach(file => this.#stagedFiles.attach(file));
+    }
+  }
+
+  /**
+   * The conversation list shown everywhere in the app: live conversations from the vendor directory,
+   * plus imported ones merged in, tagged isImported so the UI can tell them apart. Presents the same
+   * shape a live-only directory already does, so every existing consumer (the Chats list, search,
+   * pane manager) needs no changes beyond receiving this instead of the vendor directory directly.
+   * @fires CombinedConversationDirectory#conversations The list changed.
+   * @fires CombinedConversationDirectory#conversationDeleted A conversation was deleted; payload is its id.
+   */
+  class CombinedConversationDirectory extends EventEmitter {
+    /**
+     * Live conversations.
+     * @type {ConversationDirectory}
+     */
+    #liveDirectory;
+
+    /**
+     * Imported conversations.
+     * @type {ImportedConversationStore}
+     */
+    #importedConversations;
+
+    /**
+     * Imported listings, refreshed independently of the live directory.
+     * @type {ConversationListing[]}
+     */
+    #importedListings = [];
+
+    /**
+     * Wraps a live directory and an imported store into one combined list.
+     * @param {ConversationDirectory} liveDirectory Live conversations.
+     * @param {ImportedConversationStore} importedConversations Imported conversations.
+     */
+    constructor(liveDirectory, importedConversations) {
+      super();
+      this.#liveDirectory = liveDirectory;
+      this.#importedConversations = importedConversations;
+      liveDirectory.subscribe('conversations', () => this.publish('conversations'));
+      liveDirectory.subscribe('conversationDeleted', conversationId => this.publish('conversationDeleted', conversationId));
+    }
+
+    /**
+     * The combined listings.
+     * @returns {ConversationListing[]} Live conversations, then imported ones.
+     */
+    get conversations() {
+      return [...this.#liveDirectory.conversations, ...this.#importedListings];
+    }
+
+    /**
+     * Reloads the live list.
+     * @returns {Promise<void>} Resolves once reloaded or failed.
+     */
+    refresh() {
+      return this.#liveDirectory.refresh();
+    }
+
+    /**
+     * Reloads the imported listings from local storage.
+     * @returns {Promise<void>} Resolves once reloaded.
+     */
+    async refreshImported() {
+      this.#importedListings = await this.#importedConversations.listings();
+      this.publish('conversations');
+    }
+
+    /**
+     * Display title of a listed conversation, live or imported.
+     * @param {string} conversationId Conversation id.
+     * @returns {string} Its title, or UNTITLED when it has none or isn't listed.
+     */
+    titleOf(conversationId) {
+      const imported = this.#importedListings.find(listing => listing.uuid === conversationId);
+      return imported ? imported.name : this.#liveDirectory.titleOf(conversationId);
+    }
+
+    /**
+     * Adds a just-created live conversation to the top of the list.
+     * @param {string} conversationId Conversation id.
+     * @param {string} prompt First prompt, used as a provisional title.
+     * @returns {void}
+     */
+    registerNewConversation(conversationId, prompt) {
+      this.#liveDirectory.registerNewConversation(conversationId, prompt);
+    }
+
+    /**
+     * Updates a live listing's title and time from the server.
+     * @param {ApiConversation} conversation The fetched conversation.
+     * @returns {void}
+     */
+    updateListing(conversation) {
+      this.#liveDirectory.updateListing(conversation);
+    }
+
+    /**
+     * Deletes a conversation: permanently through the live API for a live one, or from the local
+     * store alone for an imported one.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<void>} Resolves once deleted.
+     * @throws {ApiError} When a live delete is refused; nothing changes locally.
+     */
+    async deleteConversation(conversationId) {
+      if (this.#importedListings.some(listing => listing.uuid === conversationId)) {
+        await this.#deleteImported(conversationId);
+      } else {
+        await this.#liveDirectory.deleteConversation(conversationId);
+      }
+    }
+
+    /**
+     * Removes an imported conversation from the local store and its listing, then announces it the
+     * same way a live delete does.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<void>} Resolves once removed.
+     */
+    async #deleteImported(conversationId) {
+      await this.#importedConversations.remove(conversationId);
+      this.#importedListings = this.#importedListings.filter(listing => listing.uuid !== conversationId);
+      this.publish('conversations');
+      this.publish('conversationDeleted', conversationId);
     }
   }
 
@@ -8360,6 +8510,72 @@
   }
 
   /**
+   * Persisted imported conversations, read as the app's own conversation shape so they load through
+   * the same pipeline as a live fetch, and listed alongside live conversations in the directory.
+   */
+  class ImportedConversationStore {
+    /**
+     * Backing storage.
+     * @type {IndexedDbStore}
+     */
+    #database;
+
+    /**
+     * Creates the store on top of the shared database.
+     * @param {IndexedDbStore} database Backing storage.
+     */
+    constructor(database) {
+      this.#database = database;
+    }
+
+    /**
+     * An imported conversation, ready to render.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<?ApiConversation>} The conversation, or null when it isn't an imported one.
+     */
+    async get(conversationId) {
+      const record = await this.#database.read(DATABASE.stores.importedConversations, conversationId);
+      return record ? ImportedConversationStore.#toApiConversation(record) : null;
+    }
+
+    /**
+     * Listings of every imported conversation, for merging into the directory.
+     * @returns {Promise<ConversationListing[]>} The listings, each tagged isImported.
+     */
+    async listings() {
+      const records = await this.#database.readAll(DATABASE.stores.importedConversations);
+      return records.map(record => ({ uuid: record.conversationId, name: record.title, updated_at: record.lastImportedAt, isImported: true }));
+    }
+
+    /**
+     * Stores a merged conversation record.
+     * @param {ImportedConversationRecord} record The record.
+     * @returns {Promise<void>} Resolves once written.
+     */
+    write(record) {
+      return this.#database.write(DATABASE.stores.importedConversations, record);
+    }
+
+    /**
+     * Removes an imported conversation from the local store.
+     * @param {string} conversationId Conversation id.
+     * @returns {Promise<void>} Resolves once removed.
+     */
+    remove(conversationId) {
+      return this.#database.remove(DATABASE.stores.importedConversations, conversationId);
+    }
+
+    /**
+     * A stored record as the app's own conversation shape.
+     * @param {ImportedConversationRecord} record The record.
+     * @returns {ApiConversation} The conversation.
+     */
+    static #toApiConversation(record) {
+      return { uuid: record.conversationId, name: record.title, updated_at: record.lastImportedAt, current_leaf_message_uuid: record.currentLeafId, chat_messages: record.messages };
+    }
+  }
+
+  /**
    * Promise-based access to one IndexedDB database. The connection opens on first use and is
    * retried after a failure.
    */
@@ -8612,7 +8828,7 @@
   class ConversationListPanel extends Panel {
     /**
      * Shared conversation list.
-     * @type {ConversationDirectory}
+     * @type {CombinedConversationDirectory}
      */
     #directory;
 
@@ -8664,7 +8880,7 @@
     /**
      * Creates the panel.
      * @param {object} services Panel dependencies.
-     * @param {ConversationDirectory} services.directory Shared conversation list.
+     * @param {CombinedConversationDirectory} services.directory Shared conversation list.
      * @param {Router} services.router Navigation.
      * @param {ChatPaneManager} services.paneManager Chat panes.
      * @param {StatsIndex} services.stats Conversation statistics, for the turn and file columns.
@@ -9823,7 +10039,7 @@
 
     /**
      * Shared conversation list.
-     * @type {ConversationDirectory}
+     * @type {CombinedConversationDirectory}
      */
     #directory;
 
@@ -9855,7 +10071,7 @@
      * Creates the panel.
      * @param {object} services Panel dependencies.
      * @param {StatsIndex} services.stats Conversation statistics.
-     * @param {ConversationDirectory} services.directory Shared conversation list.
+     * @param {CombinedConversationDirectory} services.directory Shared conversation list.
      * @param {Router} services.router Navigation.
      * @param {Preferences} services.preferences Table settings storage.
      */
@@ -10247,7 +10463,7 @@
     /**
      * Creates the factory.
      * @param {object} services Services passed to the panel constructors.
-     * @param {ConversationDirectory} services.directory Shared conversation list.
+     * @param {CombinedConversationDirectory} services.directory Shared conversation list.
      * @param {Router} services.router Navigation.
      * @param {ChatPaneManager} services.paneManager Chat panes.
      * @param {StatsIndex} services.stats Conversation statistics.
@@ -12581,12 +12797,13 @@
       const modelCatalog = new ModelCatalog(preferences);
       modelCatalog.refresh();
       const settings = new ComposerSettings(preferences, modelCatalog);
-      const directory = new ConversationDirectory(api);
+      const importedConversations = new ImportedConversationStore(database);
+      const directory = new CombinedConversationDirectory(new ConversationDirectory(api), importedConversations);
       const stats = new StatsIndex(api, database);
       const activity = new ActivityTracker(database);
       const rateLimits = new RateLimitMonitor(api);
       const widgetExtractor = new WidgetExtractor(database);
-      const paneManager = new ChatPaneManager({ api, settings, directory, preferences, stats, widgetExtractor });
+      const paneManager = new ChatPaneManager({ api, settings, directory, preferences, stats, widgetExtractor, importedConversations });
       const router = new Router(paneManager);
       ClaudePlusApp.#connectServices({ directory, paneManager, stats, rateLimits });
       paneManager.restorePanes(conversationIdFromPath(location.pathname));
@@ -12668,7 +12885,7 @@
     /**
      * Feeds loaded and deleted conversations to the stats and streamed usage windows to the monitor.
      * @param {object} services Services to connect.
-     * @param {ConversationDirectory} services.directory Shared conversation list.
+     * @param {CombinedConversationDirectory} services.directory Shared conversation list.
      * @param {ChatPaneManager} services.paneManager Chat panes.
      * @param {StatsIndex} services.stats Conversation statistics.
      * @param {RateLimitMonitor} services.rateLimits Usage windows.
@@ -12683,7 +12900,7 @@
     /**
      * Redraws the tab strips when a chat pane's title can have changed.
      * @param {DockWorkspace} workspace The workspace.
-     * @param {ConversationDirectory} directory Shared conversation list, whose titles the chat tabs show.
+     * @param {CombinedConversationDirectory} directory Shared conversation list, whose titles the chat tabs show.
      * @param {ChatPaneManager} paneManager Chat panes.
      * @returns {void}
      */
@@ -12705,7 +12922,7 @@
      * Starts polling, loads stats, activity and the conversation list, opens the URL's conversation
      * in the focused pane and reopens the other panes' conversations.
      * @param {object} services Services created by #mountInterface.
-     * @param {ConversationDirectory} services.directory Shared conversation list.
+     * @param {CombinedConversationDirectory} services.directory Shared conversation list.
      * @param {Router} services.router Navigation.
      * @param {ChatPaneManager} services.paneManager Chat panes.
      * @param {StatsIndex} services.stats Conversation statistics.
@@ -12715,7 +12932,7 @@
      */
     static async #loadData({ directory, router, paneManager, stats, activity, rateLimits }) {
       rateLimits.start();
-      await Promise.all([stats.refreshAggregate(), activity.start(), directory.refresh()]);
+      await Promise.all([stats.refreshAggregate(), activity.start(), directory.refresh(), directory.refreshImported()]);
       paneManager.openRestoredConversations();
       await router.start();
     }

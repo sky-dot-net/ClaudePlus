@@ -27,7 +27,7 @@ export class ChatPaneManager extends EventEmitter {
 
   /**
    * Shared conversation list.
-   * @type {ConversationDirectory}
+   * @type {CombinedConversationDirectory}
    */
   #directory;
 
@@ -48,6 +48,12 @@ export class ChatPaneManager extends EventEmitter {
    * @type {WidgetExtractor}
    */
   #widgetExtractor;
+
+  /**
+   * Imported conversations, checked before the live API when opening one.
+   * @type {ImportedConversationStore}
+   */
+  #importedConversations;
 
   /**
    * Whether more than one chat pane is visible at the moment.
@@ -84,12 +90,13 @@ export class ChatPaneManager extends EventEmitter {
    * @param {object} services Shared services.
    * @param {ClaudeApi} services.api API client.
    * @param {ComposerSettings} services.settings Shared model options.
-   * @param {ConversationDirectory} services.directory Shared conversation list.
+   * @param {CombinedConversationDirectory} services.directory Shared conversation list.
    * @param {Preferences} services.preferences Storage for the open panes and table settings.
    * @param {StatsIndex} services.stats Conversation statistics, for the panes' sub-panes.
    * @param {WidgetExtractor} services.widgetExtractor Fills a widget's placeholder slot with its real, extracted card.
+   * @param {ImportedConversationStore} services.importedConversations Imported conversations, checked before the live API when opening one.
    */
-  constructor({ api, settings, directory, preferences, stats, widgetExtractor }) {
+  constructor({ api, settings, directory, preferences, stats, widgetExtractor, importedConversations }) {
     super();
     this.#api = api;
     this.#settings = settings;
@@ -97,6 +104,7 @@ export class ChatPaneManager extends EventEmitter {
     this.#preferences = preferences;
     this.#stats = stats;
     this.#widgetExtractor = widgetExtractor;
+    this.#importedConversations = importedConversations;
     directory.subscribe('conversationDeleted', conversationId => this.#closeDeletedConversation(conversationId));
   }
 
@@ -369,7 +377,7 @@ export class ChatPaneManager extends EventEmitter {
    * @returns {{session: ChatSession, panel: ChatPanel}} The pane.
    */
   #createPane(paneId) {
-    const session = new ChatSession(this.#api, this.#settings, this.#directory);
+    const session = new ChatSession(this.#api, this.#settings, this.#directory, this.#importedConversations);
     const panel = new ChatPanel({
       paneId, session, directory: this.#directory, paneManager: this, stats: this.#stats, preferences: this.#preferences, widgetExtractor: this.#widgetExtractor,
     });

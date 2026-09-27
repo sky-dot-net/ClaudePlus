@@ -36,7 +36,7 @@ export class ChatPanel extends Panel {
 
   /**
    * Shared conversation list, for the tab title.
-   * @type {ConversationDirectory}
+   * @type {CombinedConversationDirectory}
    */
   #directory;
 
@@ -83,7 +83,7 @@ export class ChatPanel extends Panel {
    * @param {object} services Panel dependencies.
    * @param {string} services.paneId Pane id.
    * @param {ChatSession} services.session Session shown in this pane.
-   * @param {ConversationDirectory} services.directory Shared conversation list, for the tab title.
+   * @param {CombinedConversationDirectory} services.directory Shared conversation list, for the tab title.
    * @param {ChatPaneManager} services.paneManager Chat panes, for focus and closing.
    * @param {StatsIndex} services.stats Conversation statistics, for the sub-panes.
    * @param {Preferences} services.preferences Table settings storage, for the sub-panes.

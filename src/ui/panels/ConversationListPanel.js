@@ -20,7 +20,7 @@ StyleRegistry.register(stylesheet);
 export class ConversationListPanel extends Panel {
   /**
    * Shared conversation list.
-   * @type {ConversationDirectory}
+   * @type {CombinedConversationDirectory}
    */
   #directory;
 
@@ -72,7 +72,7 @@ export class ConversationListPanel extends Panel {
   /**
    * Creates the panel.
    * @param {object} services Panel dependencies.
-   * @param {ConversationDirectory} services.directory Shared conversation list.
+   * @param {CombinedConversationDirectory} services.directory Shared conversation list.
    * @param {Router} services.router Navigation.
    * @param {ChatPaneManager} services.paneManager Chat panes.
    * @param {StatsIndex} services.stats Conversation statistics, for the turn and file columns.
