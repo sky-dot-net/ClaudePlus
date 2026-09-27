@@ -4,13 +4,15 @@ import { SubPaneHeader } from './SubPaneHeader.js';
 import { createElement } from '../../dom/createElement.js';
 import { createFileColumns } from '../tables/createFileColumns.js';
 import { createSourceColumns } from '../tables/createSourceColumns.js';
+import { escapeHtml } from '../../text/escapeHtml.js';
 import stylesheet from './ConversationSubPane.css';
 
 StyleRegistry.register(stylesheet);
 
 /**
  * A sub-pane inside a chat pane listing the web sources or files of that pane's conversation.
- * It can be docked to the pane's left, top or right edge and closed.
+ * It can be docked to the pane's left, top or right edge and closed. Double-clicking a row jumps
+ * to the message it came from.
  */
 export class ConversationSubPane {
   /**
@@ -77,8 +79,10 @@ export class ConversationSubPane {
    * @param {Preferences} options.preferences Table settings storage.
    * @param {function(string): void} options.onClose Called with the kind when × is clicked.
    * @param {function(string, string): void} options.onMove Called with the kind and 'left', 'top' or 'right' when an arrow is clicked.
+   * @param {function(string): void} options.onJumpToMessage Called with a message id when a row tied
+   * to one is double-clicked.
    */
-  constructor({ kind, session, stats, preferences, onClose, onMove }) {
+  constructor({ kind, session, stats, preferences, onClose, onMove, onJumpToMessage }) {
     const definition = ConversationSubPane.#KINDS[kind];
     this.#kind = kind;
     this.#session = session;
@@ -90,9 +94,10 @@ export class ConversationSubPane {
       columns: definition.columns(),
       preferences,
       defaultSort: { column: 'date', direction: -1 },
-      rowAttributes: () => '',
+      rowAttributes: row => `data-message-id="${escapeHtml(row.messageId ?? '')}"`,
       emptyText: 'Nothing recorded for this chat yet.',
     });
+    this.#table.bodyElement.addEventListener('dblclick', event => ConversationSubPane.#onRowDoubleClick(event, onJumpToMessage));
     this.#element.querySelector('header').addEventListener('click', event => SubPaneHeader.onClick(event, () => onClose(kind), edge => onMove(kind, edge)));
     this.#unsubscribers.push(stats.subscribe('aggregate', () => this.render()), session.subscribe('openConversation', () => this.render()));
     this.render();
@@ -114,6 +119,18 @@ export class ConversationSubPane {
     const conversationId = this.#session.openConversationId;
     const rowsOf = ConversationSubPane.#KINDS[this.#kind].rowsOf;
     this.#table.setRows(conversationId ? rowsOf(this.#stats.aggregate, conversationId) : []);
+  }
+
+  /**
+   * Jumps to the message a double-clicked row belongs to, if it's tied to one - a chat-agnostic
+   * folder summary row (a file or source) rather than a specific occurrence never carries one.
+   * @param {MouseEvent} event The double-click.
+   * @param {function(string): void} onJumpToMessage Called with a message id.
+   * @returns {void}
+   */
+  static #onRowDoubleClick(event, onJumpToMessage) {
+    const messageId = event.target.closest('[data-message-id]')?.dataset.messageId;
+    if (messageId) onJumpToMessage(messageId);
   }
 
   /**

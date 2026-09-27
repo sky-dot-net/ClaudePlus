@@ -10,7 +10,8 @@ StyleRegistry.register(stylesheet);
 
 /**
  * Uploaded and produced files: a table of conversations with files, and per conversation a table
- * of its files; both with configurable columns, sorting and filters.
+ * of its files; both with configurable columns, sorting and filters. Double-clicking a file opens
+ * its conversation and jumps to the message it belongs to.
  */
 export class FilesPanel extends Panel {
   /**
@@ -24,6 +25,12 @@ export class FilesPanel extends Panel {
    * @type {Preferences}
    */
   #preferences;
+
+  /**
+   * Navigation.
+   * @type {Router}
+   */
+  #router;
 
   /**
    * Conversation id of the open folder, or null for the folder table.
@@ -48,11 +55,13 @@ export class FilesPanel extends Panel {
    * @param {object} services Panel dependencies.
    * @param {StatsIndex} services.stats Conversation statistics.
    * @param {Preferences} services.preferences Table settings storage.
+   * @param {Router} services.router Navigation.
    */
-  constructor({ stats, preferences }) {
+  constructor({ stats, preferences, router }) {
     super('Files');
     this.#stats = stats;
     this.#preferences = preferences;
+    this.#router = router;
   }
 
   /**
@@ -86,10 +95,11 @@ export class FilesPanel extends Panel {
       columns: createFileColumns(false),
       preferences: this.#preferences,
       defaultSort: { column: 'date', direction: -1 },
-      rowAttributes: () => '',
+      rowAttributes: file => `data-message-id="${escapeHtml(file.messageId ?? '')}"`,
       emptyText: 'No files here.',
     });
     this.#folderTable.bodyElement.addEventListener('click', event => this.#onFolderClick(event));
+    this.#fileTable.bodyElement.addEventListener('dblclick', event => this.#onFileDoubleClick(event));
     this.elements.breadcrumb.addEventListener('click', event => this.#onBreadcrumbClick(event));
     this.listenTo(this.#stats, 'aggregate', () => this.render());
   }
@@ -133,6 +143,18 @@ export class FilesPanel extends Panel {
   #onFolderClick(event) {
     const row = event.target.closest('[data-conversation-id]');
     if (row) this.#openFolder(row.dataset.conversationId);
+  }
+
+  /**
+   * Opens the open folder's conversation and jumps to a double-clicked file's message.
+   * @param {MouseEvent} event The double-click.
+   * @returns {Promise<void>} Resolves once opened and scrolled to.
+   */
+  async #onFileDoubleClick(event) {
+    const messageId = event.target.closest('[data-message-id]')?.dataset.messageId;
+    if (!messageId) return;
+    await this.#router.openConversation(this.#openFolderId);
+    this.#router.scrollToMessage(messageId);
   }
 
   /**

@@ -206,6 +206,7 @@ export class ChatPanel extends Panel {
       preferences: this.#preferences,
       onClose: closedKind => this.#closeSubPane(closedKind),
       onMove: (movedKind, edge) => this.#dockSubPane(movedKind, edge),
+      onJumpToMessage: messageId => this.scrollToMessage(messageId),
     });
   }
 

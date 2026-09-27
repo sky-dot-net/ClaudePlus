@@ -1590,7 +1590,8 @@
 
   /**
    * A sub-pane inside a chat pane listing the web sources or files of that pane's conversation.
-   * It can be docked to the pane's left, top or right edge and closed.
+   * It can be docked to the pane's left, top or right edge and closed. Double-clicking a row jumps
+   * to the message it came from.
    */
   class ConversationSubPane {
     /**
@@ -1657,8 +1658,10 @@
      * @param {Preferences} options.preferences Table settings storage.
      * @param {function(string): void} options.onClose Called with the kind when × is clicked.
      * @param {function(string, string): void} options.onMove Called with the kind and 'left', 'top' or 'right' when an arrow is clicked.
+     * @param {function(string): void} options.onJumpToMessage Called with a message id when a row tied
+     * to one is double-clicked.
      */
-    constructor({ kind, session, stats, preferences, onClose, onMove }) {
+    constructor({ kind, session, stats, preferences, onClose, onMove, onJumpToMessage }) {
       const definition = ConversationSubPane.#KINDS[kind];
       this.#kind = kind;
       this.#session = session;
@@ -1670,9 +1673,10 @@
         columns: definition.columns(),
         preferences,
         defaultSort: { column: 'date', direction: -1 },
-        rowAttributes: () => '',
+        rowAttributes: row => `data-message-id="${escapeHtml(row.messageId ?? '')}"`,
         emptyText: 'Nothing recorded for this chat yet.',
       });
+      this.#table.bodyElement.addEventListener('dblclick', event => ConversationSubPane.#onRowDoubleClick(event, onJumpToMessage));
       this.#element.querySelector('header').addEventListener('click', event => SubPaneHeader.onClick(event, () => onClose(kind), edge => onMove(kind, edge)));
       this.#unsubscribers.push(stats.subscribe('aggregate', () => this.render()), session.subscribe('openConversation', () => this.render()));
       this.render();
@@ -1694,6 +1698,18 @@
       const conversationId = this.#session.openConversationId;
       const rowsOf = ConversationSubPane.#KINDS[this.#kind].rowsOf;
       this.#table.setRows(conversationId ? rowsOf(this.#stats.aggregate, conversationId) : []);
+    }
+
+    /**
+     * Jumps to the message a double-clicked row belongs to, if it's tied to one - a chat-agnostic
+     * folder summary row (a file or source) rather than a specific occurrence never carries one.
+     * @param {MouseEvent} event The double-click.
+     * @param {function(string): void} onJumpToMessage Called with a message id.
+     * @returns {void}
+     */
+    static #onRowDoubleClick(event, onJumpToMessage) {
+      const messageId = event.target.closest('[data-message-id]')?.dataset.messageId;
+      if (messageId) onJumpToMessage(messageId);
     }
 
     /**
@@ -3430,6 +3446,7 @@
         preferences: this.#preferences,
         onClose: closedKind => this.#closeSubPane(closedKind),
         onMove: (movedKind, edge) => this.#dockSubPane(movedKind, edge),
+        onJumpToMessage: messageId => this.scrollToMessage(messageId),
       });
     }
 
@@ -11000,7 +11017,8 @@
 
   /**
    * Uploaded and produced files: a table of conversations with files, and per conversation a table
-   * of its files; both with configurable columns, sorting and filters.
+   * of its files; both with configurable columns, sorting and filters. Double-clicking a file opens
+   * its conversation and jumps to the message it belongs to.
    */
   class FilesPanel extends Panel {
     /**
@@ -11014,6 +11032,12 @@
      * @type {Preferences}
      */
     #preferences;
+
+    /**
+     * Navigation.
+     * @type {Router}
+     */
+    #router;
 
     /**
      * Conversation id of the open folder, or null for the folder table.
@@ -11038,11 +11062,13 @@
      * @param {object} services Panel dependencies.
      * @param {StatsIndex} services.stats Conversation statistics.
      * @param {Preferences} services.preferences Table settings storage.
+     * @param {Router} services.router Navigation.
      */
-    constructor({ stats, preferences }) {
+    constructor({ stats, preferences, router }) {
       super('Files');
       this.#stats = stats;
       this.#preferences = preferences;
+      this.#router = router;
     }
 
     /**
@@ -11076,10 +11102,11 @@
         columns: createFileColumns(false),
         preferences: this.#preferences,
         defaultSort: { column: 'date', direction: -1 },
-        rowAttributes: () => '',
+        rowAttributes: file => `data-message-id="${escapeHtml(file.messageId ?? '')}"`,
         emptyText: 'No files here.',
       });
       this.#folderTable.bodyElement.addEventListener('click', event => this.#onFolderClick(event));
+      this.#fileTable.bodyElement.addEventListener('dblclick', event => this.#onFileDoubleClick(event));
       this.elements.breadcrumb.addEventListener('click', event => this.#onBreadcrumbClick(event));
       this.listenTo(this.#stats, 'aggregate', () => this.render());
     }
@@ -11123,6 +11150,18 @@
     #onFolderClick(event) {
       const row = event.target.closest('[data-conversation-id]');
       if (row) this.#openFolder(row.dataset.conversationId);
+    }
+
+    /**
+     * Opens the open folder's conversation and jumps to a double-clicked file's message.
+     * @param {MouseEvent} event The double-click.
+     * @returns {Promise<void>} Resolves once opened and scrolled to.
+     */
+    async #onFileDoubleClick(event) {
+      const messageId = event.target.closest('[data-message-id]')?.dataset.messageId;
+      if (!messageId) return;
+      await this.#router.openConversation(this.#openFolderId);
+      this.#router.scrollToMessage(messageId);
     }
 
     /**
@@ -11793,7 +11832,7 @@
 
   /**
    * Web sources cited in tool results, as a column table with typeahead and date filters, plus an
-   * outlet ranking.
+   * outlet ranking. Double-clicking a source opens its conversation and jumps to the citing message.
    */
   class WebSourcesPanel extends Panel {
     /**
@@ -11809,6 +11848,12 @@
     #preferences;
 
     /**
+     * Navigation.
+     * @type {Router}
+     */
+    #router;
+
+    /**
      * The sources table; created with the DOM.
      * @type {?ColumnTable}
      */
@@ -11819,11 +11864,13 @@
      * @param {object} services Panel dependencies.
      * @param {StatsIndex} services.stats Conversation statistics.
      * @param {Preferences} services.preferences Table settings storage.
+     * @param {Router} services.router Navigation.
      */
-    constructor({ stats, preferences }) {
+    constructor({ stats, preferences, router }) {
       super('Web Sources');
       this.#stats = stats;
       this.#preferences = preferences;
+      this.#router = router;
     }
 
     /**
@@ -11847,10 +11894,11 @@
         columns: createSourceColumns(true),
         preferences: this.#preferences,
         defaultSort: { column: 'date', direction: -1 },
-        rowAttributes: () => '',
+        rowAttributes: source => `data-conversation-id="${escapeHtml(source.conversationId)}" data-message-id="${escapeHtml(source.messageId ?? '')}"`,
         emptyText: 'No web sources match these filters.',
         maxRenderedRows: LIMITS.listedSources,
       });
+      this.#table.bodyElement.addEventListener('dblclick', event => this.#onRowDoubleClick(event));
       this.listenTo(this.#stats, 'aggregate', () => this.render());
     }
 
@@ -11870,6 +11918,18 @@
     dispose() {
       if (this.#table) this.#table.dispose();
       super.dispose();
+    }
+
+    /**
+     * Opens a double-clicked source's conversation and jumps to the message that cited it.
+     * @param {MouseEvent} event The double-click.
+     * @returns {Promise<void>} Resolves once opened and scrolled to.
+     */
+    async #onRowDoubleClick(event) {
+      const row = event.target.closest('[data-conversation-id]');
+      if (!row) return;
+      await this.#router.openConversation(row.dataset.conversationId);
+      if (row.dataset.messageId) this.#router.scrollToMessage(row.dataset.messageId);
     }
 
     /**

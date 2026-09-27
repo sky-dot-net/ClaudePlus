@@ -14,6 +14,9 @@ async function conversationSubPanes(run) {
   run.check('📁 and 🌐 open sub-panes on the right of the active chat', await focusedChat.locator('[data-name="rightSide"] .claude-plus-subpane').count() === 2);
   const rowCounts = await focusedChat.locator('.claude-plus-subpane').evaluateAll(subPanes => subPanes.map(subPane => subPane.querySelectorAll('tbody tr').length));
   run.check('sub-panes list this chat\'s files and sources', JSON.stringify(rowCounts) === '[2,2]', JSON.stringify(rowCounts));
+  await filesSubPane.locator('tbody tr').first().dblclick();
+  await run.page.waitForTimeout(150);
+  run.check('double-clicking a file in the sub-pane jumps to and highlights its message', await run.page.locator('.claude-plus-message--highlighted').count() === 1);
   await filesSubPane.locator('[data-edge="left"]').click();
   await sourcesSubPane.locator('[data-edge="top"]').click();
   run.check('sub-panes redock left and top', await focusedChat.locator('[data-name="leftSide"] .claude-plus-subpane').count() === 1 && await focusedChat.locator('[data-name="topSide"] .claude-plus-subpane').count() === 1);
