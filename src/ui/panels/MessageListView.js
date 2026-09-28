@@ -2,6 +2,7 @@ import { FrameScheduler } from '../../dom/FrameScheduler.js';
 import { ImageViewerDialog } from '../dialogs/ImageViewerDialog.js';
 import { LIMITS } from '../../config/LIMITS.js';
 import { MessageToolSteps } from '../../vendors/anthropic/chat/MessageToolSteps.js';
+import { SelectionReplyButton } from './SelectionReplyButton.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { TIMING } from '../../config/TIMING.js';
 import { escapeHtml } from '../../text/escapeHtml.js';
@@ -12,8 +13,9 @@ StyleRegistry.register(stylesheet);
 /**
  * The messages of a chat session: copy, retry, branch navigation between a message's edits and
  * retries, and double-click (or the edit button) to edit a human message, which sends the new text
- * as a sibling branch. Streaming updates re-render only the affected message, at most once per
- * animation frame.
+ * as a sibling branch. Selecting text offers a Reply button that requests a quote of it for the
+ * next prompt. Streaming updates re-render only the affected message, at most once per animation
+ * frame.
  */
 export class MessageListView {
   /**
@@ -75,6 +77,12 @@ export class MessageListView {
   #widgetExtractor;
 
   /**
+   * The floating "Reply" button shown above a text selection.
+   * @type {SelectionReplyButton}
+   */
+  #replyButton = new SelectionReplyButton();
+
+  /**
    * Wires the view to its list element and session.
    * @param {Panel} ownerPanel Panel owning the subscriptions.
    * @param {HTMLElement} listElement List element the messages are rendered into.
@@ -90,6 +98,8 @@ export class MessageListView {
     listElement.addEventListener('click', event => this.#onClick(event));
     listElement.addEventListener('dblclick', event => this.#onDoubleClick(event));
     listElement.addEventListener('keydown', event => this.#onEditKeydown(event));
+    listElement.addEventListener('mouseup', () => this.#onSelectionMaybeChanged());
+    listElement.addEventListener('scroll', () => this.#replyButton.hide());
     ownerPanel.listenTo(session, 'messages', () => this.render());
     ownerPanel.listenTo(session, 'sending', () => this.render());
     ownerPanel.listenTo(session, 'messageContent', message => this.#scheduleMessageUpdate(message));
@@ -102,6 +112,7 @@ export class MessageListView {
   render() {
     this.#changedMessages.clear();
     this.#updateScheduler.cancel();
+    this.#replyButton.hide();
     const wasAtBottom = this.#isScrolledToBottom();
     const messages = this.#session.messages;
     const retryableIndex = this.#session.isSending || this.#session.isReadOnly ? -1 : messages.findLastIndex(message => message.sender === 'assistant');
@@ -344,6 +355,51 @@ export class MessageListView {
     const button = event.target.closest('[data-action]');
     const handleAction = button ? this.#actionHandlers.get(button.dataset.action) : null;
     if (handleAction) handleAction(button);
+  }
+
+  /**
+   * Shows the floating Reply button above a new, non-empty text selection inside one message, or
+   * hides it otherwise.
+   * @returns {void}
+   */
+  #onSelectionMaybeChanged() {
+    const context = this.#selectionContext();
+    if (context) this.#replyButton.show(context.rect, () => this.#session.requestQuote(context.text, context.sender));
+    else this.#replyButton.hide();
+  }
+
+  /**
+   * The current selection's text, sender and bounding rectangle, if it qualifies for a Reply button.
+   * @returns {?{text: string, sender: string, rect: DOMRect}} The context, or null.
+   */
+  #selectionContext() {
+    const selection = window.getSelection();
+    if (!this.#isQuotableSelection(selection)) return null;
+    const message = this.#messageAt(selection.anchorNode);
+    const text = selection.toString().trim();
+    return message && text ? { text, sender: message.sender, rect: selection.getRangeAt(0).getBoundingClientRect() } : null;
+  }
+
+  /**
+   * Whether a selection is worth offering a Reply button for: not collapsed, inside this list, and
+   * the conversation isn't read-only (there would be nothing to send the quote with).
+   * @param {?Selection} selection The current selection.
+   * @returns {boolean} True when it qualifies.
+   */
+  #isQuotableSelection(selection) {
+    return !this.#session.isReadOnly && Boolean(selection) && !selection.isCollapsed && this.#listElement.contains(selection.anchorNode);
+  }
+
+  /**
+   * The message a selection node belongs to.
+   * @param {Node} node A node inside a message element; nodeType 3 is a text node, which has no
+   * closest() of its own.
+   * @returns {?ChatMessage} The message, or null when not found.
+   */
+  #messageAt(node) {
+    const element = node.nodeType === 3 ? node.parentElement : node;
+    const messageElement = element.closest('.claude-plus-message');
+    return messageElement ? this.#session.messages[Number(messageElement.dataset.messageIndex)] : null;
   }
 
   /**

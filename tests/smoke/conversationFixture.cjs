@@ -4,7 +4,9 @@ const { FIXTURE_IMAGE_URL } = require('./FIXTURE_IMAGE_URL.cjs');
 /**
  * A full conversation as GET chat_conversations/{id}?tree=True returns it. The research chat has
  * an abandoned branch, a PDF attachment, a web search with two sources, a created file, a code
- * block and hostile characters in title and text; the second chat is short and has an image upload.
+ * block, hostile characters in title and text, and a quoted-reply attachment (claude.ai's own
+ * "Reply" feature) that must never be counted as a real file; the second chat is short and has an
+ * image upload.
  * @param {string} conversationId Requested conversation id.
  * @param {number} now Epoch milliseconds the fixture times are relative to.
  * @returns {object} The conversation.
@@ -31,7 +33,7 @@ function conversationFixture(conversationId, now) {
         { type: 'text', text: 'Here you go:\n```js\nconst x = 1;\n```\nDone [link](https://example.com) <tag> & \u0007bell' },
         { type: 'thinking', thinking: 'internal ```notes```' },
       ] },
-      { uuid: 'm3', parent_message_uuid: 'm2', sender: 'human', text: 'thanks', created_at: isoBefore(1.5e6) },
+      { uuid: 'm3', parent_message_uuid: 'm2', sender: 'human', text: 'thanks', created_at: isoBefore(1.5e6), attachments: [{ file_name: 'excerpt_from_previous_claude_message.txt', file_size: 11, file_type: 'txt', extracted_content: 'Here you go' }] },
       { uuid: 'm4', parent_message_uuid: 'm3', sender: 'assistant', content: [{ type: 'text', text: 'You are welcome ```inline fence```' }], created_at: isoBefore(1.5e6 - 4000) },
     ],
   };

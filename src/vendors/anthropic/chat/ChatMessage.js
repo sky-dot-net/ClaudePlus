@@ -12,6 +12,12 @@ export class ChatMessage {
   static #DEFAULTS = Object.freeze({ parentId: null, text: '', apiMessage: null, isPersisted: true, isStreaming: false, errorText: null });
 
   /**
+   * The quoted sender's name as claude.ai spells it in the attachment's filename.
+   * @type {Readonly<Record<string, string>>}
+   */
+  static #QUOTE_SENDER_NAMES = Object.freeze({ human: 'human', assistant: 'claude' });
+
+  /**
    * Cached body HTML (text and tool blocks); null when it must be re-rendered.
    * @type {?string}
    */
@@ -69,14 +75,15 @@ export class ChatMessage {
   }
 
   /**
-   * The API message shape for a not-yet-sent prompt that has files attached, so it renders its
-   * uploads the same way a persisted message would before the server has echoed it back.
+   * The API message shape for a not-yet-sent prompt that has files and/or a quote attached, so it
+   * renders its uploads the same way a persisted message would before the server has echoed it back.
    * @param {string} text Prompt text.
    * @param {UploadedFile[]} files Files uploaded beforehand.
+   * @param {?{text: string, sender: string}} [quote] Text quoted from an earlier message, if any.
    * @returns {ApiMessage} The draft API message.
    */
-  static draftApiMessage(text, files) {
-    return { text, attachments: [], files, content: [] };
+  static draftApiMessage(text, files, quote = null) {
+    return { text, attachments: quote ? [ChatMessage.quoteAttachment(quote)] : [], files, content: [] };
   }
 
   /**
@@ -86,6 +93,18 @@ export class ChatMessage {
    */
   static fileUuidsOf(files) {
     return files.map(file => file.file_uuid);
+  }
+
+  /**
+   * The attachment shape claude.ai gives a quoted passage: a small text file named after who said
+   * it, carrying the quoted text itself rather than a real upload id.
+   * @param {{text: string, sender: string}} quote Text quoted from an earlier message, and who sent it.
+   * @returns {{file_name: string, file_size: number, file_type: string, extracted_content: string}}
+   * The attachment.
+   */
+  static quoteAttachment({ text, sender }) {
+    const senderName = ChatMessage.#QUOTE_SENDER_NAMES[sender] ?? 'human';
+    return { file_name: `excerpt_from_previous_${senderName}_message.txt`, file_size: new TextEncoder().encode(text).length, file_type: 'txt', extracted_content: text };
   }
 
   /**

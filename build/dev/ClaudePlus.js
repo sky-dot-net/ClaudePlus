@@ -432,9 +432,9 @@
     return Object.assign(document.createElement(tagName), properties);
   }
 
-  var stylesheet$r = ".claude-plus-empty-state {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-style: italic;\r\n  padding: 6px 0;\r\n}\r\n\r\n.claude-plus-empty-state--padded {\r\n  padding: 24px;\r\n}\r\n";
+  var stylesheet$t = ".claude-plus-empty-state {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-style: italic;\r\n  padding: 6px 0;\r\n}\r\n\r\n.claude-plus-empty-state--padded {\r\n  padding: 24px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$r);
+  StyleRegistry.register(stylesheet$t);
 
   /**
    * HTML for an empty-state message.
@@ -469,9 +469,9 @@
     return `${seconds}s`;
   }
 
-  var stylesheet$q = ".claude-plus-value-row {\r\n  display: flex;\r\n  justify-content: space-between;\r\n  padding: 2px 0;\r\n  gap: 8px;\r\n}\r\n\r\n.claude-plus-value-row span {\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
+  var stylesheet$s = ".claude-plus-value-row {\r\n  display: flex;\r\n  justify-content: space-between;\r\n  padding: 2px 0;\r\n  gap: 8px;\r\n}\r\n\r\n.claude-plus-value-row span {\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$q);
+  StyleRegistry.register(stylesheet$s);
 
   /**
    * HTML for a label/value row.
@@ -483,9 +483,9 @@
     return `<div class="claude-plus-value-row"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>`;
   }
 
-  var stylesheet$p = ".claude-plus-conversation-stats {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n";
+  var stylesheet$r = ".claude-plus-conversation-stats {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n";
 
-  StyleRegistry.register(stylesheet$p);
+  StyleRegistry.register(stylesheet$r);
 
   /**
    * A sub-pane showing usage stats scoped to just the pane's own conversation (turns, average
@@ -1044,9 +1044,9 @@
     searchResults: 300,
   });
 
-  var stylesheet$o = ".claude-plus-value-combobox {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  max-height: 240px;\r\n  overflow-y: auto;\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-value-combobox__entry {\r\n  padding: 4px 8px;\r\n  border-radius: 4px;\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-value-combobox__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
+  var stylesheet$q = ".claude-plus-value-combobox {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  max-height: 240px;\r\n  overflow-y: auto;\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-value-combobox__entry {\r\n  padding: 4px 8px;\r\n  border-radius: 4px;\r\n  cursor: pointer;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-value-combobox__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$o);
+  StyleRegistry.register(stylesheet$q);
 
   /**
    * A text input that shows the distinct values it can filter by in a list below it while focused.
@@ -1190,9 +1190,9 @@
     return FILTER_CONTROLS[column.filter ?? 'none'](column);
   }
 
-  var stylesheet$n = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
+  var stylesheet$p = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$n);
+  StyleRegistry.register(stylesheet$p);
 
   /**
    * A reusable table with toggleable columns, sorting by clicking a header (clicking again reverses
@@ -1584,9 +1584,9 @@
     return includesConversation ? [...columns, createConversationColumn()] : columns;
   }
 
-  var stylesheet$m = ".claude-plus-subpane {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  min-height: 0;\r\n  flex: 1;\r\n  padding: 6px;\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  background: var(--claude-plus-color-bar);\r\n}\r\n\r\n.claude-plus-subpane__header {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 2px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-subpane__title {\r\n  flex: 1;\r\n  min-width: 0;\r\n  font-size: 12px;\r\n  font-weight: 600;\r\n  white-space: nowrap;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-subpane__button {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 2px 5px;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-subpane__button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
+  var stylesheet$o = ".claude-plus-subpane {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 4px;\r\n  min-height: 0;\r\n  flex: 1;\r\n  padding: 6px;\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  background: var(--claude-plus-color-bar);\r\n}\r\n\r\n.claude-plus-subpane__header {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 2px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-subpane__title {\r\n  flex: 1;\r\n  min-width: 0;\r\n  font-size: 12px;\r\n  font-weight: 600;\r\n  white-space: nowrap;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-subpane__button {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-faint);\r\n  cursor: pointer;\r\n  padding: 2px 5px;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-subpane__button:hover {\r\n  background: var(--claude-plus-color-hover);\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$m);
+  StyleRegistry.register(stylesheet$o);
 
   /**
    * A sub-pane inside a chat pane listing the web sources or files of that pane's conversation.
@@ -2096,9 +2096,9 @@
     }
   }
 
-  var stylesheet$l = ".claude-plus-image-viewer-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.8);\r\n  display: flex;\r\n  flex-direction: column;\r\n  align-items: center;\r\n  justify-content: center;\r\n  gap: 12px;\r\n}\r\n\r\n.claude-plus-image-viewer__frame {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  overflow: hidden;\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-image-viewer__image {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  width: auto;\r\n  height: auto;\r\n  cursor: grab;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-image-viewer__open-button {\r\n  flex-shrink: 0;\r\n}\r\n";
+  var stylesheet$n = ".claude-plus-image-viewer-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.8);\r\n  display: flex;\r\n  flex-direction: column;\r\n  align-items: center;\r\n  justify-content: center;\r\n  gap: 12px;\r\n}\r\n\r\n.claude-plus-image-viewer__frame {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  overflow: hidden;\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-image-viewer__image {\r\n  max-width: 90vw;\r\n  max-height: 90vh;\r\n  width: auto;\r\n  height: auto;\r\n  cursor: grab;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-image-viewer__open-button {\r\n  flex-shrink: 0;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$l);
+  StyleRegistry.register(stylesheet$n);
 
   /**
    * Shows an image at full size over a dark backdrop, capped at 90% of the viewport. Scrolling zooms;
@@ -2304,15 +2304,89 @@
     }
   }
 
-  var stylesheet$k = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  align-self: flex-end;\n  text-align: right;\n}\n\n.claude-plus-message--human:not(.claude-plus-message--editing) {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__attachments {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message__bubble {\n  background: var(--claude-plus-color-message-human-bg);\n  border-radius: 14px;\n  padding: 8px 12px;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  font-family: var(--claude-plus-message-font-family, inherit);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 6px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n\n.claude-plus-message--highlighted {\n  outline: 2px solid var(--claude-plus-color-accent);\n  outline-offset: 4px;\n  border-radius: 14px;\n}\n";
+  var stylesheet$m = ".claude-plus-selection-reply {\n  position: absolute;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  cursor: pointer;\n  font-size: 12px;\n  padding: 5px 10px;\n  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);\n}\n\n.claude-plus-selection-reply:hover {\n  background: var(--claude-plus-color-button-hover);\n}\n";
 
-  StyleRegistry.register(stylesheet$k);
+  StyleRegistry.register(stylesheet$m);
+
+  /**
+   * The floating "Reply" button claude.ai shows above a text selection, offering to quote it.
+   */
+  class SelectionReplyButton {
+    /**
+     * The button, while shown.
+     * @type {?HTMLElement}
+     */
+    #buttonElement = null;
+
+    /**
+     * Called when the button is clicked.
+     * @type {?function(): void}
+     */
+    #onReply = null;
+
+    /**
+     * Shows the button above a rectangle, replacing one already shown.
+     * @param {DOMRect} aboveRect Viewport rectangle to show the button above.
+     * @param {function(): void} onReply Called when the button is clicked.
+     * @returns {void}
+     */
+    show(aboveRect, onReply) {
+      this.hide();
+      this.#onReply = onReply;
+      this.#buttonElement = createElement('button', { className: 'claude-plus-selection-reply', textContent: '↩ Reply' });
+      Object.assign(this.#buttonElement.style, { left: `${aboveRect.left + window.scrollX}px`, top: `${aboveRect.top + window.scrollY}px` });
+      document.body.append(this.#buttonElement);
+      this.#buttonElement.style.top = `${aboveRect.top + window.scrollY - this.#buttonElement.offsetHeight - 6}px`;
+      this.#buttonElement.addEventListener('mousedown', this.#handleClick);
+      document.addEventListener('mousedown', this.#handleOutsidePress, true);
+    }
+
+    /**
+     * Hides the button if shown.
+     * @returns {void}
+     */
+    hide() {
+      if (!this.#buttonElement) return;
+      this.#buttonElement.remove();
+      this.#buttonElement = null;
+      this.#onReply = null;
+      document.removeEventListener('mousedown', this.#handleOutsidePress, true);
+    }
+
+    /**
+     * Runs the reply callback and hides the button. mousedown (not click) so it fires before the
+     * document-level mousedown handler that would otherwise clear the selection first.
+     * @param {MouseEvent} event The press.
+     * @returns {void}
+     */
+    #handleClick = (event) => {
+      event.preventDefault();
+      const onReply = this.#onReply;
+      this.hide();
+      onReply();
+    };
+
+    /**
+     * Hides the button when the pointer is pressed anywhere else, which also lets that press collapse
+     * the selection natively instead of the button swallowing it.
+     * @param {MouseEvent} event Mouse press anywhere.
+     * @returns {void}
+     */
+    #handleOutsidePress = (event) => {
+      if (!this.#buttonElement.contains(event.target)) this.hide();
+    };
+  }
+
+  var stylesheet$l = ".claude-plus-message-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  padding: 4px 2px;\n}\n\n.claude-plus-message {\n  max-width: 78%;\n}\n\n.claude-plus-message--human {\n  align-self: flex-end;\n  text-align: right;\n}\n\n.claude-plus-message--human:not(.claude-plus-message--editing) {\n  display: flex;\n  flex-direction: column;\n  align-items: flex-end;\n}\n\n.claude-plus-message--human .claude-plus-message__actions {\n  justify-content: flex-end;\n}\n\n.claude-plus-message--assistant {\n  align-self: stretch;\n  max-width: 100%;\n}\n\n.claude-plus-message--editing {\n  max-width: 92%;\n}\n\n.claude-plus-message__attachments {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  margin-bottom: 6px;\n}\n\n.claude-plus-message--human .claude-plus-message__bubble {\n  background: var(--claude-plus-color-message-human-bg);\n  border-radius: 14px;\n  padding: 8px 12px;\n}\n\n.claude-plus-message__body {\n  font-size: var(--claude-plus-message-font-size, 14px);\n  font-family: var(--claude-plus-message-font-family, inherit);\n  line-height: 1.55;\n  overflow-wrap: break-word;\n}\n\n.claude-plus-message--assistant .claude-plus-message__body {\n  font-size: calc(var(--claude-plus-message-font-size, 14px) + 2px);\n}\n\n.claude-plus-message__actions {\n  display: flex;\n  align-items: center;\n  gap: 2px;\n  margin-top: 6px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-message__action-button {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 13px;\n  line-height: 1.4;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__action-button:hover {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__action-button--primary {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n\n.claude-plus-message__action-button--primary:hover {\n  background: var(--claude-plus-color-accent);\n  filter: brightness(1.1);\n}\n\n.claude-plus-message__branch-nav {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  margin-right: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-faint);\n}\n\n.claude-plus-message__branch-nav-button {\n  background: none;\n  border: none;\n  color: inherit;\n  cursor: pointer;\n  font-size: 15px;\n  line-height: 1;\n  padding: 4px 6px;\n  border-radius: 20px;\n}\n\n.claude-plus-message__branch-nav-button:hover:not(:disabled) {\n  background: var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message__branch-nav-button:disabled {\n  opacity: 0.35;\n  cursor: default;\n}\n\n.claude-plus-message__branch-nav-count {\n  min-width: 28px;\n  text-align: center;\n}\n\n.claude-plus-message__edit-input {\n  width: 100%;\n  box-sizing: border-box;\n  resize: vertical;\n  min-height: 60px;\n  border-radius: 10px;\n  padding: 8px 10px;\n  font: inherit;\n  font-size: var(--claude-plus-message-font-size, 14px);\n  line-height: 1.5;\n  text-align: left;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-message-error {\n  color: var(--claude-plus-color-error);\n  margin-top: 6px;\n}\n\n.claude-plus-streaming-cursor {\n  animation: claude-plus-blink 1s step-start infinite;\n}\n\n@keyframes claude-plus-blink {\n  50% {\n    opacity: 0;\n  }\n}\n\n.claude-plus-message--highlighted {\n  outline: 2px solid var(--claude-plus-color-accent);\n  outline-offset: 4px;\n  border-radius: 14px;\n}\n";
+
+  StyleRegistry.register(stylesheet$l);
 
   /**
    * The messages of a chat session: copy, retry, branch navigation between a message's edits and
    * retries, and double-click (or the edit button) to edit a human message, which sends the new text
-   * as a sibling branch. Streaming updates re-render only the affected message, at most once per
-   * animation frame.
+   * as a sibling branch. Selecting text offers a Reply button that requests a quote of it for the
+   * next prompt. Streaming updates re-render only the affected message, at most once per animation
+   * frame.
    */
   class MessageListView {
     /**
@@ -2374,6 +2448,12 @@
     #widgetExtractor;
 
     /**
+     * The floating "Reply" button shown above a text selection.
+     * @type {SelectionReplyButton}
+     */
+    #replyButton = new SelectionReplyButton();
+
+    /**
      * Wires the view to its list element and session.
      * @param {Panel} ownerPanel Panel owning the subscriptions.
      * @param {HTMLElement} listElement List element the messages are rendered into.
@@ -2389,6 +2469,8 @@
       listElement.addEventListener('click', event => this.#onClick(event));
       listElement.addEventListener('dblclick', event => this.#onDoubleClick(event));
       listElement.addEventListener('keydown', event => this.#onEditKeydown(event));
+      listElement.addEventListener('mouseup', () => this.#onSelectionMaybeChanged());
+      listElement.addEventListener('scroll', () => this.#replyButton.hide());
       ownerPanel.listenTo(session, 'messages', () => this.render());
       ownerPanel.listenTo(session, 'sending', () => this.render());
       ownerPanel.listenTo(session, 'messageContent', message => this.#scheduleMessageUpdate(message));
@@ -2401,6 +2483,7 @@
     render() {
       this.#changedMessages.clear();
       this.#updateScheduler.cancel();
+      this.#replyButton.hide();
       const wasAtBottom = this.#isScrolledToBottom();
       const messages = this.#session.messages;
       const retryableIndex = this.#session.isSending || this.#session.isReadOnly ? -1 : messages.findLastIndex(message => message.sender === 'assistant');
@@ -2646,6 +2729,51 @@
     }
 
     /**
+     * Shows the floating Reply button above a new, non-empty text selection inside one message, or
+     * hides it otherwise.
+     * @returns {void}
+     */
+    #onSelectionMaybeChanged() {
+      const context = this.#selectionContext();
+      if (context) this.#replyButton.show(context.rect, () => this.#session.requestQuote(context.text, context.sender));
+      else this.#replyButton.hide();
+    }
+
+    /**
+     * The current selection's text, sender and bounding rectangle, if it qualifies for a Reply button.
+     * @returns {?{text: string, sender: string, rect: DOMRect}} The context, or null.
+     */
+    #selectionContext() {
+      const selection = window.getSelection();
+      if (!this.#isQuotableSelection(selection)) return null;
+      const message = this.#messageAt(selection.anchorNode);
+      const text = selection.toString().trim();
+      return message && text ? { text, sender: message.sender, rect: selection.getRangeAt(0).getBoundingClientRect() } : null;
+    }
+
+    /**
+     * Whether a selection is worth offering a Reply button for: not collapsed, inside this list, and
+     * the conversation isn't read-only (there would be nothing to send the quote with).
+     * @param {?Selection} selection The current selection.
+     * @returns {boolean} True when it qualifies.
+     */
+    #isQuotableSelection(selection) {
+      return !this.#session.isReadOnly && Boolean(selection) && !selection.isCollapsed && this.#listElement.contains(selection.anchorNode);
+    }
+
+    /**
+     * The message a selection node belongs to.
+     * @param {Node} node A node inside a message element; nodeType 3 is a text node, which has no
+     * closest() of its own.
+     * @returns {?ChatMessage} The message, or null when not found.
+     */
+    #messageAt(node) {
+      const element = node.nodeType === 3 ? node.parentElement : node;
+      const messageElement = element.closest('.claude-plus-message');
+      return messageElement ? this.#session.messages[Number(messageElement.dataset.messageIndex)] : null;
+    }
+
+    /**
      * Starts editing the human message double-clicked on, unless it hasn't been persisted yet.
      * @param {MouseEvent} event Double-click inside the list.
      * @returns {void}
@@ -2799,9 +2927,9 @@
     }
   }
 
-  var stylesheet$j = ".claude-plus-tool-steps {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n\n.claude-plus-tool-step {\n  background: var(--claude-plus-color-tool-details);\n  border-radius: 6px;\n  padding: 6px 8px;\n  font-size: 12px;\n}\n\n.claude-plus-tool-step--error {\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-error);\n}\n\n.claude-plus-tool-step summary {\n  cursor: pointer;\n  font-weight: 600;\n}\n\n.claude-plus-tool-step__summaries {\n  margin: 6px 0 0;\n  padding-left: 18px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__field-label {\n  margin-top: 8px;\n  font-size: 11px;\n  font-weight: 600;\n  color: var(--claude-plus-color-text-faint);\n  text-transform: uppercase;\n  letter-spacing: 0.03em;\n}\n\n.claude-plus-tool-step__pre {\n  margin: 2px 0 0;\n  white-space: pre-wrap;\n  overflow-wrap: break-word;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__result-status {\n  margin-top: 8px;\n  font-weight: 600;\n}\n";
+  var stylesheet$k = ".claude-plus-tool-steps {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  padding: 2px;\n}\n\n.claude-plus-tool-step {\n  background: var(--claude-plus-color-tool-details);\n  border-radius: 6px;\n  padding: 6px 8px;\n  font-size: 12px;\n}\n\n.claude-plus-tool-step--error {\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-error);\n}\n\n.claude-plus-tool-step summary {\n  cursor: pointer;\n  font-weight: 600;\n}\n\n.claude-plus-tool-step__summaries {\n  margin: 6px 0 0;\n  padding-left: 18px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__field-label {\n  margin-top: 8px;\n  font-size: 11px;\n  font-weight: 600;\n  color: var(--claude-plus-color-text-faint);\n  text-transform: uppercase;\n  letter-spacing: 0.03em;\n}\n\n.claude-plus-tool-step__pre {\n  margin: 2px 0 0;\n  white-space: pre-wrap;\n  overflow-wrap: break-word;\n  font-size: 11px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-tool-step__result-status {\n  margin-top: 8px;\n  font-weight: 600;\n}\n";
 
-  StyleRegistry.register(stylesheet$j);
+  StyleRegistry.register(stylesheet$k);
 
   /**
    * A sub-pane showing one message's thinking and tool-call steps, chronologically, each collapsed
@@ -3094,9 +3222,9 @@
     }
   }
 
-  var stylesheet$i = ".claude-plus-panel {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-panel);\r\n  box-sizing: border-box;\r\n  padding: 10px 12px;\r\n  overflow-y: auto;\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  font-size: 13px;\r\n  background: var(--claude-plus-color-background);\r\n}\r\n\r\n.claude-plus-panel summary {\r\n  cursor: pointer;\r\n  padding: 4px 0;\r\n}\r\n\r\n.claude-plus-panel select,\r\n.claude-plus-panel input[type=text],\r\n.claude-plus-panel input[type=date],\r\n.claude-plus-panel textarea {\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font-size: 12px;\r\n  font-family: inherit;\r\n}\r\n\r\n.claude-plus-panel__section {\r\n  padding: 8px 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-hover);\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-panel__section:last-child {\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-spaced-above {\r\n  margin-top: 6px;\r\n}\r\n\r\n.claude-plus-hint {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-size: 11px;\r\n  margin-top: 4px;\r\n}\r\n\r\n.claude-plus-scrollable {\r\n  overflow-y: auto;\r\n}\r\n\r\n.claude-plus-fill-remaining {\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-pending {\r\n  opacity: 0.4;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-primary-button {\r\n  padding: 8px;\r\n  background: var(--claude-plus-color-accent);\r\n  border: none;\r\n  border-radius: 6px;\r\n  color: #fff;\r\n  font-size: 13px;\r\n  cursor: pointer;\r\n  font-weight: 600;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-primary-button:disabled {\r\n  opacity: 0.6;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-full-width {\r\n  width: 100%;\r\n}\r\n\r\n.claude-plus-search-input {\r\n  flex-shrink: 0;\r\n  padding: 6px 8px;\r\n}\r\n";
+  var stylesheet$j = ".claude-plus-panel {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-panel);\r\n  box-sizing: border-box;\r\n  padding: 10px 12px;\r\n  overflow-y: auto;\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  font-size: 13px;\r\n  background: var(--claude-plus-color-background);\r\n}\r\n\r\n.claude-plus-panel summary {\r\n  cursor: pointer;\r\n  padding: 4px 0;\r\n}\r\n\r\n.claude-plus-panel select,\r\n.claude-plus-panel input[type=text],\r\n.claude-plus-panel input[type=date],\r\n.claude-plus-panel textarea {\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font-size: 12px;\r\n  font-family: inherit;\r\n}\r\n\r\n.claude-plus-panel__section {\r\n  padding: 8px 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-hover);\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-panel__section:last-child {\r\n  border-bottom: none;\r\n}\r\n\r\n.claude-plus-spaced-above {\r\n  margin-top: 6px;\r\n}\r\n\r\n.claude-plus-hint {\r\n  color: var(--claude-plus-color-text-faint);\r\n  font-size: 11px;\r\n  margin-top: 4px;\r\n}\r\n\r\n.claude-plus-scrollable {\r\n  overflow-y: auto;\r\n}\r\n\r\n.claude-plus-fill-remaining {\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-pending {\r\n  opacity: 0.4;\r\n  pointer-events: none;\r\n}\r\n\r\n.claude-plus-primary-button {\r\n  padding: 8px;\r\n  background: var(--claude-plus-color-accent);\r\n  border: none;\r\n  border-radius: 6px;\r\n  color: #fff;\r\n  font-size: 13px;\r\n  cursor: pointer;\r\n  font-weight: 600;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-primary-button:disabled {\r\n  opacity: 0.6;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-full-width {\r\n  width: 100%;\r\n}\r\n\r\n.claude-plus-search-input {\r\n  flex-shrink: 0;\r\n  padding: 6px 8px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$i);
+  StyleRegistry.register(stylesheet$j);
 
   /**
    * A dockable panel. Its DOM is built on first access and immediately rendered from current state,
@@ -3245,9 +3373,9 @@
     }
   }
 
-  var stylesheet$h = ".claude-plus-panel--active-among-several {\r\n  border: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-panel--inactive-among-several {\r\n  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
+  var stylesheet$i = ".claude-plus-panel--active-among-several {\r\n  border: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-panel--inactive-among-several {\r\n  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$h);
+  StyleRegistry.register(stylesheet$i);
 
   /**
    * A chat pane: one session's messages, plus optional sub-panes listing the conversation's files
@@ -3752,9 +3880,9 @@
    */
   const ATTACHMENT_NAME_FIELDS = Object.freeze(['file_name', 'name', 'filename', 'title']);
 
-  var stylesheet$g = ".claude-plus-code-block {\r\n  background: var(--claude-plus-color-code-block);\r\n  padding: 8px;\r\n  border-radius: 6px;\r\n  overflow-x: auto;\r\n  font-size: 12px;\r\n}\r\n";
+  var stylesheet$h = ".claude-plus-code-block {\r\n  background: var(--claude-plus-color-code-block);\r\n  padding: 8px;\r\n  border-radius: 6px;\r\n  overflow-x: auto;\r\n  font-size: 12px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$g);
+  StyleRegistry.register(stylesheet$h);
 
   /**
    * Minimal markdown renderer: fenced code blocks, inline code, bold, italic and http(s) links.
@@ -3817,9 +3945,17 @@
     }
   }
 
-  var stylesheet$f = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-images {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  margin-bottom: 6px;\r\n}\r\n\r\n.claude-plus-message--human .claude-plus-message-images {\r\n  justify-content: flex-end;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n.claude-plus-artifact-frame {\r\n  display: block;\r\n  width: 100%;\r\n  min-height: 400px;\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  border-radius: 8px;\r\n}\r\n\r\n";
+  /**
+   * Matches the fixed filename claude.ai gives the text file it attaches when a message quotes part
+   * of an earlier one (the "Reply" button after selecting text): always
+   * excerpt_from_previous_<sender>_message.txt, never a real upload worth listing as a file.
+   * @type {RegExp}
+   */
+  const QUOTE_ATTACHMENT_NAME_PATTERN = /^excerpt_from_previous_\w+_message\.txt$/;
 
-  StyleRegistry.register(stylesheet$f);
+  var stylesheet$g = ".claude-plus-message-text {\r\n  white-space: normal;\r\n}\r\n\r\n.claude-plus-message-text a {\r\n  color: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-message-attachment {\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-size: 12px;\r\n  margin-bottom: 4px;\r\n}\r\n\r\n.claude-plus-message-attachment--quote {\r\n  display: inline-block;\r\n  background: var(--claude-plus-color-button);\r\n  border-radius: 6px;\r\n  padding: 2px 8px;\r\n  cursor: default;\r\n}\r\n\r\n.claude-plus-message-images {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 6px;\r\n  margin-bottom: 6px;\r\n}\r\n\r\n.claude-plus-message--human .claude-plus-message-images {\r\n  justify-content: flex-end;\r\n}\r\n\r\n.claude-plus-message-image {\r\n  display: block;\r\n  max-height: 300px;\r\n  max-width: 100%;\r\n  border-radius: 8px;\r\n  cursor: zoom-in;\r\n}\r\n\r\n.claude-plus-artifact-frame {\r\n  display: block;\r\n  width: 100%;\r\n  min-height: 400px;\r\n  border: 1px solid var(--claude-plus-color-border);\r\n  border-radius: 8px;\r\n}\r\n\r\n";
+
+  StyleRegistry.register(stylesheet$g);
 
   /**
    * Reads text, uploads and renderable HTML from API messages. Thinking and ordinary tool-call
@@ -3987,12 +4123,25 @@
     }
 
     /**
-     * HTML of a non-image upload, shown as a plain named chip.
+     * HTML of a non-image upload: a quoted passage's own chip, or a plain named chip for anything else.
      * @param {object} upload The upload.
      * @returns {string} The HTML.
      */
     static #fileAttachmentHtml(upload) {
-      return `<div class="claude-plus-message-attachment">📎 ${escapeHtml(MessageContent.uploadName(upload))}</div>`;
+      return QUOTE_ATTACHMENT_NAME_PATTERN.test(MessageContent.uploadName(upload))
+        ? MessageContent.#quoteAttachmentHtml(upload) : `<div class="claude-plus-message-attachment">📎 ${escapeHtml(MessageContent.uploadName(upload))}</div>`;
+    }
+
+    /**
+     * HTML of a quoted passage: a small chip naming its line count, the full text available as a
+     * native tooltip rather than a raw filename.
+     * @param {object} upload The quote attachment.
+     * @returns {string} The HTML.
+     */
+    static #quoteAttachmentHtml(upload) {
+      const text = upload.extracted_content || '';
+      const lineCount = text ? text.split('\n').length : 0;
+      return `<div class="claude-plus-message-attachment claude-plus-message-attachment--quote" title="${escapeHtml(text)}">💬 Quote, ${lineCount} line${lineCount === 1 ? '' : 's'}</div>`;
     }
 
     /**
@@ -4016,6 +4165,12 @@
      * @type {object}
      */
     static #DEFAULTS = Object.freeze({ parentId: null, text: '', apiMessage: null, isPersisted: true, isStreaming: false, errorText: null });
+
+    /**
+     * The quoted sender's name as claude.ai spells it in the attachment's filename.
+     * @type {Readonly<Record<string, string>>}
+     */
+    static #QUOTE_SENDER_NAMES = Object.freeze({ human: 'human', assistant: 'claude' });
 
     /**
      * Cached body HTML (text and tool blocks); null when it must be re-rendered.
@@ -4075,14 +4230,15 @@
     }
 
     /**
-     * The API message shape for a not-yet-sent prompt that has files attached, so it renders its
-     * uploads the same way a persisted message would before the server has echoed it back.
+     * The API message shape for a not-yet-sent prompt that has files and/or a quote attached, so it
+     * renders its uploads the same way a persisted message would before the server has echoed it back.
      * @param {string} text Prompt text.
      * @param {UploadedFile[]} files Files uploaded beforehand.
+     * @param {?{text: string, sender: string}} [quote] Text quoted from an earlier message, if any.
      * @returns {ApiMessage} The draft API message.
      */
-    static draftApiMessage(text, files) {
-      return { text, attachments: [], files, content: [] };
+    static draftApiMessage(text, files, quote = null) {
+      return { text, attachments: quote ? [ChatMessage.quoteAttachment(quote)] : [], files, content: [] };
     }
 
     /**
@@ -4092,6 +4248,18 @@
      */
     static fileUuidsOf(files) {
       return files.map(file => file.file_uuid);
+    }
+
+    /**
+     * The attachment shape claude.ai gives a quoted passage: a small text file named after who said
+     * it, carrying the quoted text itself rather than a real upload id.
+     * @param {{text: string, sender: string}} quote Text quoted from an earlier message, and who sent it.
+     * @returns {{file_name: string, file_size: number, file_type: string, extracted_content: string}}
+     * The attachment.
+     */
+    static quoteAttachment({ text, sender }) {
+      const senderName = ChatMessage.#QUOTE_SENDER_NAMES[sender] ?? 'human';
+      return { file_name: `excerpt_from_previous_${senderName}_message.txt`, file_size: new TextEncoder().encode(text).length, file_type: 'txt', extracted_content: text };
     }
 
     /**
@@ -4484,14 +4652,16 @@
      * @param {string} fields.prompt Prompt text.
      * @param {ChatMessage} fields.promptMessage The prompt's message.
      * @param {UploadedFile[]} fields.files Files uploaded beforehand to attach.
+     * @param {?{text: string, sender: string}} fields.quote Text quoted from an earlier message, if any.
      * @param {AbortController} fields.abortController Aborts the request.
      */
-    constructor({ conversationId, isNewConversation, prompt, promptMessage, files, abortController }) {
+    constructor({ conversationId, isNewConversation, prompt, promptMessage, files, quote, abortController }) {
       this.conversationId = conversationId;
       this.isNewConversation = isNewConversation;
       this.prompt = prompt;
       this.promptMessage = promptMessage;
       this.files = files;
+      this.quote = quote;
       this.abortController = abortController;
       this.replyMessage = null;
       this.hasFailed = false;
@@ -4571,11 +4741,12 @@
      * @param {string} prompt Prompt text.
      * @param {?string} parentMessageId Message to reply to; null for the conversation root.
      * @param {UploadedFile[]} files Files uploaded beforehand to attach.
+     * @param {?{text: string, sender: string}} quote Text quoted from an earlier message, if any.
      * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
      */
-    async sendAfter(prompt, parentMessageId, files) {
+    async sendAfter(prompt, parentMessageId, files, quote) {
       if (!prompt.trim() || this.#state.isSending || this.#state.isImported) return;
-      const turn = this.#beginTurn(prompt, parentMessageId, files);
+      const turn = this.#beginTurn(prompt, parentMessageId, files, quote);
       try {
         await this.#streamReply(turn);
       } catch (error) {
@@ -4590,12 +4761,13 @@
      * @param {string} prompt Prompt text.
      * @param {?string} parentMessageId Message to reply to.
      * @param {UploadedFile[]} files Files uploaded beforehand to attach.
+     * @param {?{text: string, sender: string}} quote Text quoted from an earlier message, if any.
      * @returns {Turn} The new turn.
      */
-    #beginTurn(prompt, parentMessageId, files) {
+    #beginTurn(prompt, parentMessageId, files, quote) {
       const promptMessage = new ChatMessage({
         id: createLocalMessageId(), parentId: parentMessageId, sender: 'human', text: prompt, isPersisted: false,
-        apiMessage: files.length ? ChatMessage.draftApiMessage(prompt, files) : null,
+        apiMessage: files.length || quote ? ChatMessage.draftApiMessage(prompt, files, quote) : null,
       });
       const turn = new Turn({
         conversationId: this.#state.targetConversationId,
@@ -4603,6 +4775,7 @@
         prompt,
         promptMessage,
         files,
+        quote,
         abortController: new AbortController(),
       });
       this.#abortController = turn.abortController;
@@ -4625,6 +4798,7 @@
         isNew: turn.isNewConversation,
         settings: this.#settings.snapshot(),
         fileUuids: ChatMessage.fileUuidsOf(turn.files),
+        attachments: turn.quote ? [ChatMessage.quoteAttachment(turn.quote)] : [],
         signal: turn.abortController.signal,
       });
       for await (const event of events) this.#streamEvents.apply(turn, event);
@@ -4870,6 +5044,7 @@
    * @fires ChatSession#sending Sending started or ended.
    * @fires ChatSession#conversationLoaded A conversation was fetched; payload is {conversation: ApiConversation, isImported: boolean}.
    * @fires ChatSession#rateLimits Usage windows arrived in a stream; payload is RateLimits.
+   * @fires ChatSession#quoteRequested Text was selected and "Reply" clicked; payload is {text: string, sender: string}.
    */
   class ChatSession extends EventEmitter {
     /**
@@ -5046,10 +5221,22 @@
      * Sends a prompt as a reply to the last persisted message. Ignored while sending or for blank prompts.
      * @param {string} prompt Prompt text.
      * @param {UploadedFile[]} [files] Files uploaded beforehand to attach.
+     * @param {?{text: string, sender: string}} [quote] Text quoted from an earlier message, if any.
      * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
      */
-    sendPrompt(prompt, files = []) {
-      return this.#sender.sendAfter(prompt, this.#state.lastPersistedMessageIdBefore(this.#state.messages.length), files);
+    sendPrompt(prompt, files = [], quote = null) {
+      return this.#sender.sendAfter(prompt, this.#state.lastPersistedMessageIdBefore(this.#state.messages.length), files, quote);
+    }
+
+    /**
+     * Publishes a quote request, so the active composer can offer it as an attachment to the next
+     * prompt.
+     * @param {string} text Text selected in a message.
+     * @param {string} sender Sender of the message it was selected in.
+     * @returns {void}
+     */
+    requestQuote(text, sender) {
+      this.publish('quoteRequested', { text, sender });
     }
 
     /**
@@ -5827,14 +6014,15 @@
      * @param {boolean} request.isNew Whether this creates the conversation.
      * @param {ComposerSnapshot} request.settings Model options.
      * @param {string[]} [request.fileUuids] Ids of files uploaded beforehand to attach.
+     * @param {object[]} [request.attachments] Inline attachments that aren't uploads, such as a quoted passage.
      * @param {AbortSignal} request.signal Aborts the request and the stream.
      * @yields {StreamEvent} The start event, then each server-sent event.
      * @returns {AsyncGenerator<StreamEvent, void, void>} The events in order.
      * @throws {ApiError} When the server rejects the request.
      * @throws {DOMException} An AbortError when aborted.
      */
-    async *streamCompletion({ conversationId, prompt, parentMessageId, isNew, settings, fileUuids, signal }) {
-      const body = ClaudeApi.#buildCompletionBody({ prompt, parentMessageId, isNew, settings, fileUuids });
+    async *streamCompletion({ conversationId, prompt, parentMessageId, isNew, settings, fileUuids, attachments, signal }) {
+      const body = ClaudeApi.#buildCompletionBody({ prompt, parentMessageId, isNew, settings, fileUuids, attachments });
       const response = await this.#fetchSuccessful(await this.#organizationUrl(`/chat_conversations/${conversationId}/completion`, {}), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', accept: 'text/event-stream', 'Content-Encoding': 'gzip' },
@@ -5854,9 +6042,10 @@
      * @param {boolean} request.isNew Whether to create the conversation.
      * @param {ComposerSnapshot} request.settings Model options.
      * @param {string[]} [request.fileUuids] Ids of files uploaded beforehand to attach.
+     * @param {object[]} [request.attachments] Inline attachments that aren't uploads, such as a quoted passage.
      * @returns {object} The body, with conversation-creation parameters or a parent message id.
      */
-    static #buildCompletionBody({ prompt, parentMessageId, isNew, settings, fileUuids }) {
+    static #buildCompletionBody({ prompt, parentMessageId, isNew, settings, fileUuids, attachments }) {
       const body = {
         prompt,
         timezone: currentTimezone(),
@@ -5866,7 +6055,7 @@
         thinking_mode: settings.thinkingMode,
         tools: [],
         turn_message_uuids: { human_message_uuid: crypto.randomUUID(), assistant_message_uuid: crypto.randomUUID() },
-        attachments: [],
+        attachments: attachments ?? [],
         files: fileUuids ?? [],
         sync_sources: [],
         completion_request_id: crypto.randomUUID(),
@@ -6063,9 +6252,9 @@
     }
   }
 
-  var stylesheet$e = ".claude-plus-dialog-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.5);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-dialog {\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 8px;\r\n  padding: 16px;\r\n  max-width: 360px;\r\n  font-size: 13px;\r\n}\r\n\r\n.claude-plus-dialog__message {\r\n  margin: 0 0 14px;\r\n  line-height: 1.4;\r\n}\r\n\r\n.claude-plus-dialog__input {\r\n  width: 100%;\r\n  box-sizing: border-box;\r\n  margin: 0 0 14px;\r\n  padding: 6px 8px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font: inherit;\r\n}\r\n\r\n.claude-plus-dialog__actions {\r\n  display: flex;\r\n  justify-content: flex-end;\r\n  gap: 8px;\r\n}\r\n";
+  var stylesheet$f = ".claude-plus-dialog-overlay {\r\n  position: fixed;\r\n  inset: 0;\r\n  z-index: var(--claude-plus-layer-drag-label);\r\n  background: rgba(0, 0, 0, 0.5);\r\n  display: flex;\r\n  align-items: center;\r\n  justify-content: center;\r\n}\r\n\r\n.claude-plus-dialog {\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 8px;\r\n  padding: 16px;\r\n  max-width: 360px;\r\n  font-size: 13px;\r\n}\r\n\r\n.claude-plus-dialog__message {\r\n  margin: 0 0 14px;\r\n  line-height: 1.4;\r\n}\r\n\r\n.claude-plus-dialog__input {\r\n  width: 100%;\r\n  box-sizing: border-box;\r\n  margin: 0 0 14px;\r\n  padding: 6px 8px;\r\n  background: var(--claude-plus-color-bar);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  color: var(--claude-plus-color-text);\r\n  font: inherit;\r\n}\r\n\r\n.claude-plus-dialog__actions {\r\n  display: flex;\r\n  justify-content: flex-end;\r\n  gap: 8px;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$e);
+  StyleRegistry.register(stylesheet$f);
 
   /**
    * A small themed dialog box with a message, an optional body and a row of action buttons. It
@@ -6576,9 +6765,9 @@
     }
   }
 
-  var stylesheet$d = ".claude-plus-popup-menu {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  min-width: 140px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry {\r\n  padding: 6px 10px;\r\n  cursor: pointer;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
+  var stylesheet$e = ".claude-plus-popup-menu {\r\n  position: fixed;\r\n  z-index: var(--claude-plus-layer-popup-menu);\r\n  background: var(--claude-plus-color-raised);\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  border-radius: 6px;\r\n  padding: 4px;\r\n  min-width: 140px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry {\r\n  padding: 6px 10px;\r\n  cursor: pointer;\r\n  border-radius: 4px;\r\n}\r\n\r\n.claude-plus-popup-menu__entry:hover {\r\n  background: var(--claude-plus-color-raised-hover);\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$d);
+  StyleRegistry.register(stylesheet$e);
 
   /**
    * A small menu at the pointer that closes on selection or on a press outside it.
@@ -6720,6 +6909,116 @@
         entries: [...ConversationExporter.FORMATS].map(([formatId, format]) => ({ id: formatId, label: format.label })),
         onSelect: formatId => this.#exporter.exportOpenConversation(formatId),
       });
+    }
+  }
+
+  var stylesheet$d = ".claude-plus-pending-quote {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  background: var(--claude-plus-color-button);\n  border-radius: 6px;\n  padding: 4px 8px;\n  font-size: 12px;\n  max-width: 100%;\n}\n\n.claude-plus-pending-quote__label {\n  color: var(--claude-plus-color-text-muted);\n  flex-shrink: 0;\n}\n\n.claude-plus-pending-quote__preview {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-pending-quote__remove {\n  background: none;\n  border: none;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font-size: 14px;\n  line-height: 1;\n  padding: 0 2px;\n  margin-left: auto;\n}\n\n.claude-plus-pending-quote__remove:hover {\n  color: var(--claude-plus-color-text);\n}\n";
+
+  StyleRegistry.register(stylesheet$d);
+
+  /**
+   * The single quote (if any) attached to the next prompt, shown as a removable chip - claude.ai's
+   * "Reply" flow: select text, quote it, send it as a small attachment alongside the prompt.
+   */
+  class PendingQuoteView {
+    /**
+     * Characters of the quoted text shown in the chip before truncating.
+     * @type {number}
+     */
+    static #PREVIEW_LENGTH = 40;
+
+    /**
+     * Element showing the chip; hidden while there's no pending quote.
+     * @type {HTMLElement}
+     */
+    #container;
+
+    /**
+     * The pending quote, or null.
+     * @type {?{text: string, sender: string}}
+     */
+    #quote = null;
+
+    /**
+     * Creates the view and handles clicks on the chip's remove button.
+     * @param {HTMLElement} container Element showing the chip.
+     */
+    constructor(container) {
+      this.#container = container;
+      container.addEventListener('click', event => this.#onRemoveClick(event));
+    }
+
+    /**
+     * Whether a quote is pending.
+     * @returns {boolean} True while one is attached.
+     */
+    get hasQuote() {
+      return Boolean(this.#quote);
+    }
+
+    /**
+     * Attaches a quote, replacing one already pending.
+     * @param {string} text Quoted text.
+     * @param {string} sender Sender of the message it was quoted from.
+     * @returns {void}
+     */
+    set(text, sender) {
+      this.#quote = { text, sender };
+      this.#render();
+    }
+
+    /**
+     * Returns the pending quote and clears it.
+     * @returns {?{text: string, sender: string}} The quote, or null when there wasn't one.
+     */
+    take() {
+      const quote = this.#quote;
+      this.clear();
+      return quote;
+    }
+
+    /**
+     * Discards the pending quote, if any.
+     * @returns {void}
+     */
+    clear() {
+      if (!this.#quote) return;
+      this.#quote = null;
+      this.#render();
+    }
+
+    /**
+     * Clears the pending quote when its remove button is clicked.
+     * @param {MouseEvent} event Click inside the container.
+     * @returns {void}
+     */
+    #onRemoveClick(event) {
+      if (event.target.closest('[data-action="removeQuote"]')) this.clear();
+    }
+
+    /**
+     * Shows or hides the chip for the current quote.
+     * @returns {void}
+     */
+    #render() {
+      this.#container.hidden = !this.#quote;
+      this.#container.innerHTML = this.#quote ? PendingQuoteView.#chipHtml(this.#quote) : '';
+    }
+
+    /**
+     * HTML of the chip: an icon, a line count, a truncated preview and a remove button.
+     * @param {{text: string, sender: string}} quote The pending quote.
+     * @returns {string} The chip.
+     */
+    static #chipHtml(quote) {
+      const lineCount = quote.text.split('\n').length;
+      const preview = quote.text.length > PendingQuoteView.#PREVIEW_LENGTH ? `${quote.text.slice(0, PendingQuoteView.#PREVIEW_LENGTH)}…` : quote.text;
+      return `
+      <span class="claude-plus-pending-quote">
+        <span class="claude-plus-pending-quote__label">💬 Quote, ${lineCount} line${lineCount === 1 ? '' : 's'}</span>
+        <span class="claude-plus-pending-quote__preview">${escapeHtml(preview)}</span>
+        <button class="claude-plus-pending-quote__remove" data-action="removeQuote" title="Remove quote">×</button>
+      </span>`;
     }
   }
 
@@ -6873,8 +7172,9 @@
    * The single message composer. It always targets the active chat (the focused chat pane) and can
    * be docked anywhere. Enter sends and Shift+Enter inserts a line break; there is no send button,
    * only a Stop button while a reply streams. Files pasted or dropped in are uploaded and attached
-   * to the next prompt. Its toolbar holds the model options, buttons opening the active chat's files
-   * and sources sub-panes, and the chat export.
+   * to the next prompt; selecting text in a message and clicking its Reply button attaches a quote
+   * of it instead. Its toolbar holds the model options, buttons opening the active chat's files and
+   * sources sub-panes, and the chat export.
    */
   class ComposerPanel extends Panel {
     /**
@@ -6926,6 +7226,12 @@
     #stagedFiles = null;
 
     /**
+     * The quote (if any) attached to the next prompt; created once the body is built.
+     * @type {?PendingQuoteView}
+     */
+    #pendingQuote = null;
+
+    /**
      * Undoes the subscriptions to the active chat's session.
      * @type {Array<function(): void>}
      */
@@ -6966,6 +7272,7 @@
         <button class="claude-plus-toolbar__button" data-name="exportButton" title="Export the active chat">Export ▾</button>
       </div>
       <div class="claude-plus-staged-files" data-name="stagedFiles" hidden></div>
+      <div data-name="pendingQuote" hidden></div>
       <div class="claude-plus-composer__readonly-notice" data-name="readonlyNotice" hidden>This is an imported chat — read-only, there's no model to reply to.</div>
       <textarea class="claude-plus-composer__input" data-name="promptInput" placeholder="Message Claude… (Enter sends, Shift+Enter adds a line — paste or drop files to attach them)" rows="3"></textarea>
       <button class="claude-plus-primary-button claude-plus-composer__stop-button" data-name="stopButton" hidden>Stop</button>`;
@@ -6976,10 +7283,11 @@
      * @returns {void}
      */
     bindEvents() {
-      const { promptInput, stopButton, filesButton, sourcesButton, statsButton, exportButton, stagedFiles } = this.elements;
+      const { promptInput, stopButton, filesButton, sourcesButton, statsButton, exportButton, stagedFiles, pendingQuote } = this.elements;
       this.#optionsView = new ComposerOptionsView(this.elements, this.#settings);
       this.#exportButton = new ExportMenuButton(exportButton, this.#exporter);
       this.#stagedFiles = new StagedFileList(stagedFiles, file => this.#paneManager.focusedSession.uploadFile(file));
+      this.#pendingQuote = new PendingQuoteView(pendingQuote);
       promptInput.addEventListener('keydown', event => this.#onPromptKeydown(event));
       promptInput.addEventListener('paste', event => this.#onPaste(event));
       this.element.addEventListener('dragover', event => event.preventDefault());
@@ -7037,13 +7345,19 @@
     }
 
     /**
-     * Subscribes to the newly active chat's sending state and drops the files staged for the previous one.
+     * Subscribes to the newly active chat's sending state and quote requests, and drops the files and
+     * quote staged for the previous one.
      * @returns {void}
      */
     #followActiveChat() {
       this.#unsubscribeFromSession();
-      this.#sessionUnsubscribers = [this.#paneManager.focusedSession.subscribe('sending', () => this.render())];
+      const session = this.#paneManager.focusedSession;
+      this.#sessionUnsubscribers = [
+        session.subscribe('sending', () => this.render()),
+        session.subscribe('quoteRequested', ({ text, sender }) => this.#pendingQuote.set(text, sender)),
+      ];
       this.#stagedFiles.clear();
+      this.#pendingQuote.clear();
       this.render();
     }
 
@@ -7077,8 +7391,9 @@
     }
 
     /**
-     * Sends the typed prompt and the staged files to the active chat, then clears both; ignored for
-     * blank input, while the active chat is sending, or while a file is still uploading.
+     * Sends the typed prompt, the staged files and any pending quote to the active chat, then clears
+     * all three; ignored for blank input, while the active chat is sending, or while a file is still
+     * uploading.
      * @returns {void}
      */
     #sendTypedPrompt() {
@@ -7087,7 +7402,7 @@
       if (!promptInput.value.trim() || session.isSending || this.#stagedFiles.isUploading) return;
       const prompt = promptInput.value;
       promptInput.value = '';
-      session.sendPrompt(prompt, this.#stagedFiles.takeUploads());
+      session.sendPrompt(prompt, this.#stagedFiles.takeUploads(), this.#pendingQuote.take());
     }
 
     /**
@@ -12541,7 +12856,8 @@
     }
 
     /**
-     * Counts a prompt, its estimated tokens and its uploads.
+     * Counts a prompt, its estimated tokens and its uploads - not the quote-reply text file
+     * claude.ai attaches when a message quotes part of an earlier one, which isn't a real upload.
      * @param {ApiMessage} message A human message.
      * @returns {void}
      */
@@ -12551,6 +12867,7 @@
       this.#unansweredPromptTime = message.created_at;
       for (const upload of MessageContent.uploads(message)) {
         const name = MessageContent.uploadName(upload);
+        if (QUOTE_ATTACHMENT_NAME_PATTERN.test(name)) continue;
         this.#summary.files.push({ path: name, title: name, timestamp: upload.created_at || message.created_at, source: 'user', messageId: message.uuid });
       }
     }

@@ -1,6 +1,7 @@
 import { ComposerOptionsView } from '../composer/ComposerOptionsView.js';
 import { ExportMenuButton } from '../composer/ExportMenuButton.js';
 import { Panel } from './Panel.js';
+import { PendingQuoteView } from '../composer/PendingQuoteView.js';
 import { StagedFileList } from '../composer/StagedFileList.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { optionsHtml } from '../html/optionsHtml.js';
@@ -12,8 +13,9 @@ StyleRegistry.register(stylesheet);
  * The single message composer. It always targets the active chat (the focused chat pane) and can
  * be docked anywhere. Enter sends and Shift+Enter inserts a line break; there is no send button,
  * only a Stop button while a reply streams. Files pasted or dropped in are uploaded and attached
- * to the next prompt. Its toolbar holds the model options, buttons opening the active chat's files
- * and sources sub-panes, and the chat export.
+ * to the next prompt; selecting text in a message and clicking its Reply button attaches a quote
+ * of it instead. Its toolbar holds the model options, buttons opening the active chat's files and
+ * sources sub-panes, and the chat export.
  */
 export class ComposerPanel extends Panel {
   /**
@@ -65,6 +67,12 @@ export class ComposerPanel extends Panel {
   #stagedFiles = null;
 
   /**
+   * The quote (if any) attached to the next prompt; created once the body is built.
+   * @type {?PendingQuoteView}
+   */
+  #pendingQuote = null;
+
+  /**
    * Undoes the subscriptions to the active chat's session.
    * @type {Array<function(): void>}
    */
@@ -105,6 +113,7 @@ export class ComposerPanel extends Panel {
         <button class="claude-plus-toolbar__button" data-name="exportButton" title="Export the active chat">Export ▾</button>
       </div>
       <div class="claude-plus-staged-files" data-name="stagedFiles" hidden></div>
+      <div data-name="pendingQuote" hidden></div>
       <div class="claude-plus-composer__readonly-notice" data-name="readonlyNotice" hidden>This is an imported chat — read-only, there's no model to reply to.</div>
       <textarea class="claude-plus-composer__input" data-name="promptInput" placeholder="Message Claude… (Enter sends, Shift+Enter adds a line — paste or drop files to attach them)" rows="3"></textarea>
       <button class="claude-plus-primary-button claude-plus-composer__stop-button" data-name="stopButton" hidden>Stop</button>`;
@@ -115,10 +124,11 @@ export class ComposerPanel extends Panel {
    * @returns {void}
    */
   bindEvents() {
-    const { promptInput, stopButton, filesButton, sourcesButton, statsButton, exportButton, stagedFiles } = this.elements;
+    const { promptInput, stopButton, filesButton, sourcesButton, statsButton, exportButton, stagedFiles, pendingQuote } = this.elements;
     this.#optionsView = new ComposerOptionsView(this.elements, this.#settings);
     this.#exportButton = new ExportMenuButton(exportButton, this.#exporter);
     this.#stagedFiles = new StagedFileList(stagedFiles, file => this.#paneManager.focusedSession.uploadFile(file));
+    this.#pendingQuote = new PendingQuoteView(pendingQuote);
     promptInput.addEventListener('keydown', event => this.#onPromptKeydown(event));
     promptInput.addEventListener('paste', event => this.#onPaste(event));
     this.element.addEventListener('dragover', event => event.preventDefault());
@@ -176,13 +186,19 @@ export class ComposerPanel extends Panel {
   }
 
   /**
-   * Subscribes to the newly active chat's sending state and drops the files staged for the previous one.
+   * Subscribes to the newly active chat's sending state and quote requests, and drops the files and
+   * quote staged for the previous one.
    * @returns {void}
    */
   #followActiveChat() {
     this.#unsubscribeFromSession();
-    this.#sessionUnsubscribers = [this.#paneManager.focusedSession.subscribe('sending', () => this.render())];
+    const session = this.#paneManager.focusedSession;
+    this.#sessionUnsubscribers = [
+      session.subscribe('sending', () => this.render()),
+      session.subscribe('quoteRequested', ({ text, sender }) => this.#pendingQuote.set(text, sender)),
+    ];
     this.#stagedFiles.clear();
+    this.#pendingQuote.clear();
     this.render();
   }
 
@@ -216,8 +232,9 @@ export class ComposerPanel extends Panel {
   }
 
   /**
-   * Sends the typed prompt and the staged files to the active chat, then clears both; ignored for
-   * blank input, while the active chat is sending, or while a file is still uploading.
+   * Sends the typed prompt, the staged files and any pending quote to the active chat, then clears
+   * all three; ignored for blank input, while the active chat is sending, or while a file is still
+   * uploading.
    * @returns {void}
    */
   #sendTypedPrompt() {
@@ -226,7 +243,7 @@ export class ComposerPanel extends Panel {
     if (!promptInput.value.trim() || session.isSending || this.#stagedFiles.isUploading) return;
     const prompt = promptInput.value;
     promptInput.value = '';
-    session.sendPrompt(prompt, this.#stagedFiles.takeUploads());
+    session.sendPrompt(prompt, this.#stagedFiles.takeUploads(), this.#pendingQuote.take());
   }
 
   /**

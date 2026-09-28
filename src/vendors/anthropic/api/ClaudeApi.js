@@ -102,14 +102,15 @@ export class ClaudeApi {
    * @param {boolean} request.isNew Whether this creates the conversation.
    * @param {ComposerSnapshot} request.settings Model options.
    * @param {string[]} [request.fileUuids] Ids of files uploaded beforehand to attach.
+   * @param {object[]} [request.attachments] Inline attachments that aren't uploads, such as a quoted passage.
    * @param {AbortSignal} request.signal Aborts the request and the stream.
    * @yields {StreamEvent} The start event, then each server-sent event.
    * @returns {AsyncGenerator<StreamEvent, void, void>} The events in order.
    * @throws {ApiError} When the server rejects the request.
    * @throws {DOMException} An AbortError when aborted.
    */
-  async *streamCompletion({ conversationId, prompt, parentMessageId, isNew, settings, fileUuids, signal }) {
-    const body = ClaudeApi.#buildCompletionBody({ prompt, parentMessageId, isNew, settings, fileUuids });
+  async *streamCompletion({ conversationId, prompt, parentMessageId, isNew, settings, fileUuids, attachments, signal }) {
+    const body = ClaudeApi.#buildCompletionBody({ prompt, parentMessageId, isNew, settings, fileUuids, attachments });
     const response = await this.#fetchSuccessful(await this.#organizationUrl(`/chat_conversations/${conversationId}/completion`, {}), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', accept: 'text/event-stream', 'Content-Encoding': 'gzip' },
@@ -129,9 +130,10 @@ export class ClaudeApi {
    * @param {boolean} request.isNew Whether to create the conversation.
    * @param {ComposerSnapshot} request.settings Model options.
    * @param {string[]} [request.fileUuids] Ids of files uploaded beforehand to attach.
+   * @param {object[]} [request.attachments] Inline attachments that aren't uploads, such as a quoted passage.
    * @returns {object} The body, with conversation-creation parameters or a parent message id.
    */
-  static #buildCompletionBody({ prompt, parentMessageId, isNew, settings, fileUuids }) {
+  static #buildCompletionBody({ prompt, parentMessageId, isNew, settings, fileUuids, attachments }) {
     const body = {
       prompt,
       timezone: currentTimezone(),
@@ -141,7 +143,7 @@ export class ClaudeApi {
       thinking_mode: settings.thinkingMode,
       tools: [],
       turn_message_uuids: { human_message_uuid: crypto.randomUUID(), assistant_message_uuid: crypto.randomUUID() },
-      attachments: [],
+      attachments: attachments ?? [],
       files: fileUuids ?? [],
       sync_sources: [],
       completion_request_id: crypto.randomUUID(),

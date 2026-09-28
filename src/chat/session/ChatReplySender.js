@@ -79,11 +79,12 @@ export class ChatReplySender {
    * @param {string} prompt Prompt text.
    * @param {?string} parentMessageId Message to reply to; null for the conversation root.
    * @param {UploadedFile[]} files Files uploaded beforehand to attach.
+   * @param {?{text: string, sender: string}} quote Text quoted from an earlier message, if any.
    * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
    */
-  async sendAfter(prompt, parentMessageId, files) {
+  async sendAfter(prompt, parentMessageId, files, quote) {
     if (!prompt.trim() || this.#state.isSending || this.#state.isImported) return;
-    const turn = this.#beginTurn(prompt, parentMessageId, files);
+    const turn = this.#beginTurn(prompt, parentMessageId, files, quote);
     try {
       await this.#streamReply(turn);
     } catch (error) {
@@ -98,12 +99,13 @@ export class ChatReplySender {
    * @param {string} prompt Prompt text.
    * @param {?string} parentMessageId Message to reply to.
    * @param {UploadedFile[]} files Files uploaded beforehand to attach.
+   * @param {?{text: string, sender: string}} quote Text quoted from an earlier message, if any.
    * @returns {Turn} The new turn.
    */
-  #beginTurn(prompt, parentMessageId, files) {
+  #beginTurn(prompt, parentMessageId, files, quote) {
     const promptMessage = new ChatMessage({
       id: createLocalMessageId(), parentId: parentMessageId, sender: 'human', text: prompt, isPersisted: false,
-      apiMessage: files.length ? ChatMessage.draftApiMessage(prompt, files) : null,
+      apiMessage: files.length || quote ? ChatMessage.draftApiMessage(prompt, files, quote) : null,
     });
     const turn = new Turn({
       conversationId: this.#state.targetConversationId,
@@ -111,6 +113,7 @@ export class ChatReplySender {
       prompt,
       promptMessage,
       files,
+      quote,
       abortController: new AbortController(),
     });
     this.#abortController = turn.abortController;
@@ -133,6 +136,7 @@ export class ChatReplySender {
       isNew: turn.isNewConversation,
       settings: this.#settings.snapshot(),
       fileUuids: ChatMessage.fileUuidsOf(turn.files),
+      attachments: turn.quote ? [ChatMessage.quoteAttachment(turn.quote)] : [],
       signal: turn.abortController.signal,
     });
     for await (const event of events) this.#streamEvents.apply(turn, event);

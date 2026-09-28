@@ -1,4 +1,5 @@
 import { MessageContent } from '../chat/MessageContent.js';
+import { QUOTE_ATTACHMENT_NAME_PATTERN } from '../config/QUOTE_ATTACHMENT_NAME_PATTERN.js';
 import { TIMING } from '../../../config/TIMING.js';
 import { UNTITLED } from '../../../config/UNTITLED.js';
 import { addToCount } from '../../../math/addToCount.js';
@@ -77,7 +78,8 @@ export class ConversationSummarizer {
   }
 
   /**
-   * Counts a prompt, its estimated tokens and its uploads.
+   * Counts a prompt, its estimated tokens and its uploads - not the quote-reply text file
+   * claude.ai attaches when a message quotes part of an earlier one, which isn't a real upload.
    * @param {ApiMessage} message A human message.
    * @returns {void}
    */
@@ -87,6 +89,7 @@ export class ConversationSummarizer {
     this.#unansweredPromptTime = message.created_at;
     for (const upload of MessageContent.uploads(message)) {
       const name = MessageContent.uploadName(upload);
+      if (QUOTE_ATTACHMENT_NAME_PATTERN.test(name)) continue;
       this.#summary.files.push({ path: name, title: name, timestamp: upload.created_at || message.created_at, source: 'user', messageId: message.uuid });
     }
   }

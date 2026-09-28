@@ -14,6 +14,7 @@ import { EventEmitter } from '../core/EventEmitter.js';
  * @fires ChatSession#sending Sending started or ended.
  * @fires ChatSession#conversationLoaded A conversation was fetched; payload is {conversation: ApiConversation, isImported: boolean}.
  * @fires ChatSession#rateLimits Usage windows arrived in a stream; payload is RateLimits.
+ * @fires ChatSession#quoteRequested Text was selected and "Reply" clicked; payload is {text: string, sender: string}.
  */
 export class ChatSession extends EventEmitter {
   /**
@@ -190,10 +191,22 @@ export class ChatSession extends EventEmitter {
    * Sends a prompt as a reply to the last persisted message. Ignored while sending or for blank prompts.
    * @param {string} prompt Prompt text.
    * @param {UploadedFile[]} [files] Files uploaded beforehand to attach.
+   * @param {?{text: string, sender: string}} [quote] Text quoted from an earlier message, if any.
    * @returns {Promise<void>} Resolves when the reply has ended, failed or been stopped.
    */
-  sendPrompt(prompt, files = []) {
-    return this.#sender.sendAfter(prompt, this.#state.lastPersistedMessageIdBefore(this.#state.messages.length), files);
+  sendPrompt(prompt, files = [], quote = null) {
+    return this.#sender.sendAfter(prompt, this.#state.lastPersistedMessageIdBefore(this.#state.messages.length), files, quote);
+  }
+
+  /**
+   * Publishes a quote request, so the active composer can offer it as an attachment to the next
+   * prompt.
+   * @param {string} text Text selected in a message.
+   * @param {string} sender Sender of the message it was selected in.
+   * @returns {void}
+   */
+  requestQuote(text, sender) {
+    this.publish('quoteRequested', { text, sender });
   }
 
   /**

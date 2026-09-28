@@ -14,6 +14,7 @@ const { fileAttachments } = require('./scenarios/fileAttachments.cjs');
 const { imageViewer } = require('./scenarios/imageViewer.cjs');
 const { importChatExport } = require('./scenarios/importChatExport.cjs');
 const { layoutLibrary } = require('./scenarios/layoutLibrary.cjs');
+const { quoteReply } = require('./scenarios/quoteReply.cjs');
 const { searchPanel } = require('./scenarios/searchPanel.cjs');
 const { settingsTransfer } = require('./scenarios/settingsTransfer.cjs');
 const { sourceAndFilePanels } = require('./scenarios/sourceAndFilePanels.cjs');
@@ -24,7 +25,7 @@ const { storedRecordValidation } = require('./scenarios/storedRecordValidation.c
  * @type {Array<function(SmokeRun): Promise<void>>}
  */
 const SCENARIOS = [
-  storedRecordValidation, conversationTable, sourceAndFilePanels, searchPanel, composerSending, fileAttachments,
+  storedRecordValidation, conversationTable, sourceAndFilePanels, searchPanel, composerSending, quoteReply, fileAttachments,
   conversationSubPanes, addPanelMenu, activeChatBorder, imageViewer, layoutLibrary, settingsTransfer, deleteAndShortcut, importChatExport, failedMount,
 ];
 

@@ -12,6 +12,14 @@
   margin-bottom: 4px;
 }
 
+.claude-plus-message-attachment--quote {
+  display: inline-block;
+  background: var(--claude-plus-color-button);
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: default;
+}
+
 .claude-plus-message-images {
   display: flex;
   flex-wrap: wrap;

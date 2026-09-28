@@ -1,5 +1,6 @@
 import { ATTACHMENT_NAME_FIELDS } from '../config/ATTACHMENT_NAME_FIELDS.js';
 import { Markdown } from '../../../text/Markdown.js';
+import { QUOTE_ATTACHMENT_NAME_PATTERN } from '../config/QUOTE_ATTACHMENT_NAME_PATTERN.js';
 import { StyleRegistry } from '../../../styles/StyleRegistry.js';
 import { WidgetToolCall } from './widgets/WidgetToolCall.js';
 import { escapeHtml } from '../../../text/escapeHtml.js';
@@ -173,12 +174,25 @@ export class MessageContent {
   }
 
   /**
-   * HTML of a non-image upload, shown as a plain named chip.
+   * HTML of a non-image upload: a quoted passage's own chip, or a plain named chip for anything else.
    * @param {object} upload The upload.
    * @returns {string} The HTML.
    */
   static #fileAttachmentHtml(upload) {
-    return `<div class="claude-plus-message-attachment">📎 ${escapeHtml(MessageContent.uploadName(upload))}</div>`;
+    return QUOTE_ATTACHMENT_NAME_PATTERN.test(MessageContent.uploadName(upload))
+      ? MessageContent.#quoteAttachmentHtml(upload) : `<div class="claude-plus-message-attachment">📎 ${escapeHtml(MessageContent.uploadName(upload))}</div>`;
+  }
+
+  /**
+   * HTML of a quoted passage: a small chip naming its line count, the full text available as a
+   * native tooltip rather than a raw filename.
+   * @param {object} upload The quote attachment.
+   * @returns {string} The HTML.
+   */
+  static #quoteAttachmentHtml(upload) {
+    const text = upload.extracted_content || '';
+    const lineCount = text ? text.split('\n').length : 0;
+    return `<div class="claude-plus-message-attachment claude-plus-message-attachment--quote" title="${escapeHtml(text)}">💬 Quote, ${lineCount} line${lineCount === 1 ? '' : 's'}</div>`;
   }
 
   /**
