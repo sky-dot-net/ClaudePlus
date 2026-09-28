@@ -99,6 +99,7 @@
    * messageHighlightMs: how long a message stays highlighted after being scrolled to from search.
    * resizeSettleMs: how long a list's width must stay unchanged before it is laid out again, so
    * dragging a panel divider doesn't re-render on every pixel.
+   * findTypingMs: pause after the last keystroke in the in-chat search field before it searches.
    * @type {Readonly<Record<string, number>>}
    */
   const TIMING = Object.freeze({
@@ -116,6 +117,7 @@
     modelCatalogTtlMs: 12 * 60 * 60 * 1000,
     messageHighlightMs: 2_000,
     resizeSettleMs: 200,
+    findTypingMs: 150,
   });
 
   /**
@@ -290,6 +292,15 @@
   }
 
   /**
+   * The hotkey commands specific to claude.ai, in the order the Anthropic settings tab lists them,
+   * shaped like the app's own (id, label, defaultChord). Ids start with "anthropic." so they never
+   * collide with another group's. None exist yet; a command added here appears in the settings with
+   * its chord rebindable, and runs the action registered for its id.
+   * @type {ReadonlyArray<Readonly<{id: string, label: string, defaultChord: string}>>}
+   */
+  const ANTHROPIC_HOTKEY_COMMANDS = Object.freeze([]);
+
+  /**
    * Whether an id belongs to a chat pane.
    * @param {*} panelId Panel id.
    * @returns {boolean} True for ids starting with "chat-".
@@ -338,6 +349,102 @@
   }
 
   /**
+   * The pattern of an in-chat search, built from what was typed: plain text in which * stands for any
+   * run of characters within a line, or a regular expression. Matching ignores case.
+   */
+  class ChatFindPattern {
+    /**
+     * Characters that mean something in a regular expression and are escaped in plain text.
+     * @type {RegExp}
+     */
+    static #SPECIAL_CHARACTERS = /[.+?^${}()|[\]\\]/g;
+
+    /**
+     * Compiles what was typed.
+     * @param {string} text The typed text.
+     * @param {boolean} isRegex Whether it is a regular expression rather than text with * wildcards.
+     * @returns {{regex: ?RegExp, isInvalid: boolean}} The global, case-insensitive expression - null
+     * for empty text or an invalid expression, the latter flagged.
+     */
+    static compile(text, isRegex) {
+      if (!text) return { regex: null, isInvalid: false };
+      const source = isRegex ? text : text.replace(ChatFindPattern.#SPECIAL_CHARACTERS, '\\$&').replace(/\*/g, '[^\\n]*?');
+      try {
+        return { regex: new RegExp(source, 'gi'), isInvalid: false };
+      } catch {
+        return { regex: null, isInvalid: true };
+      }
+    }
+
+    /**
+     * Every non-empty match of an expression in a text.
+     * @param {RegExp} regex A global expression; its position is reset.
+     * @param {string} text The text to search.
+     * @returns {Array<{start: number, length: number}>} The matches, in order.
+     */
+    static matchesIn(regex, text) {
+      const matches = [];
+      regex.lastIndex = 0;
+      for (let match = regex.exec(text); match; match = regex.exec(text)) {
+        if (match[0].length === 0) regex.lastIndex += 1;
+        else matches.push({ start: match.index, length: match[0].length });
+      }
+      return matches;
+    }
+  }
+
+  /**
+   * Finds a pattern in the text of a chat's messages themselves rather than in what is currently
+   * rendered, so it also finds messages the windowed message list has not rendered.
+   */
+  class ChatFinder {
+    /**
+     * Messages between yields to the browser, so searching a very long chat never blocks the page.
+     * @type {number}
+     */
+    static #YIELD_EVERY = 250;
+
+    /**
+     * Each message's text as it reads once rendered, with the HTML it was extracted from, so a
+     * message that changed (streaming) is extracted again.
+     * @type {WeakMap<ChatMessage, {html: string, text: string}>}
+     */
+    static #texts = new WeakMap();
+
+    /**
+     * Finds every match in every message.
+     * @param {ChatMessage[]} messages The messages, in order.
+     * @param {RegExp} regex The global expression to find.
+     * @param {function(): boolean} isCancelled Whether the result is no longer wanted.
+     * @returns {Promise<?Array<{messageIndex: number, ordinal: number}>>} One entry per match: the
+     * message and which match in it (from 0); null when cancelled.
+     */
+    static async find(messages, regex, isCancelled) {
+      const hits = [];
+      for (let index = 0; index < messages.length; index += 1) {
+        if (index % ChatFinder.#YIELD_EVERY === 0) await new Promise(resolve => setTimeout(resolve, 0));
+        if (isCancelled()) return null;
+        ChatFindPattern.matchesIn(regex, ChatFinder.textOf(messages[index])).forEach((match, ordinal) => hits.push({ messageIndex: index, ordinal }));
+      }
+      return hits;
+    }
+
+    /**
+     * A message's text as it reads once rendered - its HTML without the markup.
+     * @param {ChatMessage} message The message.
+     * @returns {string} The text.
+     */
+    static textOf(message) {
+      const html = message.html ?? '';
+      const cached = ChatFinder.#texts.get(message);
+      if (cached && cached.html === html) return cached.text;
+      const text = new DOMParser().parseFromString(html, 'text/html').body.textContent ?? '';
+      ChatFinder.#texts.set(message, { html, text });
+      return text;
+    }
+  }
+
+  /**
    * Collects the stylesheets of all components. Every component registers its own stylesheet when
    * its module is evaluated, so the app injects one combined stylesheet without knowing the components.
    */
@@ -363,6 +470,425 @@
      */
     static get combinedCss() {
       return StyleRegistry.#stylesheets.join('\n');
+    }
+  }
+
+  /**
+   * Collects every descendant marked with a data-name attribute, keyed by that name.
+   * @param {HTMLElement} root Element to search.
+   * @returns {Object<string, HTMLElement>} The marked elements by name.
+   */
+  function collectNamedElements(root) {
+    return Object.fromEntries([...root.querySelectorAll('[data-name]')].map(element => [element.dataset.name, element]));
+  }
+
+  var stylesheet$v = ".claude-plus-find-bar {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n  padding: 4px 6px;\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border);\n  border-radius: 6px;\n  font-size: 12px;\n}\n\n.claude-plus-find-bar[hidden] {\n  display: none;\n}\n\n.claude-plus-find-bar__input {\n  flex: 1;\n  min-width: 80px;\n  background: var(--claude-plus-color-background);\n  color: inherit;\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 4px;\n  padding: 3px 6px;\n  font: inherit;\n}\n\n.claude-plus-find-bar__input--invalid {\n  border-color: var(--claude-plus-color-error);\n}\n\n.claude-plus-find-bar__regex {\n  display: flex;\n  align-items: center;\n  gap: 3px;\n  white-space: nowrap;\n  cursor: pointer;\n}\n\n.claude-plus-find-bar__count {\n  min-width: 48px;\n  text-align: center;\n  color: var(--claude-plus-color-text-muted);\n  white-space: nowrap;\n}\n\n.claude-plus-find-bar__button {\n  background: var(--claude-plus-color-button);\n  border: none;\n  border-radius: 4px;\n  color: inherit;\n  cursor: pointer;\n  font: inherit;\n  line-height: 1;\n  padding: 4px 8px;\n}\n\n.claude-plus-find-bar__button:hover:not(:disabled) {\n  background: var(--claude-plus-color-button-hover);\n}\n\n.claude-plus-find-bar__button:disabled {\n  opacity: 0.4;\n  cursor: default;\n}\n\n::highlight(claude-plus-find) {\n  background-color: rgba(245, 197, 66, 0.45);\n  color: inherit;\n}\n\n::highlight(claude-plus-find-current) {\n  background-color: #ff9632;\n  color: #000;\n}\n";
+
+  StyleRegistry.register(stylesheet$v);
+
+  /**
+   * The in-chat search bar at the bottom of a chat pane: a search field, a regular-expression
+   * checkbox remembered per conversation, the current position among the matches, and buttons for the
+   * previous, next, first and last match. It searches the messages' text, not the DOM, so it finds
+   * matches in messages the windowed message list has not rendered.
+   */
+  class ChatFindBar {
+    /**
+     * Names of the buttons that need matches to work.
+     * @type {string[]}
+     */
+    static #MATCH_BUTTONS = ['firstButton', 'previousButton', 'nextButton', 'lastButton'];
+
+    /**
+     * The bar's element.
+     * @type {HTMLElement}
+     */
+    #bar;
+
+    /**
+     * The bar's named elements.
+     * @type {Object<string, HTMLElement>}
+     */
+    #elements;
+
+    /**
+     * Session whose messages are searched.
+     * @type {ChatSession}
+     */
+    #session;
+
+    /**
+     * The message list showing the matches.
+     * @type {MessageListView}
+     */
+    #listView;
+
+    /**
+     * Per-conversation settings, for the regular-expression checkbox.
+     * @type {ConversationSettings}
+     */
+    #settings;
+
+    /**
+     * Every match of the current search, in chat order.
+     * @type {Array<{messageIndex: number, ordinal: number}>}
+     */
+    #hits = [];
+
+    /**
+     * Position in #hits of the current match, or -1 for none.
+     * @type {number}
+     */
+    #position = -1;
+
+    /**
+     * Counts the searches started, so a slower, older search never replaces a newer one's result.
+     * @type {number}
+     */
+    #searchCount = 0;
+
+    /**
+     * Pending typing debounce.
+     * @type {?number}
+     */
+    #typingTimer = null;
+
+    /**
+     * Builds the bar into its element and follows the session.
+     * @param {object} parts What the bar works with.
+     * @param {HTMLElement} parts.element Empty element the bar is built into, at the bottom of the chat.
+     * @param {Panel} parts.ownerPanel Panel owning the subscriptions.
+     * @param {ChatSession} parts.session Session whose messages are searched.
+     * @param {MessageListView} parts.listView The message list showing the matches.
+     * @param {ConversationSettings} parts.settings Per-conversation settings.
+     */
+    constructor({ element, ownerPanel, session, listView, settings }) {
+      this.#bar = element;
+      this.#session = session;
+      this.#listView = listView;
+      this.#settings = settings;
+      element.innerHTML = ChatFindBar.#html();
+      this.#elements = collectNamedElements(element);
+      this.#bindEvents();
+      ownerPanel.listenTo(session, 'messages', () => this.#onMessagesChanged());
+      ownerPanel.listenTo(session, 'openConversation', () => this.#onConversationChanged());
+    }
+
+    /**
+     * Whether the bar is shown.
+     * @returns {boolean} True while open.
+     */
+    get isOpen() {
+      return !this.#bar.hidden;
+    }
+
+    /**
+     * Opens the bar and focuses its field, closes it when its field already has the focus, and just
+     * focuses the field when the bar is open elsewhere.
+     * @returns {void}
+     */
+    toggle() {
+      if (this.isOpen && document.activeElement === this.#elements.findInput) this.close();
+      else this.open();
+    }
+
+    /**
+     * Opens the bar and focuses its field, filling it with the selected text if there is a short one.
+     * @returns {void}
+     */
+    open() {
+      const selected = ChatFindBar.#selectedText();
+      this.#bar.hidden = false;
+      this.#elements.regexCheckbox.checked = this.#settings.get(this.#session.openConversationId, 'findIsRegex', false);
+      if (selected) this.#elements.findInput.value = selected;
+      this.#elements.findInput.focus();
+      this.#elements.findInput.select();
+      this.#search(true);
+    }
+
+    /**
+     * Closes the bar and removes the matches' marks.
+     * @returns {void}
+     */
+    close() {
+      this.#bar.hidden = true;
+      this.#searchCount += 1;
+      this.#hits = [];
+      this.#position = -1;
+      this.#listView.showFind(null, null);
+    }
+
+    /**
+     * The bar's markup.
+     * @returns {string} The HTML.
+     */
+    static #html() {
+      return `
+      <input class="claude-plus-find-bar__input" data-name="findInput" type="text" placeholder="Find in chat…  (* is a wildcard)" spellcheck="false" />
+      <label class="claude-plus-find-bar__regex" title="Read the text as a regular expression"><input type="checkbox" data-name="regexCheckbox" /> Regex</label>
+      <span class="claude-plus-find-bar__count" data-name="countLabel" title="Current match / matches"></span>
+      <button class="claude-plus-find-bar__button" data-name="firstButton" title="First match">«</button>
+      <button class="claude-plus-find-bar__button" data-name="previousButton" title="Previous match (Shift+Enter)">←</button>
+      <button class="claude-plus-find-bar__button" data-name="nextButton" title="Next match (Enter)">→</button>
+      <button class="claude-plus-find-bar__button" data-name="lastButton" title="Last match">»</button>
+      <button class="claude-plus-find-bar__button" data-name="closeButton" title="Close (Esc)">✕</button>`;
+    }
+
+    /**
+     * The selected text when it is a short single line worth searching for.
+     * @returns {string} The text, or an empty string.
+     */
+    static #selectedText() {
+      const text = (window.getSelection()?.toString() ?? '').trim();
+      return ChatFindBar.#isWorthSearching(text) ? text : '';
+    }
+
+    /**
+     * Whether selected text is a short single line.
+     * @param {string} text The text.
+     * @returns {boolean} True for one to a hundred characters without a line break.
+     */
+    static #isWorthSearching(text) {
+      return text.length > 0 && text.length <= 100 && !text.includes('\n');
+    }
+
+    /**
+     * Wires the field and the buttons.
+     * @returns {void}
+     */
+    #bindEvents() {
+      const elements = this.#elements;
+      elements.findInput.addEventListener('input', () => this.#onTyping());
+      elements.findInput.addEventListener('keydown', event => this.#onKeydown(event));
+      elements.regexCheckbox.addEventListener('change', () => this.#onRegexToggled());
+      elements.firstButton.addEventListener('click', () => this.#jumpTo(0));
+      elements.previousButton.addEventListener('click', () => this.#step(-1));
+      elements.nextButton.addEventListener('click', () => this.#step(1));
+      elements.lastButton.addEventListener('click', () => this.#jumpTo(this.#hits.length - 1));
+      elements.closeButton.addEventListener('click', () => this.close());
+    }
+
+    /**
+     * Searches shortly after the last keystroke.
+     * @returns {void}
+     */
+    #onTyping() {
+      clearTimeout(this.#typingTimer);
+      this.#typingTimer = setTimeout(() => this.#search(true), TIMING.findTypingMs);
+    }
+
+    /**
+     * Next match on Enter, previous on Shift+Enter, close on Escape.
+     * @param {KeyboardEvent} event The key press in the field.
+     * @returns {void}
+     */
+    #onKeydown(event) {
+      if (event.key === 'Escape') this.close();
+      else if (event.key === 'Enter') this.#step(event.shiftKey ? -1 : 1);
+      else return;
+      event.preventDefault();
+    }
+
+    /**
+     * Remembers the checkbox for the open conversation and searches again.
+     * @returns {void}
+     */
+    #onRegexToggled() {
+      this.#settings.set(this.#session.openConversationId, 'findIsRegex', this.#elements.regexCheckbox.checked);
+      this.#search(true);
+    }
+
+    /**
+     * Searches again after the messages changed (a reply streaming in, a branch switched), keeping
+     * the view where it is.
+     * @returns {void}
+     */
+    #onMessagesChanged() {
+      if (this.isOpen) this.#search(false);
+    }
+
+    /**
+     * Takes the checkbox from the newly opened conversation's settings and searches it.
+     * @returns {void}
+     */
+    #onConversationChanged() {
+      if (!this.isOpen) return;
+      this.#elements.regexCheckbox.checked = this.#settings.get(this.#session.openConversationId, 'findIsRegex', false);
+      this.#search(false);
+    }
+
+    /**
+     * Searches the chat for what the field holds and shows the result.
+     * @param {boolean} shouldReveal Whether to scroll to the match nearest the current view, rather than leaving the view alone.
+     * @returns {Promise<void>} Resolves once the result is shown; not at all when a newer search replaced it.
+     */
+    async #search(shouldReveal) {
+      clearTimeout(this.#typingTimer);
+      this.#searchCount += 1;
+      const searchNumber = this.#searchCount;
+      const { regex, isInvalid } = ChatFindPattern.compile(this.#elements.findInput.value, this.#elements.regexCheckbox.checked);
+      this.#elements.findInput.classList.toggle('claude-plus-find-bar__input--invalid', isInvalid);
+      const previousHit = this.#hits[this.#position];
+      this.#hits = [];
+      this.#position = -1;
+      if (!regex) {
+        this.#listView.showFind(null, null);
+        this.#renderCount(isInvalid ? 'invalid' : '');
+        return;
+      }
+      this.#renderCount('…');
+      const hits = await ChatFinder.find(this.#session.messages, regex, () => searchNumber !== this.#searchCount);
+      if (hits) this.#showResult(regex, hits, previousHit, shouldReveal);
+    }
+
+    /**
+     * Shows a finished search: the count, the marks and, when asked, the first match.
+     * @param {RegExp} regex The expression that was searched for.
+     * @param {Array<{messageIndex: number, ordinal: number}>} hits Every match.
+     * @param {?{messageIndex: number, ordinal: number}} previousHit The match the search was at before.
+     * @param {boolean} shouldReveal Whether to scroll to the match.
+     * @returns {void}
+     */
+    #showResult(regex, hits, previousHit, shouldReveal) {
+      this.#hits = hits;
+      this.#position = this.#initialPosition(previousHit, shouldReveal);
+      this.#listView.showFind(regex, this.#hits[this.#position] ?? null);
+      this.#renderCount();
+      if (shouldReveal && this.#position >= 0) this.#listView.revealFindHit(this.#hits[this.#position]);
+    }
+
+    /**
+     * Which match a fresh result starts at: the same one as before when the view is not being moved
+     * and it still exists, else the first at or after the message in view, else the last.
+     * @param {?{messageIndex: number, ordinal: number}} previousHit The match the search was at.
+     * @param {boolean} shouldReveal Whether the search is moving the view rather than following the chat.
+     * @returns {number} The position, or -1 when there are no matches.
+     */
+    #initialPosition(previousHit, shouldReveal) {
+      if (!this.#hits.length) return -1;
+      const same = this.#positionOf(previousHit);
+      if (same >= 0 && !shouldReveal) return same;
+      const firstInView = this.#listView.firstVisibleIndex();
+      const inView = this.#hits.findIndex(hit => hit.messageIndex >= firstInView);
+      return inView >= 0 ? inView : this.#hits.length - 1;
+    }
+
+    /**
+     * Position of a match among the current ones.
+     * @param {?{messageIndex: number, ordinal: number}} match The match.
+     * @returns {number} The position, or -1 when it is not among them.
+     */
+    #positionOf(match) {
+      return match ? this.#hits.findIndex(hit => hit.messageIndex === match.messageIndex && hit.ordinal === match.ordinal) : -1;
+    }
+
+    /**
+     * Moves to the next or previous match, wrapping around.
+     * @param {number} delta 1 for the next match, -1 for the previous.
+     * @returns {void}
+     */
+    #step(delta) {
+      if (!this.#hits.length) return;
+      this.#jumpTo((this.#position + delta + this.#hits.length) % this.#hits.length);
+    }
+
+    /**
+     * Moves to a match and scrolls to it.
+     * @param {number} position Position among the matches.
+     * @returns {void}
+     */
+    #jumpTo(position) {
+      if (position < 0 || position >= this.#hits.length) return;
+      this.#position = position;
+      this.#renderCount();
+      this.#listView.showFind(this.#currentRegex(), this.#hits[position]);
+      this.#listView.revealFindHit(this.#hits[position]);
+    }
+
+    /**
+     * The expression of the search the field holds.
+     * @returns {?RegExp} The expression, or null when the field is empty or invalid.
+     */
+    #currentRegex() {
+      return ChatFindPattern.compile(this.#elements.findInput.value, this.#elements.regexCheckbox.checked).regex;
+    }
+
+    /**
+     * Shows the position among the matches, or a message.
+     * @param {string} [message] Text to show instead of the position.
+     * @returns {void}
+     */
+    #renderCount(message) {
+      const hasHits = this.#hits.length > 0;
+      const position = hasHits ? this.#position + 1 : 0;
+      this.#elements.countLabel.textContent = message ?? (this.#elements.findInput.value ? `${position}/${this.#hits.length}` : '');
+      ChatFindBar.#MATCH_BUTTONS.forEach(name => { this.#elements[name].disabled = !hasHits; });
+    }
+  }
+
+  /**
+   * localStorage keys.
+   * @type {Readonly<Record<string, string>>}
+   */
+  const STORAGE_KEYS = Object.freeze({
+    dockLayout: 'claudePlus.dockLayout',
+    model: 'claudePlus.model',
+    effort: 'claudePlus.effort',
+    thinkingMode: 'claudePlus.thinkingMode',
+    messageFontSize: 'claudePlus.messageFontSize',
+    chatPanes: 'claudePlus.chatPanes',
+    savedLayouts: 'claudePlus.savedLayouts',
+    subPaneEdges: 'claudePlus.subPaneEdges',
+    conversationSettings: 'claudePlus.conversationSettings',
+    hotkeys: 'claudePlus.hotkeys',
+    tablePrefix: 'claudePlus.table.',
+    modelCatalog: 'claudePlus.modelCatalog',
+    theme: 'claudePlus.theme',
+  });
+
+  /**
+   * Settings remembered per conversation, such as whether its in-chat search reads a regular
+   * expression, kept in one stored object keyed by conversation id.
+   */
+  class ConversationSettings {
+    /**
+     * Storage.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * Creates the store.
+     * @param {Preferences} preferences Storage.
+     */
+    constructor(preferences) {
+      this.#preferences = preferences;
+    }
+
+    /**
+     * A conversation's setting.
+     * @param {?string} conversationId Conversation id; null for a chat that has not been saved yet.
+     * @param {string} name Setting name.
+     * @param {*} fallback Value when the conversation has none stored.
+     * @returns {*} The stored value, or the fallback.
+     */
+    get(conversationId, name, fallback) {
+      const stored = conversationId ? this.#preferences.readJson(STORAGE_KEYS.conversationSettings)?.[conversationId] : null;
+      return stored && name in stored ? stored[name] : fallback;
+    }
+
+    /**
+     * Remembers a conversation's setting; skipped for a chat that has not been saved yet.
+     * @param {?string} conversationId Conversation id.
+     * @param {string} name Setting name.
+     * @param {*} value JSON-serializable value.
+     * @returns {void}
+     */
+    set(conversationId, name, value) {
+      if (!conversationId) return;
+      const stored = this.#preferences.readJson(STORAGE_KEYS.conversationSettings) ?? {};
+      stored[conversationId] = { ...stored[conversationId], [name]: value };
+      this.#preferences.writeJson(STORAGE_KEYS.conversationSettings, stored);
     }
   }
 
@@ -964,24 +1490,6 @@
       return row => pattern.matches(columnFilterValue(column, row));
     }
   }
-
-  /**
-   * localStorage keys.
-   * @type {Readonly<Record<string, string>>}
-   */
-  const STORAGE_KEYS = Object.freeze({
-    dockLayout: 'claudePlus.dockLayout',
-    model: 'claudePlus.model',
-    effort: 'claudePlus.effort',
-    thinkingMode: 'claudePlus.thinkingMode',
-    messageFontSize: 'claudePlus.messageFontSize',
-    chatPanes: 'claudePlus.chatPanes',
-    savedLayouts: 'claudePlus.savedLayouts',
-    subPaneEdges: 'claudePlus.subPaneEdges',
-    tablePrefix: 'claudePlus.table.',
-    modelCatalog: 'claudePlus.modelCatalog',
-    theme: 'claudePlus.theme',
-  });
 
   /**
    * Orders two sortable values ascending.
@@ -2134,15 +2642,6 @@
   }
 
   /**
-   * Collects every descendant marked with a data-name attribute, keyed by that name.
-   * @param {HTMLElement} root Element to search.
-   * @returns {Object<string, HTMLElement>} The marked elements by name.
-   */
-  function collectNamedElements(root) {
-    return Object.fromEntries([...root.querySelectorAll('[data-name]')].map(element => [element.dataset.name, element]));
-  }
-
-  /**
    * Filter control HTML per filter kind: none, a typeahead text input for values, or a from/to pair
    * of date inputs for dates.
    * @type {Readonly<Record<string, function(TableColumn): string>>}
@@ -2913,6 +3412,134 @@
   }
 
   /**
+   * Marks the matches of an in-chat search in the rendered messages using the browser's CSS Custom
+   * Highlight API, which paints ranges of text without changing the DOM - so the marks neither
+   * disturb the message list's measuring nor need undoing before a message is re-rendered.
+   */
+  class ChatFindHighlighter {
+    /**
+     * Highlight name for every match.
+     * @type {string}
+     */
+    static #MATCH_NAME = 'claude-plus-find';
+
+    /**
+     * Highlight name for the match the search is at.
+     * @type {string}
+     */
+    static #CURRENT_NAME = 'claude-plus-find-current';
+
+    /**
+     * The ranges of every match currently painted by this highlighter.
+     * @type {?Highlight}
+     */
+    #matches = null;
+
+    /**
+     * The range of the current match currently painted by this highlighter.
+     * @type {?Highlight}
+     */
+    #current = null;
+
+    /**
+     * Paints the matches in the given rendered messages, replacing what this highlighter painted before.
+     * @param {Array<{body: HTMLElement, messageIndex: number}>} messages The rendered messages' bodies.
+     * @param {RegExp} regex The global expression to mark.
+     * @param {?{messageIndex: number, ordinal: number}} currentHit The match to mark as current, if any.
+     * @returns {?Range} The current match's range when it is among the rendered messages.
+     */
+    paint(messages, regex, currentHit) {
+      if (typeof Highlight === 'undefined') return null;
+      const rangesByMessage = messages.map(({ body, messageIndex }) => ({ messageIndex, ranges: ChatFindHighlighter.#rangesIn(body, regex) }));
+      const currentRange = ChatFindHighlighter.#currentRange(rangesByMessage, currentHit);
+      this.#matches = ChatFindHighlighter.#register(ChatFindHighlighter.#MATCH_NAME, this.#matches, rangesByMessage.flatMap(entry => entry.ranges));
+      this.#current = ChatFindHighlighter.#register(ChatFindHighlighter.#CURRENT_NAME, this.#current, currentRange ? [currentRange] : []);
+      return currentRange;
+    }
+
+    /**
+     * Removes everything this highlighter painted.
+     * @returns {void}
+     */
+    clear() {
+      if (typeof Highlight === 'undefined') return;
+      this.#matches = ChatFindHighlighter.#register(ChatFindHighlighter.#MATCH_NAME, this.#matches, []);
+      this.#current = ChatFindHighlighter.#register(ChatFindHighlighter.#CURRENT_NAME, this.#current, []);
+    }
+
+    /**
+     * The range of the current match.
+     * @param {Array<{messageIndex: number, ranges: Range[]}>} rangesByMessage Each rendered message's match ranges.
+     * @param {?{messageIndex: number, ordinal: number}} currentHit The current match.
+     * @returns {?Range} Its range, or null when its message is not rendered.
+     */
+    static #currentRange(rangesByMessage, currentHit) {
+      const entry = currentHit ? rangesByMessage.find(candidate => candidate.messageIndex === currentHit.messageIndex) : null;
+      return entry?.ranges[currentHit.ordinal] ?? null;
+    }
+
+    /**
+     * Publishes ranges under a highlight name, removing this highlighter's previous ones first; a
+     * name another highlighter has taken over is left alone when there is nothing to paint.
+     * @param {string} name Highlight name.
+     * @param {?Highlight} previous What this highlighter registered before.
+     * @param {Range[]} ranges The ranges to paint.
+     * @returns {?Highlight} The registered highlight, or null when nothing is painted.
+     */
+    static #register(name, previous, ranges) {
+      if (previous && CSS.highlights.get(name) === previous) CSS.highlights.delete(name);
+      if (!ranges.length) return null;
+      const highlight = new Highlight(...ranges);
+      CSS.highlights.set(name, highlight);
+      return highlight;
+    }
+
+    /**
+     * The ranges of every match in an element's text.
+     * @param {HTMLElement} element The element.
+     * @param {RegExp} regex The global expression.
+     * @returns {Range[]} One range per match, in order.
+     */
+    static #rangesIn(element, regex) {
+      const segments = ChatFindHighlighter.#textSegments(element);
+      const text = segments.map(segment => segment.node.data).join('');
+      return ChatFindPattern.matchesIn(regex, text).map(match => ChatFindHighlighter.#range(segments, match.start, match.start + match.length));
+    }
+
+    /**
+     * An element's text nodes with the position each starts at in the element's whole text.
+     * @param {HTMLElement} element The element.
+     * @returns {Array<{node: Text, start: number}>} The text nodes, in order.
+     */
+    static #textSegments(element) {
+      const segments = [];
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      let start = 0;
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        segments.push({ node, start });
+        start += node.data.length;
+      }
+      return segments;
+    }
+
+    /**
+     * The range covering a stretch of an element's text.
+     * @param {Array<{node: Text, start: number}>} segments The element's text nodes.
+     * @param {number} start Position of the first character.
+     * @param {number} end Position after the last character.
+     * @returns {Range} The range.
+     */
+    static #range(segments, start, end) {
+      const first = segments.findLast(segment => segment.start <= start);
+      const last = segments.findLast(segment => segment.start < end);
+      const range = document.createRange();
+      range.setStart(first.node, start - first.start);
+      range.setEnd(last.node, end - last.start);
+      return range;
+    }
+  }
+
+  /**
    * Base of every modal dialog: a themed overlay over the whole page holding the dialog's content.
    * Showing returns a promise resolved with the dialog's result once it closes. Pressing Escape or
    * pressing the backdrop closes it with the cancel value. Subclasses supply the overlay class and
@@ -3609,6 +4236,24 @@
     #highlightedIndex = -1;
 
     /**
+     * Marks the in-chat search's matches in the rendered messages.
+     * @type {ChatFindHighlighter}
+     */
+    #findHighlighter = new ChatFindHighlighter();
+
+    /**
+     * Expression of the in-chat search being shown, or null while there is none.
+     * @type {?RegExp}
+     */
+    #findRegex = null;
+
+    /**
+     * The in-chat search's current match, or null for none.
+     * @type {?{messageIndex: number, ordinal: number}}
+     */
+    #findHit = null;
+
+    /**
      * The conversation the list last rendered, to notice a different one.
      * @type {?string|undefined}
      */
@@ -3659,7 +4304,69 @@
      * @returns {void}
      */
     dispose() {
+      this.#findHighlighter.clear();
       this.#virtualList.dispose();
+    }
+
+    /**
+     * Shows an in-chat search's matches in the messages that are rendered now and in any that are
+     * rendered later, as the list scrolls; without an expression, shows none.
+     * @param {?RegExp} regex The global expression to mark, or null to stop marking.
+     * @param {?{messageIndex: number, ordinal: number}} currentHit The match to mark as current, if any.
+     * @returns {void}
+     */
+    showFind(regex, currentHit) {
+      this.#findRegex = regex;
+      this.#findHit = currentHit;
+      this.#paintFind();
+    }
+
+    /**
+     * Scrolls an in-chat search match to the middle of the view, whichever message it is in.
+     * @param {{messageIndex: number, ordinal: number}} hit The match.
+     * @returns {void}
+     */
+    revealFindHit(hit) {
+      this.#findHit = hit;
+      this.#virtualList.scrollToIndex(hit.messageIndex, 'center');
+      this.#centerFindHit();
+      requestAnimationFrame(() => this.#centerFindHit());
+    }
+
+    /**
+     * Position of the first message that is at least partly in view.
+     * @returns {number} The position; 0 when none is rendered.
+     */
+    firstVisibleIndex() {
+      const top = this.#listElement.getBoundingClientRect().top;
+      const visible = [...this.#listElement.querySelectorAll('[data-message-index]')].find(element => element.getBoundingClientRect().bottom > top);
+      return visible ? Number(visible.dataset.messageIndex) : 0;
+    }
+
+    /**
+     * Repaints the search matches and scrolls the current one into the middle of the view.
+     * @returns {void}
+     */
+    #centerFindHit() {
+      const range = this.#paintFind();
+      if (!range) return;
+      const rect = range.getBoundingClientRect();
+      const listRect = this.#listElement.getBoundingClientRect();
+      this.#listElement.scrollTop += rect.top + rect.height / 2 - (listRect.top + listRect.height / 2);
+    }
+
+    /**
+     * Marks the search's matches in the rendered messages.
+     * @returns {?Range} The current match's range, when it is in a rendered message.
+     */
+    #paintFind() {
+      if (!this.#findRegex) {
+        this.#findHighlighter.clear();
+        return null;
+      }
+      const bodies = [...this.#listElement.querySelectorAll('[data-message-index] .claude-plus-message__body')];
+      const messages = bodies.map(body => ({ body, messageIndex: Number(body.closest('[data-message-index]').dataset.messageIndex) }));
+      return this.#findHighlighter.paint(messages, this.#findRegex, this.#findHit);
     }
 
     /**
@@ -3716,6 +4423,7 @@
         this.#fillWidgetSlotsIn(element, this.#session.messages[from + offset]);
         element.classList.toggle('claude-plus-message--highlighted', from + offset === this.#highlightedIndex);
       });
+      this.#paintFind();
     }
 
     /**
@@ -3782,9 +4490,11 @@
     #renderMessageBody(message) {
       const index = this.#session.messages.indexOf(message);
       const container = this.#listElement.querySelector(`[data-message-index="${index}"]`);
-      const body = container ? container.querySelector('.claude-plus-message__body') : null;
+      if (!container) return;
+      const body = container.querySelector('.claude-plus-message__body');
       if (body) body.innerHTML = MessageListView.#messageBodyHtml(message);
-      if (container) this.#fillWidgetSlotsIn(container, message);
+      this.#fillWidgetSlotsIn(container, message);
+      this.#paintFind();
     }
 
     /**
@@ -4654,6 +5364,12 @@
     #messageListView = null;
 
     /**
+     * The in-chat search bar.
+     * @type {?ChatFindBar}
+     */
+    #findBar = null;
+
+    /**
      * Open sub-panes by kind: 'files' and 'sources' are ConversationSubPane, 'stats' (this
      * conversation's own usage stats) is a ConversationStatsSubPane, 'toolSteps' (a message's
      * thinking and tool-call steps) is a MessageToolStepsPane.
@@ -4719,6 +5435,7 @@
         <div class="claude-plus-chat-layout__center">
           <div class="claude-plus-chat-layout__top" data-name="topSide"></div>
           <div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-message-list" data-name="messageList"></div>
+          <div class="claude-plus-find-bar" data-name="findBar" hidden></div>
         </div>
         <div class="claude-plus-chat-layout__side" data-name="rightSide"></div>
       </div>`;
@@ -4730,6 +5447,7 @@
      */
     bindEvents() {
       this.#messageListView = new MessageListView(this, this.elements.messageList, this.#session, message => this.#showToolSteps(message), this.#widgetExtractor);
+      this.#findBar = new ChatFindBar({ element: this.elements.findBar, ownerPanel: this, session: this.#session, listView: this.#messageListView, settings: new ConversationSettings(this.#preferences) });
       this.element.addEventListener('mousedown', () => this.#paneManager.focusPane(this.#paneId));
       this.element.addEventListener('focusin', () => this.#paneManager.focusPane(this.#paneId));
       this.listenTo(this.#paneManager, 'focus', () => this.#renderFocus());
@@ -4752,6 +5470,14 @@
      */
     scrollToMessage(messageId) {
       this.#messageListView.scrollToMessage(messageId);
+    }
+
+    /**
+     * Opens the in-chat search, closes it when its field already has the focus, or focuses it.
+     * @returns {void}
+     */
+    toggleFind() {
+      this.#findBar.toggle();
     }
 
     /**
@@ -4798,6 +5524,7 @@
      * @returns {void}
      */
     dispose() {
+      this.#findBar?.close();
       this.#messageListView?.dispose();
       this.#subPanes.forEach(subPane => subPane.dispose());
       this.#subPanes.clear();
@@ -10593,6 +11320,1064 @@
   }
 
   /**
+   * The hotkey commands of the app itself, in the order the settings list them. A command's chord is
+   * written "Mod+Alt+Shift+Key": Mod is Ctrl, or Cmd on a Mac. The user can rebind each one in the
+   * settings; defaultChord applies until they do. Commands of one vendor live with that vendor.
+   * @type {ReadonlyArray<Readonly<{id: string, label: string, defaultChord: string}>>}
+   */
+  const HOTKEY_COMMANDS = Object.freeze([
+    Object.freeze({ id: 'findInChat', label: 'Find in the active chat', defaultChord: 'Mod+F' }),
+    Object.freeze({ id: 'globalSearch', label: 'Open the global search', defaultChord: 'Mod+Shift+F' }),
+    Object.freeze({ id: 'focusChatList', label: 'Search the chat list', defaultChord: 'Mod+K' }),
+  ]);
+
+  /**
+   * Asks a yes/no question with Cancel and a confirming button; the themed replacement of confirm().
+   */
+  class ConfirmDialog extends ActionDialog {
+    /**
+     * Label of the confirming button.
+     * @type {string}
+     */
+    #confirmLabel;
+
+    /**
+     * Creates the dialog without showing it.
+     * @param {string} message Question to show.
+     * @param {string} confirmLabel Label of the confirming button.
+     */
+    constructor(message, confirmLabel) {
+      super(message);
+      this.#confirmLabel = confirmLabel;
+    }
+
+    /**
+     * Asks a question and waits for the answer.
+     * @param {string} message Question to show.
+     * @param {string} [confirmLabel] Label of the confirming button.
+     * @returns {Promise<boolean>} Resolves true if confirmed, false if cancelled.
+     */
+    static ask(message, confirmLabel = 'Confirm') {
+      return new ConfirmDialog(message, confirmLabel).show();
+    }
+
+    /**
+     * A dismissed question counts as not confirmed.
+     * @returns {boolean} Always false.
+     */
+    get cancelValue() {
+      return false;
+    }
+
+    /**
+     * Builds the Cancel and confirming buttons.
+     * @returns {HTMLButtonElement[]} The buttons.
+     */
+    createActions() {
+      return [
+        this.createClosingButton('Cancel', false, () => false),
+        this.createClosingButton(this.#confirmLabel, true, () => true),
+      ];
+    }
+  }
+
+  /**
+   * A timestamp as local date.
+   * @param {?string} isoDate ISO timestamp.
+   * @returns {string} The formatted date, or an empty string when missing or invalid.
+   */
+  function formatDay(isoDate) {
+    const epochMs = toEpochMs(isoDate);
+    return epochMs ? new Date(epochMs).toLocaleDateString() : '';
+  }
+
+  var stylesheet$7 = ".claude-plus-conversation:hover .claude-plus-conversation__action-button {\r\n  visibility: visible;\r\n}\r\n\r\n.claude-plus-conversation {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-conversation:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-conversation--active > td {\r\n  background: var(--claude-plus-color-accent-soft);\r\n}\r\n\r\n.claude-plus-conversation--open-elsewhere > td:first-child {\r\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-conversation__actions {\r\n  display: inline-flex;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-conversation__action-button {\r\n  visibility: hidden;\r\n  background: none;\r\n  border: none;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n  padding: 4px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-conversation__action-button:hover {\r\n  background: rgba(255, 255, 255, 0.1);\r\n}\r\n";
+
+  StyleRegistry.register(stylesheet$7);
+
+  /**
+   * Conversation list as a column table, with a quick title search, open in a new pane, delete, and
+   * dragging an entry out to open it as a new pane docked where it is dropped. Clicking a
+   * conversation opens it in the focused chat pane.
+   */
+  class ConversationListPanel extends Panel {
+    /**
+     * Shared conversation list.
+     * @type {CombinedConversationDirectory}
+     */
+    #directory;
+
+    /**
+     * Navigation.
+     * @type {Router}
+     */
+    #router;
+
+    /**
+     * Chat panes.
+     * @type {ChatPaneManager}
+     */
+    #paneManager;
+
+    /**
+     * Conversation statistics, for the turn and file columns.
+     * @type {StatsIndex}
+     */
+    #stats;
+
+    /**
+     * Table settings storage.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * Lower-case quick search text.
+     * @type {string}
+     */
+    #searchText = '';
+
+    /**
+     * The conversation table; created with the DOM.
+     * @type {?ColumnTable}
+     */
+    #table = null;
+
+    /**
+     * Handler per button data-action value inside a conversation row.
+     * @type {Map<string, function(HTMLElement): void>}
+     */
+    #rowActionHandlers = new Map([
+      ['delete', row => this.#confirmAndDelete(row)],
+      ['openInNewPane', row => this.#paneManager.openPane(row.dataset.conversationId)],
+    ]);
+
+    /**
+     * Creates the panel.
+     * @param {object} services Panel dependencies.
+     * @param {CombinedConversationDirectory} services.directory Shared conversation list.
+     * @param {Router} services.router Navigation.
+     * @param {ChatPaneManager} services.paneManager Chat panes.
+     * @param {StatsIndex} services.stats Conversation statistics, for the turn and file columns.
+     * @param {Preferences} services.preferences Table settings storage.
+     */
+    constructor({ directory, router, paneManager, stats, preferences }) {
+      super('Chats');
+      this.#directory = directory;
+      this.#router = router;
+      this.#paneManager = paneManager;
+      this.#stats = stats;
+      this.#preferences = preferences;
+    }
+
+    /**
+     * HTML of the panel body.
+     * @returns {string} Quick search box and table host.
+     */
+    createBodyHtml() {
+      return `
+      <input class="claude-plus-search-input" data-name="searchInput" type="text" placeholder="Search chats…" />
+      <div class="claude-plus-table-host" data-name="tableHost"></div>`;
+    }
+
+    /**
+     * Creates the table, wires search, row clicks and drags, and follows list, focus, pane and stats changes.
+     * @returns {void}
+     */
+    bindEvents() {
+      this.#table = new ColumnTable({
+        container: this.elements.tableHost,
+        tableId: 'conversations',
+        columns: this.#columns(),
+        preferences: this.#preferences,
+        defaultSort: { column: 'date', direction: -1 },
+        rowAttributes: conversation => this.#rowAttributes(conversation),
+        emptyText: 'No conversations.',
+      });
+      this.elements.searchInput.addEventListener('input', () => this.#applySearch(this.elements.searchInput.value));
+      this.#table.bodyElement.addEventListener('mousedown', event => this.#onRowPress(event));
+      this.#table.bodyElement.addEventListener('click', event => this.#onRowClick(event));
+      this.listenTo(this.#directory, 'conversations', () => this.render());
+      this.listenTo(this.#paneManager, 'focus', () => this.render());
+      this.listenTo(this.#paneManager, 'paneConversations', () => this.render());
+      this.listenTo(this.#stats, 'aggregate', () => this.render());
+    }
+
+    /**
+     * Shows the conversations matching the quick search.
+     * @returns {void}
+     */
+    render() {
+      this.#table.setRows(this.#directory.conversations.filter(conversation => this.#matchesSearch(conversation)));
+    }
+
+    /**
+     * Closes the table's typeahead and ends the subscriptions.
+     * @returns {void}
+     */
+    dispose() {
+      if (this.#table) this.#table.dispose();
+      super.dispose();
+    }
+
+    /**
+     * Moves keyboard focus to the search box and selects its text.
+     * @returns {void}
+     */
+    focusSearch() {
+      this.elements.searchInput.focus();
+      this.elements.searchInput.select();
+    }
+
+    /**
+     * The table's columns: name (always shown), date, turns, files, and the row buttons.
+     * @returns {TableColumn[]} The columns.
+     */
+    #columns() {
+      return [
+        { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: conversation => (ConversationListingFields.title(conversation) || '').toLowerCase(), filterValue: conversation => ConversationListingFields.title(conversation) || UNTITLED, cellHtml: conversation => `<span class="claude-plus-conversation__title">${escapeHtml(ConversationListingFields.title(conversation) || UNTITLED)}</span>` },
+        { id: 'origin', label: 'Origin', isVisibleByDefault: true, filter: 'values', sortValue: conversation => ConversationListPanel.#originLabel(conversation), filterValue: conversation => ConversationListPanel.#originLabel(conversation), cellHtml: conversation => escapeHtml(ConversationListPanel.#originLabel(conversation)) },
+        { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: conversation => toEpochMs(ConversationListingFields.updatedAt(conversation)), filterValue: conversation => ConversationListingFields.updatedAt(conversation), cellHtml: conversation => escapeHtml(formatDay(ConversationListingFields.updatedAt(conversation))) },
+        { id: 'turns', label: 'Turns', sortValue: conversation => this.#indexedCount(conversation, 'promptCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'promptCount') },
+        { id: 'files', label: 'Files', sortValue: conversation => this.#indexedCount(conversation, 'fileCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'fileCount') },
+        { id: 'actions', label: '', isAlwaysVisible: true, isNotSortable: true, sortValue: () => 0, cellHtml: () => ConversationListPanel.#actionButtonsHtml() },
+      ];
+    }
+
+    /**
+     * A conversation's origin, for the Origin column.
+     * @param {ConversationListing} conversation The conversation.
+     * @returns {'Live'|'Imported'} The label.
+     */
+    static #originLabel(conversation) {
+      return ConversationListingFields.isImported(conversation) ? 'Imported' : 'Live';
+    }
+
+    /**
+     * A per-conversation count from the stats index.
+     * @param {ConversationListing} conversation The conversation.
+     * @param {string} field 'promptCount' or 'fileCount'.
+     * @returns {number} The count, or -1 while the conversation isn't indexed, so unindexed ones sort together.
+     */
+    #indexedCount(conversation, field) {
+      const counts = this.#stats.aggregate.perConversation.get(ConversationListingFields.id(conversation));
+      return counts ? counts[field] : -1;
+    }
+
+    /**
+     * Cell HTML of a per-conversation count.
+     * @param {ConversationListing} conversation The conversation.
+     * @param {string} field 'promptCount' or 'fileCount'.
+     * @returns {string} The count, or "–" while the conversation isn't indexed.
+     */
+    #indexedCountHtml(conversation, field) {
+      const count = this.#indexedCount(conversation, field);
+      return count < 0 ? '–' : String(count);
+    }
+
+    /**
+     * Attributes of a conversation's row: its id and the modifier showing where it is open.
+     * @param {ConversationListing} conversation The conversation.
+     * @returns {string} The attributes.
+     */
+    #rowAttributes(conversation) {
+      const conversationId = ConversationListingFields.id(conversation);
+      const modifier = ConversationListPanel.#stateModifier(conversationId, this.#paneManager.focusedSession.openConversationId, this.#paneManager.openConversationIds());
+      return `class="claude-plus-conversation${modifier}" data-conversation-id="${escapeHtml(conversationId)}"`;
+    }
+
+    /**
+     * Modifier class marking where a conversation is open.
+     * @param {string} conversationId Conversation id.
+     * @param {?string} focusedId Conversation of the focused pane.
+     * @param {Set<string>} openIds Conversations open in any pane.
+     * @returns {string} The active modifier, the open-elsewhere modifier, or an empty string.
+     */
+    static #stateModifier(conversationId, focusedId, openIds) {
+      if (conversationId === focusedId) return ' claude-plus-conversation--active';
+      return openIds.has(conversationId) ? ' claude-plus-conversation--open-elsewhere' : '';
+    }
+
+    /**
+     * HTML of a row's buttons.
+     * @returns {string} Open-in-new-pane and delete buttons.
+     */
+    static #actionButtonsHtml() {
+      return `<span class="claude-plus-conversation__actions"><button class="claude-plus-conversation__action-button" data-action="openInNewPane" title="Open in new pane">⧉</button><button class="claude-plus-conversation__action-button" data-action="delete" title="Delete chat">🗑</button></span>`;
+    }
+
+    /**
+     * Filters the list by title.
+     * @param {string} text Search text.
+     * @returns {void}
+     */
+    #applySearch(text) {
+      this.#searchText = text.toLowerCase();
+      this.render();
+    }
+
+    /**
+     * Whether a conversation's title contains the quick search text.
+     * @param {ConversationListing} conversation The conversation.
+     * @returns {boolean} True when it matches or there is no search.
+     */
+    #matchesSearch(conversation) {
+      return (ConversationListingFields.title(conversation) || '').toLowerCase().includes(this.#searchText);
+    }
+
+    /**
+     * Starts dragging a conversation out of the list on a primary-button press away from its
+     * buttons; releasing over a dock target opens it as a new pane docked there. A plain click still
+     * reaches #onRowClick.
+     * @param {MouseEvent} event Mouse press in the table body.
+     * @returns {void}
+     */
+    #onRowPress(event) {
+      const row = event.target.closest('[data-conversation-id]');
+      if (event.button !== 0 || !row || event.target.closest('[data-action]')) return;
+      const conversationId = row.dataset.conversationId;
+      this.#paneManager.beginDragToOpenPane(event, conversationId, this.#directory.titleOf(conversationId));
+    }
+
+    /**
+     * Runs the clicked row button's action, or opens the clicked conversation in the focused pane.
+     * @param {MouseEvent} event Click in the table body.
+     * @returns {void}
+     */
+    #onRowClick(event) {
+      const row = event.target.closest('[data-conversation-id]');
+      if (!row) return;
+      const button = event.target.closest('[data-action]');
+      if (button) this.#rowActionHandlers.get(button.dataset.action)(row);
+      else this.#router.openConversation(row.dataset.conversationId);
+    }
+
+    /**
+     * Asks for confirmation, then deletes a conversation. The row is dimmed while deleting and
+     * restored if deleting fails.
+     * @param {HTMLElement} row The conversation's row.
+     * @returns {Promise<void>} Resolves once deleted, declined or failed.
+     */
+    async #confirmAndDelete(row) {
+      const conversationId = row.dataset.conversationId;
+      const isConfirmed = await ConfirmDialog.ask(`Delete "${this.#directory.titleOf(conversationId)}"? This cannot be undone.`, 'Delete');
+      if (!isConfirmed) return;
+      row.classList.add('claude-plus-pending');
+      try {
+        await this.#directory.deleteConversation(conversationId);
+      } catch (error) {
+        console.warn(LOG_PREFIX, 'delete failed', error);
+        row.classList.remove('claude-plus-pending');
+      }
+    }
+  }
+
+  /**
+   * Finds chats, files, web sources and tool uses matching a SearchQuery. Qualifiers naming a kind
+   * (file, source, outlet, tool) restrict the results to those kinds; chat, before and after apply to
+   * every kind; free terms must match the item's text or its conversation title.
+   */
+  class SearchEngine {
+    /**
+     * Result kinds selected by each kind qualifier.
+     * @type {Readonly<Record<string, string>>}
+     */
+    static #KIND_OF_QUALIFIER = Object.freeze({ file: 'file', source: 'source', outlet: 'source', tool: 'tool' });
+
+    /**
+     * Label of each kind, for reasons and the kind column.
+     * @type {Readonly<Record<string, string>>}
+     */
+    static #KIND_LABELS = Object.freeze({ chat: 'Chat', file: 'File', source: 'Source', tool: 'Tool' });
+
+    /**
+     * Label of a result kind.
+     * @param {string} kind Result kind.
+     * @returns {string} The label.
+     */
+    static kindLabel(kind) {
+      return SearchEngine.#KIND_LABELS[kind] ?? kind;
+    }
+
+    /**
+     * Searches everything indexed plus the listed conversation titles.
+     * @param {SearchQuery} query The query.
+     * @param {StatsAggregate} aggregate Indexed statistics.
+     * @param {ConversationListing[]} conversations Listed conversations.
+     * @returns {SearchItem[]} Matching items, each with its reason.
+     */
+    static find(query, aggregate, conversations) {
+      const kinds = SearchEngine.#selectedKinds(query);
+      return SearchEngine.#items(aggregate, conversations)
+        .filter(item => kinds.has(item.kind) && SearchEngine.#matches(item, query))
+        .map(item => ({ ...item, reason: SearchEngine.#reason(item, query) }));
+    }
+
+    /**
+     * Kinds the query can return.
+     * @param {SearchQuery} query The query.
+     * @returns {Set<string>} The kinds named by kind qualifiers, or every kind when none is used.
+     */
+    static #selectedKinds(query) {
+      const named = Object.keys(SearchEngine.#KIND_OF_QUALIFIER).filter(qualifier => query.uses(qualifier)).map(qualifier => SearchEngine.#KIND_OF_QUALIFIER[qualifier]);
+      return new Set(named.length ? named : Object.keys(SearchEngine.#KIND_LABELS));
+    }
+
+    /**
+     * Every searchable item.
+     * @param {StatsAggregate} aggregate Indexed statistics.
+     * @param {ConversationListing[]} conversations Listed conversations.
+     * @returns {SearchItem[]} Chats, files, sources and tool uses.
+     */
+    static #items(aggregate, conversations) {
+      const chats = conversations.map(conversation => SearchEngine.#item('chat', ConversationListingFields.title(conversation) || UNTITLED, null, { conversationId: ConversationListingFields.id(conversation), conversationTitle: ConversationListingFields.title(conversation) || UNTITLED, timestamp: ConversationListingFields.updatedAt(conversation), isImported: ConversationListingFields.isImported(conversation) }));
+      const files = aggregate.folders.flatMap(folder => folder.files).map(file => SearchEngine.#item('file', file.title || file.path, null, file));
+      const sources = aggregate.sources.map(source => SearchEngine.#item('source', source.title, `${source.outlet || ''} ${source.url}`, source));
+      const tools = [...aggregate.perConversation].flatMap(([conversationId, summary]) => summary.toolCalls.map(call => SearchEngine.#item('tool', call.name, null, { conversationId, conversationTitle: summary.title, timestamp: call.timestamp, isImported: summary.isImported, messageId: call.messageId })));
+      return [...chats, ...files, ...sources, ...tools];
+    }
+
+    /**
+     * Creates a search item.
+     * @param {string} kind Item kind.
+     * @param {string} text The item's own text.
+     * @param {?string} detail Secondary text.
+     * @param {{conversationId: string, conversationTitle: string, timestamp: ?string, isImported: ?boolean, messageId: ?string}} origin Conversation, time and message of the item.
+     * @returns {SearchItem} The item.
+     */
+    static #item(kind, text, detail, origin) {
+      return { kind, text, detail, conversationId: origin.conversationId, conversationTitle: origin.conversationTitle, timestamp: origin.timestamp, isImported: Boolean(origin.isImported), messageId: origin.messageId ?? null };
+    }
+
+    /**
+     * Whether an item satisfies every part of the query.
+     * @param {SearchItem} item The item.
+     * @param {SearchQuery} query The query.
+     * @returns {boolean} True when it matches.
+     */
+    static #matches(item, query) {
+      return SearchEngine.#matchesKindQualifiers(item, query)
+        && query.patterns('chat').every(pattern => pattern.matches(item.conversationTitle))
+        && SearchEngine.#matchesDates(item, query)
+        && query.terms.every(term => term.matches(item.text) || term.matches(item.conversationTitle));
+    }
+
+    /**
+     * Whether an item satisfies the qualifiers of its kind.
+     * @param {SearchItem} item The item.
+     * @param {SearchQuery} query The query.
+     * @returns {boolean} True when every file, source, outlet or tool pattern relevant to the item matches.
+     */
+    static #matchesKindQualifiers(item, query) {
+      const checks = {
+        file: () => query.patterns('file').every(pattern => pattern.matches(item.text)),
+        source: () => query.patterns('source').every(pattern => pattern.matches(item.text) || pattern.matches(item.detail))
+          && query.patterns('outlet').every(pattern => pattern.matches(item.detail)),
+        tool: () => query.patterns('tool').every(pattern => pattern.matches(item.text)),
+        chat: () => true,
+      };
+      return checks[item.kind]();
+    }
+
+    /**
+     * Whether an item's day is inside the before/after bounds.
+     * @param {SearchItem} item The item.
+     * @param {SearchQuery} query The query.
+     * @returns {boolean} True when inside the bounds, or when no date qualifier is used.
+     */
+    static #matchesDates(item, query) {
+      return new DateRange(query.lastValue('after'), query.lastValue('before')).contains(item.timestamp);
+    }
+
+    /**
+     * Human-readable explanation of why an item matched.
+     * @param {SearchItem} item The item.
+     * @param {SearchQuery} query The query.
+     * @returns {string} The criteria it satisfied, separated by semicolons.
+     */
+    static #reason(item, query) {
+      const qualifierReasons = ['file', 'source', 'outlet', 'tool', 'chat', 'after', 'before']
+        .filter(qualifier => query.uses(qualifier))
+        .map(qualifier => `${qualifier}: ${query.lastValue(qualifier)}`);
+      const termReasons = query.terms.map(term => `"${term.text}" in ${term.matches(item.text) ? SearchEngine.kindLabel(item.kind).toLowerCase() : 'chat title'}`);
+      return [...qualifierReasons, ...termReasons].join('; ');
+    }
+  }
+
+  /**
+   * A parsed search query: free terms plus qualifiers such as `file:*.pdf` or `outlet:"new york times"`.
+   * Qualifier values and terms may contain `*` wildcards; `before:` and `after:` take YYYY-MM-DD dates.
+   */
+  class SearchQuery {
+    /**
+     * Canonical qualifier per accepted qualifier name.
+     * @type {Readonly<Record<string, string>>}
+     */
+    static #QUALIFIER_NAMES = Object.freeze({ chat: 'chat', title: 'chat', file: 'file', outlet: 'outlet', source: 'source', url: 'source', tool: 'tool', before: 'before', after: 'after' });
+
+    /**
+     * One token: a qualifier with a quoted or plain value, a quoted term, or a plain term.
+     * @type {RegExp}
+     */
+    static #TOKEN = /(\w+):(?:"([^"]*)"|(\S+))|"([^"]*)"|(\S+)/g;
+
+    /**
+     * Free terms; each must match the item's own text or its conversation title.
+     * @type {WildcardPattern[]}
+     */
+    #terms;
+
+    /**
+     * Qualifier values by canonical qualifier.
+     * @type {Map<string, string[]>}
+     */
+    #qualifiers;
+
+    /**
+     * Creates a query.
+     * @param {WildcardPattern[]} terms Free terms.
+     * @param {Map<string, string[]>} qualifiers Qualifier values by canonical qualifier.
+     */
+    constructor(terms, qualifiers) {
+      this.#terms = terms;
+      this.#qualifiers = qualifiers;
+    }
+
+    /**
+     * Parses query text. Unknown qualifiers are treated as free terms.
+     * @param {string} text Query text.
+     * @returns {SearchQuery} The query.
+     */
+    static parse(text) {
+      const terms = [];
+      const qualifiers = new Map();
+      for (const token of text.matchAll(SearchQuery.#TOKEN)) SearchQuery.#addToken(token, terms, qualifiers);
+      return new SearchQuery(terms, qualifiers);
+    }
+
+    /**
+     * Whether the query has nothing to search for.
+     * @returns {boolean} True without terms and qualifiers.
+     */
+    get isEmpty() {
+      return this.#terms.length === 0 && this.#qualifiers.size === 0;
+    }
+
+    /**
+     * Free terms.
+     * @returns {WildcardPattern[]} The terms.
+     */
+    get terms() {
+      return this.#terms;
+    }
+
+    /**
+     * Patterns of a qualifier.
+     * @param {string} qualifier Canonical qualifier name.
+     * @returns {WildcardPattern[]} One pattern per value; empty when the qualifier isn't used.
+     */
+    patterns(qualifier) {
+      return (this.#qualifiers.get(qualifier) ?? []).map(value => new WildcardPattern(value));
+    }
+
+    /**
+     * Last value of a qualifier.
+     * @param {string} qualifier Canonical qualifier name.
+     * @returns {string} The value, or an empty string when the qualifier isn't used.
+     */
+    lastValue(qualifier) {
+      const values = this.#qualifiers.get(qualifier) ?? [];
+      return values.length ? values[values.length - 1] : '';
+    }
+
+    /**
+     * Whether a qualifier is used.
+     * @param {string} qualifier Canonical qualifier name.
+     * @returns {boolean} True when it has at least one value.
+     */
+    uses(qualifier) {
+      return this.#qualifiers.has(qualifier);
+    }
+
+    /**
+     * Adds one token to the terms or qualifiers.
+     * @param {RegExpMatchArray} token Token match.
+     * @param {WildcardPattern[]} terms Free terms; modified in place.
+     * @param {Map<string, string[]>} qualifiers Qualifier values; modified in place.
+     * @returns {void}
+     */
+    static #addToken(token, terms, qualifiers) {
+      const qualifier = SearchQuery.#qualifierOf(token);
+      if (!qualifier) {
+        terms.push(new WildcardPattern(token[4] ?? token[0]));
+        return;
+      }
+      qualifiers.set(qualifier.name, [...(qualifiers.get(qualifier.name) ?? []), qualifier.value]);
+    }
+
+    /**
+     * The known qualifier a token carries.
+     * @param {RegExpMatchArray} token Token match.
+     * @returns {?{name: string, value: string}} The canonical qualifier and its value, or null for a free term.
+     */
+    static #qualifierOf(token) {
+      const name = token[1] ? SearchQuery.#QUALIFIER_NAMES[token[1].toLowerCase()] : undefined;
+      return name ? { name, value: token[2] ?? token[3] } : null;
+    }
+  }
+
+  var stylesheet$6 = ".claude-plus-search-result {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-search-result:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n";
+
+  StyleRegistry.register(stylesheet$6);
+
+  /**
+   * Structured search over chats, files, web sources and tool uses, e.g. `file:*.pdf`,
+   * `outlet:*nbc*`, `tool:web_search`, `chat:budget`, `after:2026-01-01`. Results show what matched,
+   * where, when and why; clicking one opens its conversation in the active chat.
+   */
+  class SearchPanel extends Panel {
+    /**
+     * Conversation statistics.
+     * @type {StatsIndex}
+     */
+    #stats;
+
+    /**
+     * Shared conversation list.
+     * @type {CombinedConversationDirectory}
+     */
+    #directory;
+
+    /**
+     * Navigation.
+     * @type {Router}
+     */
+    #router;
+
+    /**
+     * Table settings storage.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * The current query.
+     * @type {SearchQuery}
+     */
+    #query = SearchQuery.parse('');
+
+    /**
+     * The results table; created with the DOM.
+     * @type {?ColumnTable}
+     */
+    #table = null;
+
+    /**
+     * Creates the panel.
+     * @param {object} services Panel dependencies.
+     * @param {StatsIndex} services.stats Conversation statistics.
+     * @param {CombinedConversationDirectory} services.directory Shared conversation list.
+     * @param {Router} services.router Navigation.
+     * @param {Preferences} services.preferences Table settings storage.
+     */
+    constructor({ stats, directory, router, preferences }) {
+      super('Search');
+      this.#stats = stats;
+      this.#directory = directory;
+      this.#router = router;
+      this.#preferences = preferences;
+    }
+
+    /**
+     * HTML of the panel body.
+     * @returns {string} Query input, syntax hint and results host.
+     */
+    createBodyHtml() {
+      return `
+      <input class="claude-plus-search-input" data-name="queryInput" type="text" placeholder="Search… e.g. file:*.pdf outlet:*nbc*" />
+      <div class="claude-plus-hint">Qualifiers: chat: file: source: outlet: tool: after:YYYY-MM-DD before:YYYY-MM-DD — * is a wildcard, quote values with spaces.</div>
+      <div class="claude-plus-table-host" data-name="tableHost"></div>`;
+    }
+
+    /**
+     * Creates the results table, wires the query and result clicks, and follows data changes.
+     * @returns {void}
+     */
+    bindEvents() {
+      this.#table = new ColumnTable({
+        container: this.elements.tableHost,
+        tableId: 'searchResults',
+        columns: SearchPanel.#columns(),
+        preferences: this.#preferences,
+        defaultSort: { column: 'date', direction: -1 },
+        rowAttributes: item => `class="claude-plus-search-result" data-conversation-id="${escapeHtml(item.conversationId)}" data-message-id="${escapeHtml(item.messageId ?? '')}"`,
+        emptyText: 'No results.',
+      });
+      this.elements.queryInput.addEventListener('input', () => this.#runQuery(this.elements.queryInput.value));
+      this.#table.bodyElement.addEventListener('click', event => this.#onResultClick(event));
+      this.listenTo(this.#stats, 'aggregate', () => this.render());
+      this.listenTo(this.#directory, 'conversations', () => this.render());
+    }
+
+    /**
+     * Shows the results of the current query; none for an empty query.
+     * @returns {void}
+     */
+    render() {
+      this.#table.setRows(this.#query.isEmpty ? [] : SearchEngine.find(this.#query, this.#stats.aggregate, this.#directory.conversations));
+    }
+
+    /**
+     * Moves keyboard focus to the query field and selects its text.
+     * @returns {void}
+     */
+    focusQuery() {
+      const input = this.element.querySelector('[data-name="queryInput"]');
+      input.focus();
+      input.select();
+    }
+
+    /**
+     * Closes the table's typeahead and ends the subscriptions.
+     * @returns {void}
+     */
+    dispose() {
+      if (this.#table) this.#table.dispose();
+      super.dispose();
+    }
+
+    /**
+     * Columns of the results table.
+     * @returns {TableColumn[]} Match, kind, chat, date and reason.
+     */
+    static #columns() {
+      return [
+        { id: 'match', label: 'Match', isAlwaysVisible: true, sortValue: item => item.text.toLowerCase(), cellHtml: item => escapeHtml(item.text) },
+        { id: 'kind', label: 'Kind', isVisibleByDefault: true, filter: 'values', sortValue: item => SearchEngine.kindLabel(item.kind), cellHtml: item => escapeHtml(SearchEngine.kindLabel(item.kind)) },
+        { id: 'origin', label: 'Origin', isVisibleByDefault: true, filter: 'values', sortValue: item => SearchPanel.#originLabel(item), filterValue: item => SearchPanel.#originLabel(item), cellHtml: item => escapeHtml(SearchPanel.#originLabel(item)) },
+        { id: 'conversation', label: 'Chat', isVisibleByDefault: true, filter: 'values', sortValue: item => item.conversationTitle.toLowerCase(), filterValue: item => item.conversationTitle, cellHtml: item => escapeHtml(item.conversationTitle) },
+        { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: item => toEpochMs(item.timestamp), filterValue: item => item.timestamp, cellHtml: item => escapeHtml(formatTimestamp(item.timestamp)) },
+        { id: 'reason', label: 'Why', isVisibleByDefault: true, sortValue: item => item.reason, cellHtml: item => escapeHtml(item.reason) },
+      ];
+    }
+
+    /**
+     * A search item's origin label, for the Origin column.
+     * @param {SearchItem} item The item.
+     * @returns {'Live'|'Imported'} The label.
+     */
+    static #originLabel(item) {
+      return item.isImported ? 'Imported' : 'Live';
+    }
+
+    /**
+     * Parses new query text and shows its results.
+     * @param {string} text Query text.
+     * @returns {void}
+     */
+    #runQuery(text) {
+      this.#query = SearchQuery.parse(text);
+      this.render();
+    }
+
+    /**
+     * Opens the clicked result's conversation in the active chat, then scrolls to and highlights the
+     * matched message, if the result is tied to one.
+     * @param {MouseEvent} event Click in the results body.
+     * @returns {Promise<void>} Resolves once opened and, when applicable, scrolled to.
+     */
+    async #onResultClick(event) {
+      const row = event.target.closest('[data-conversation-id]');
+      if (!row) return;
+      await this.#router.openConversation(row.dataset.conversationId);
+      if (row.dataset.messageId) this.#router.scrollToMessage(row.dataset.messageId);
+    }
+  }
+
+  /**
+   * The actions of the app's own hotkey commands (see HOTKEY_COMMANDS).
+   */
+  class HotkeyActions {
+    /**
+     * Workspace used to find and reveal panels.
+     * @type {DockWorkspace}
+     */
+    #workspace;
+
+    /**
+     * Creates panels that are not docked yet.
+     * @type {PanelFactory}
+     */
+    #panelFactory;
+
+    /**
+     * Chat panes, for the active chat.
+     * @type {ChatPaneManager}
+     */
+    #paneManager;
+
+    /**
+     * Creates the actions.
+     * @param {object} services What the actions work with.
+     * @param {DockWorkspace} services.workspace Workspace used to find and reveal panels.
+     * @param {PanelFactory} services.panelFactory Creates panels that are not docked yet.
+     * @param {ChatPaneManager} services.paneManager Chat panes, for the active chat.
+     */
+    constructor({ workspace, panelFactory, paneManager }) {
+      this.#workspace = workspace;
+      this.#panelFactory = panelFactory;
+      this.#paneManager = paneManager;
+    }
+
+    /**
+     * The actions by command id.
+     * @returns {Map<string, function(): void>} The actions.
+     */
+    toMap() {
+      return new Map([
+        ['findInChat', () => this.#paneManager.focusedPanel.toggleFind()],
+        ['globalSearch', () => this.#openGlobalSearch()],
+        ['focusChatList', () => this.#focusChatListSearch()],
+      ]);
+    }
+
+    /**
+     * Shows the first docked conversation list and focuses its search box; does nothing when none is docked.
+     * @returns {void}
+     */
+    #focusChatListSearch() {
+      const docked = this.#workspace.findDockedPanel(panel => panel instanceof ConversationListPanel);
+      if (docked && this.#workspace.revealPanel(docked.panelId)) docked.panel.focusSearch();
+    }
+
+    /**
+     * Shows the first docked search panel and focuses its query field, adding a search panel next to
+     * the active chat when none is docked.
+     * @returns {void}
+     */
+    #openGlobalSearch() {
+      const docked = this.#workspace.findDockedPanel(panel => panel instanceof SearchPanel);
+      if (docked) {
+        this.#workspace.revealPanel(docked.panelId);
+        docked.panel.focusQuery();
+        return;
+      }
+      const { panelId, panel } = this.#panelFactory.createInstance('search');
+      this.#workspace.addPanel(panelId, panel, this.#paneManager.focusedPaneId);
+      panel.focusQuery();
+    }
+  }
+
+  /**
+   * Key combinations as text, "Mod+Alt+Shift+Key": Mod stands for Ctrl, or Cmd on a Mac, so one
+   * chord means the same on every platform.
+   */
+  class HotkeyChord {
+    /**
+     * Keys that are only modifiers and so never end a chord.
+     * @type {ReadonlySet<string>}
+     */
+    static #MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta', 'AltGraph']);
+
+    /**
+     * The chord a key press makes.
+     * @param {KeyboardEvent} event The key press.
+     * @returns {?string} The chord, or null while only modifiers are held.
+     */
+    static fromEvent(event) {
+      if (HotkeyChord.#MODIFIER_KEYS.has(event.key)) return null;
+      const held = [['Mod', event.ctrlKey || event.metaKey], ['Alt', event.altKey], ['Shift', event.shiftKey]];
+      return [...held.filter(([, isHeld]) => isHeld).map(([name]) => name), HotkeyChord.#keyName(event)].join('+');
+    }
+
+    /**
+     * A chord as the user reads it.
+     * @param {string} chord The chord; empty for none.
+     * @returns {string} Its text, with Mod as Ctrl or Cmd; "Not set" for none.
+     */
+    static format(chord) {
+      if (!chord) return 'Not set';
+      return chord.replace('Mod', /Mac|iPhone|iPad/.test(navigator.platform) ? 'Cmd' : 'Ctrl');
+    }
+
+    /**
+     * The name of the key of a key press, taken from its position for letters and digits so the
+     * chord does not change with the keyboard layout or Shift.
+     * @param {KeyboardEvent} event The key press.
+     * @returns {string} The name.
+     */
+    static #keyName(event) {
+      const positional = /^(?:Key|Digit)(.)$/.exec(event.code);
+      if (positional) return positional[1];
+      if (event.key === ' ') return 'Space';
+      return event.key.length === 1 ? event.key.toUpperCase() : event.key;
+    }
+  }
+
+  /**
+   * The hotkey bindings: every command of every group (the app's own and each vendor's) with its
+   * default chord, and the user's overrides, which are stored. An override can be an empty chord,
+   * meaning the command has none.
+   * @fires Hotkeys#changed A binding changed.
+   */
+  class Hotkeys extends EventEmitter {
+    /**
+     * Storage of the overrides.
+     * @type {Preferences}
+     */
+    #preferences;
+
+    /**
+     * The command groups.
+     * @type {HotkeyGroup[]}
+     */
+    #groups;
+
+    /**
+     * The user's chord per command id; an empty string means unassigned.
+     * @type {Object<string, string>}
+     */
+    #overrides;
+
+    /**
+     * Whether a settings control is recording the next key press, so no command must run for it.
+     * @type {boolean}
+     */
+    #isRecording = false;
+
+    /**
+     * Creates the bindings.
+     * @param {Preferences} preferences Storage of the overrides.
+     * @param {HotkeyGroup[]} groups The command groups.
+     */
+    constructor(preferences, groups) {
+      super();
+      this.#preferences = preferences;
+      this.#groups = groups;
+      this.#overrides = preferences.readJson(STORAGE_KEYS.hotkeys) ?? {};
+    }
+
+    /**
+     * The command groups, in settings order.
+     * @returns {HotkeyGroup[]} The groups.
+     */
+    get groups() {
+      return this.#groups;
+    }
+
+    /**
+     * Whether a settings control is recording the next key press.
+     * @returns {boolean} True while recording.
+     */
+    get isRecording() {
+      return this.#isRecording;
+    }
+
+    /**
+     * Starts or ends recording, during which no command runs.
+     * @param {boolean} isRecording Whether a control is recording.
+     * @returns {void}
+     */
+    setRecording(isRecording) {
+      this.#isRecording = isRecording;
+    }
+
+    /**
+     * A command's current chord.
+     * @param {string} commandId Command id.
+     * @returns {string} The override if there is one, else the default; empty for none.
+     */
+    chordOf(commandId) {
+      return commandId in this.#overrides ? this.#overrides[commandId] : (this.#find(commandId)?.defaultChord ?? '');
+    }
+
+    /**
+     * Whether a command's chord differs from its default.
+     * @param {string} commandId Command id.
+     * @returns {boolean} True when the user changed it.
+     */
+    isCustomized(commandId) {
+      return commandId in this.#overrides;
+    }
+
+    /**
+     * The command a key press triggers.
+     * @param {KeyboardEvent} event The key press.
+     * @returns {?string} The command id, or null when no command has that chord.
+     */
+    commandIdFor(event) {
+      const chord = HotkeyChord.fromEvent(event);
+      return chord ? (this.#commands().find(command => this.chordOf(command.id) === chord)?.id ?? null) : null;
+    }
+
+    /**
+     * Binds a chord to a command, unless another command already has it.
+     * @param {string} commandId Command id.
+     * @param {string} chord The chord; empty to leave the command without one.
+     * @returns {?{id: string, label: string}} The command that already has the chord, when the change was refused.
+     */
+    setChord(commandId, chord) {
+      const conflict = chord ? this.#conflictOf(commandId, chord) : null;
+      if (conflict) return conflict;
+      this.#store({ ...this.#overrides, [commandId]: chord });
+      return null;
+    }
+
+    /**
+     * Returns a command to its default chord.
+     * @param {string} commandId Command id.
+     * @returns {?{id: string, label: string}} The command that already has the default chord, when the reset was refused.
+     */
+    reset(commandId) {
+      const defaultChord = this.#find(commandId)?.defaultChord ?? '';
+      const conflict = defaultChord ? this.#conflictOf(commandId, defaultChord) : null;
+      if (conflict) return conflict;
+      const remaining = { ...this.#overrides };
+      delete remaining[commandId];
+      this.#store(remaining);
+      return null;
+    }
+
+    /**
+     * Another command that has a chord.
+     * @param {string} commandId The command that wants the chord.
+     * @param {string} chord The chord.
+     * @returns {?{id: string, label: string}} The other command, or undefined when the chord is free.
+     */
+    #conflictOf(commandId, chord) {
+      return this.#commands().find(command => command.id !== commandId && this.chordOf(command.id) === chord);
+    }
+
+    /**
+     * Every command of every group.
+     * @returns {Array<{id: string, label: string, defaultChord: string}>} The commands.
+     */
+    #commands() {
+      return this.#groups.flatMap(group => [...group.commands]);
+    }
+
+    /**
+     * A command by id.
+     * @param {string} commandId Command id.
+     * @returns {?{id: string, label: string, defaultChord: string}} The command, or undefined when none has that id.
+     */
+    #find(commandId) {
+      return this.#commands().find(command => command.id === commandId);
+    }
+
+    /**
+     * Keeps new overrides and announces the change.
+     * @param {Object<string, string>} overrides The overrides.
+     * @returns {void}
+     */
+    #store(overrides) {
+      this.#overrides = overrides;
+      this.#preferences.writeJson(STORAGE_KEYS.hotkeys, overrides);
+      this.publish('changed');
+    }
+  }
+
+  /**
    * Maps a raw conversation from claude.ai's data export into the same shape ClaudeApi's live
    * responses already produce, so the existing rendering pipeline (ChatSession, ConversationTree,
    * ChatMessage, MessageContent) renders an imported conversation unmodified.
@@ -11697,364 +13482,32 @@
   }
 
   /**
-   * Asks a yes/no question with Cancel and a confirming button; the themed replacement of confirm().
-   */
-  class ConfirmDialog extends ActionDialog {
-    /**
-     * Label of the confirming button.
-     * @type {string}
-     */
-    #confirmLabel;
-
-    /**
-     * Creates the dialog without showing it.
-     * @param {string} message Question to show.
-     * @param {string} confirmLabel Label of the confirming button.
-     */
-    constructor(message, confirmLabel) {
-      super(message);
-      this.#confirmLabel = confirmLabel;
-    }
-
-    /**
-     * Asks a question and waits for the answer.
-     * @param {string} message Question to show.
-     * @param {string} [confirmLabel] Label of the confirming button.
-     * @returns {Promise<boolean>} Resolves true if confirmed, false if cancelled.
-     */
-    static ask(message, confirmLabel = 'Confirm') {
-      return new ConfirmDialog(message, confirmLabel).show();
-    }
-
-    /**
-     * A dismissed question counts as not confirmed.
-     * @returns {boolean} Always false.
-     */
-    get cancelValue() {
-      return false;
-    }
-
-    /**
-     * Builds the Cancel and confirming buttons.
-     * @returns {HTMLButtonElement[]} The buttons.
-     */
-    createActions() {
-      return [
-        this.createClosingButton('Cancel', false, () => false),
-        this.createClosingButton(this.#confirmLabel, true, () => true),
-      ];
-    }
-  }
-
-  /**
-   * A timestamp as local date.
-   * @param {?string} isoDate ISO timestamp.
-   * @returns {string} The formatted date, or an empty string when missing or invalid.
-   */
-  function formatDay(isoDate) {
-    const epochMs = toEpochMs(isoDate);
-    return epochMs ? new Date(epochMs).toLocaleDateString() : '';
-  }
-
-  var stylesheet$7 = ".claude-plus-conversation:hover .claude-plus-conversation__action-button {\r\n  visibility: visible;\r\n}\r\n\r\n.claude-plus-conversation {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-conversation:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-conversation--active > td {\r\n  background: var(--claude-plus-color-accent-soft);\r\n}\r\n\r\n.claude-plus-conversation--open-elsewhere > td:first-child {\r\n  box-shadow: inset 2px 0 0 var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-conversation__actions {\r\n  display: inline-flex;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-conversation__action-button {\r\n  visibility: hidden;\r\n  background: none;\r\n  border: none;\r\n  cursor: pointer;\r\n  font-size: 12px;\r\n  padding: 4px;\r\n  border-radius: 4px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-conversation__action-button:hover {\r\n  background: rgba(255, 255, 255, 0.1);\r\n}\r\n";
-
-  StyleRegistry.register(stylesheet$7);
-
-  /**
-   * Conversation list as a column table, with a quick title search, open in a new pane, delete, and
-   * dragging an entry out to open it as a new pane docked where it is dropped. Clicking a
-   * conversation opens it in the focused chat pane.
-   */
-  class ConversationListPanel extends Panel {
-    /**
-     * Shared conversation list.
-     * @type {CombinedConversationDirectory}
-     */
-    #directory;
-
-    /**
-     * Navigation.
-     * @type {Router}
-     */
-    #router;
-
-    /**
-     * Chat panes.
-     * @type {ChatPaneManager}
-     */
-    #paneManager;
-
-    /**
-     * Conversation statistics, for the turn and file columns.
-     * @type {StatsIndex}
-     */
-    #stats;
-
-    /**
-     * Table settings storage.
-     * @type {Preferences}
-     */
-    #preferences;
-
-    /**
-     * Lower-case quick search text.
-     * @type {string}
-     */
-    #searchText = '';
-
-    /**
-     * The conversation table; created with the DOM.
-     * @type {?ColumnTable}
-     */
-    #table = null;
-
-    /**
-     * Handler per button data-action value inside a conversation row.
-     * @type {Map<string, function(HTMLElement): void>}
-     */
-    #rowActionHandlers = new Map([
-      ['delete', row => this.#confirmAndDelete(row)],
-      ['openInNewPane', row => this.#paneManager.openPane(row.dataset.conversationId)],
-    ]);
-
-    /**
-     * Creates the panel.
-     * @param {object} services Panel dependencies.
-     * @param {CombinedConversationDirectory} services.directory Shared conversation list.
-     * @param {Router} services.router Navigation.
-     * @param {ChatPaneManager} services.paneManager Chat panes.
-     * @param {StatsIndex} services.stats Conversation statistics, for the turn and file columns.
-     * @param {Preferences} services.preferences Table settings storage.
-     */
-    constructor({ directory, router, paneManager, stats, preferences }) {
-      super('Chats');
-      this.#directory = directory;
-      this.#router = router;
-      this.#paneManager = paneManager;
-      this.#stats = stats;
-      this.#preferences = preferences;
-    }
-
-    /**
-     * HTML of the panel body.
-     * @returns {string} Quick search box and table host.
-     */
-    createBodyHtml() {
-      return `
-      <input class="claude-plus-search-input" data-name="searchInput" type="text" placeholder="Search chats…" />
-      <div class="claude-plus-table-host" data-name="tableHost"></div>`;
-    }
-
-    /**
-     * Creates the table, wires search, row clicks and drags, and follows list, focus, pane and stats changes.
-     * @returns {void}
-     */
-    bindEvents() {
-      this.#table = new ColumnTable({
-        container: this.elements.tableHost,
-        tableId: 'conversations',
-        columns: this.#columns(),
-        preferences: this.#preferences,
-        defaultSort: { column: 'date', direction: -1 },
-        rowAttributes: conversation => this.#rowAttributes(conversation),
-        emptyText: 'No conversations.',
-      });
-      this.elements.searchInput.addEventListener('input', () => this.#applySearch(this.elements.searchInput.value));
-      this.#table.bodyElement.addEventListener('mousedown', event => this.#onRowPress(event));
-      this.#table.bodyElement.addEventListener('click', event => this.#onRowClick(event));
-      this.listenTo(this.#directory, 'conversations', () => this.render());
-      this.listenTo(this.#paneManager, 'focus', () => this.render());
-      this.listenTo(this.#paneManager, 'paneConversations', () => this.render());
-      this.listenTo(this.#stats, 'aggregate', () => this.render());
-    }
-
-    /**
-     * Shows the conversations matching the quick search.
-     * @returns {void}
-     */
-    render() {
-      this.#table.setRows(this.#directory.conversations.filter(conversation => this.#matchesSearch(conversation)));
-    }
-
-    /**
-     * Closes the table's typeahead and ends the subscriptions.
-     * @returns {void}
-     */
-    dispose() {
-      if (this.#table) this.#table.dispose();
-      super.dispose();
-    }
-
-    /**
-     * Moves keyboard focus to the search box and selects its text.
-     * @returns {void}
-     */
-    focusSearch() {
-      this.elements.searchInput.focus();
-      this.elements.searchInput.select();
-    }
-
-    /**
-     * The table's columns: name (always shown), date, turns, files, and the row buttons.
-     * @returns {TableColumn[]} The columns.
-     */
-    #columns() {
-      return [
-        { id: 'name', label: 'Name', isAlwaysVisible: true, filter: 'values', sortValue: conversation => (ConversationListingFields.title(conversation) || '').toLowerCase(), filterValue: conversation => ConversationListingFields.title(conversation) || UNTITLED, cellHtml: conversation => `<span class="claude-plus-conversation__title">${escapeHtml(ConversationListingFields.title(conversation) || UNTITLED)}</span>` },
-        { id: 'origin', label: 'Origin', isVisibleByDefault: true, filter: 'values', sortValue: conversation => ConversationListPanel.#originLabel(conversation), filterValue: conversation => ConversationListPanel.#originLabel(conversation), cellHtml: conversation => escapeHtml(ConversationListPanel.#originLabel(conversation)) },
-        { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: conversation => toEpochMs(ConversationListingFields.updatedAt(conversation)), filterValue: conversation => ConversationListingFields.updatedAt(conversation), cellHtml: conversation => escapeHtml(formatDay(ConversationListingFields.updatedAt(conversation))) },
-        { id: 'turns', label: 'Turns', sortValue: conversation => this.#indexedCount(conversation, 'promptCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'promptCount') },
-        { id: 'files', label: 'Files', sortValue: conversation => this.#indexedCount(conversation, 'fileCount'), cellHtml: conversation => this.#indexedCountHtml(conversation, 'fileCount') },
-        { id: 'actions', label: '', isAlwaysVisible: true, isNotSortable: true, sortValue: () => 0, cellHtml: () => ConversationListPanel.#actionButtonsHtml() },
-      ];
-    }
-
-    /**
-     * A conversation's origin, for the Origin column.
-     * @param {ConversationListing} conversation The conversation.
-     * @returns {'Live'|'Imported'} The label.
-     */
-    static #originLabel(conversation) {
-      return ConversationListingFields.isImported(conversation) ? 'Imported' : 'Live';
-    }
-
-    /**
-     * A per-conversation count from the stats index.
-     * @param {ConversationListing} conversation The conversation.
-     * @param {string} field 'promptCount' or 'fileCount'.
-     * @returns {number} The count, or -1 while the conversation isn't indexed, so unindexed ones sort together.
-     */
-    #indexedCount(conversation, field) {
-      const counts = this.#stats.aggregate.perConversation.get(ConversationListingFields.id(conversation));
-      return counts ? counts[field] : -1;
-    }
-
-    /**
-     * Cell HTML of a per-conversation count.
-     * @param {ConversationListing} conversation The conversation.
-     * @param {string} field 'promptCount' or 'fileCount'.
-     * @returns {string} The count, or "–" while the conversation isn't indexed.
-     */
-    #indexedCountHtml(conversation, field) {
-      const count = this.#indexedCount(conversation, field);
-      return count < 0 ? '–' : String(count);
-    }
-
-    /**
-     * Attributes of a conversation's row: its id and the modifier showing where it is open.
-     * @param {ConversationListing} conversation The conversation.
-     * @returns {string} The attributes.
-     */
-    #rowAttributes(conversation) {
-      const conversationId = ConversationListingFields.id(conversation);
-      const modifier = ConversationListPanel.#stateModifier(conversationId, this.#paneManager.focusedSession.openConversationId, this.#paneManager.openConversationIds());
-      return `class="claude-plus-conversation${modifier}" data-conversation-id="${escapeHtml(conversationId)}"`;
-    }
-
-    /**
-     * Modifier class marking where a conversation is open.
-     * @param {string} conversationId Conversation id.
-     * @param {?string} focusedId Conversation of the focused pane.
-     * @param {Set<string>} openIds Conversations open in any pane.
-     * @returns {string} The active modifier, the open-elsewhere modifier, or an empty string.
-     */
-    static #stateModifier(conversationId, focusedId, openIds) {
-      if (conversationId === focusedId) return ' claude-plus-conversation--active';
-      return openIds.has(conversationId) ? ' claude-plus-conversation--open-elsewhere' : '';
-    }
-
-    /**
-     * HTML of a row's buttons.
-     * @returns {string} Open-in-new-pane and delete buttons.
-     */
-    static #actionButtonsHtml() {
-      return `<span class="claude-plus-conversation__actions"><button class="claude-plus-conversation__action-button" data-action="openInNewPane" title="Open in new pane">⧉</button><button class="claude-plus-conversation__action-button" data-action="delete" title="Delete chat">🗑</button></span>`;
-    }
-
-    /**
-     * Filters the list by title.
-     * @param {string} text Search text.
-     * @returns {void}
-     */
-    #applySearch(text) {
-      this.#searchText = text.toLowerCase();
-      this.render();
-    }
-
-    /**
-     * Whether a conversation's title contains the quick search text.
-     * @param {ConversationListing} conversation The conversation.
-     * @returns {boolean} True when it matches or there is no search.
-     */
-    #matchesSearch(conversation) {
-      return (ConversationListingFields.title(conversation) || '').toLowerCase().includes(this.#searchText);
-    }
-
-    /**
-     * Starts dragging a conversation out of the list on a primary-button press away from its
-     * buttons; releasing over a dock target opens it as a new pane docked there. A plain click still
-     * reaches #onRowClick.
-     * @param {MouseEvent} event Mouse press in the table body.
-     * @returns {void}
-     */
-    #onRowPress(event) {
-      const row = event.target.closest('[data-conversation-id]');
-      if (event.button !== 0 || !row || event.target.closest('[data-action]')) return;
-      const conversationId = row.dataset.conversationId;
-      this.#paneManager.beginDragToOpenPane(event, conversationId, this.#directory.titleOf(conversationId));
-    }
-
-    /**
-     * Runs the clicked row button's action, or opens the clicked conversation in the focused pane.
-     * @param {MouseEvent} event Click in the table body.
-     * @returns {void}
-     */
-    #onRowClick(event) {
-      const row = event.target.closest('[data-conversation-id]');
-      if (!row) return;
-      const button = event.target.closest('[data-action]');
-      if (button) this.#rowActionHandlers.get(button.dataset.action)(row);
-      else this.#router.openConversation(row.dataset.conversationId);
-    }
-
-    /**
-     * Asks for confirmation, then deletes a conversation. The row is dimmed while deleting and
-     * restored if deleting fails.
-     * @param {HTMLElement} row The conversation's row.
-     * @returns {Promise<void>} Resolves once deleted, declined or failed.
-     */
-    async #confirmAndDelete(row) {
-      const conversationId = row.dataset.conversationId;
-      const isConfirmed = await ConfirmDialog.ask(`Delete "${this.#directory.titleOf(conversationId)}"? This cannot be undone.`, 'Delete');
-      if (!isConfirmed) return;
-      row.classList.add('claude-plus-pending');
-      try {
-        await this.#directory.deleteConversation(conversationId);
-      } catch (error) {
-        console.warn(LOG_PREFIX, 'delete failed', error);
-        row.classList.remove('claude-plus-pending');
-      }
-    }
-  }
-
-  /**
-   * Global keyboard shortcuts. Cmd+K (Ctrl+K elsewhere) reveals a conversation list and focuses
-   * its search. Shortcuts are handled in the capture phase and stopped there, so claude.ai's own
-   * hidden app never reacts to them.
+   * Runs the action of the hotkey command a key press triggers. Which key triggers which command
+   * comes from the Hotkeys bindings, so the user's changes apply at once. Key presses are handled in
+   * the capture phase and stopped there, so claude.ai's own hidden app and the browser never react to
+   * a chord bound to a command.
    */
   class KeyboardShortcuts {
     /**
-     * Workspace used to reveal panels.
-     * @type {DockWorkspace}
+     * The bindings.
+     * @type {Hotkeys}
      */
-    #workspace;
+    #hotkeys;
+
+    /**
+     * Action per command id.
+     * @type {Map<string, function(): void>}
+     */
+    #actions;
 
     /**
      * Creates the shortcuts.
-     * @param {DockWorkspace} workspace Workspace used to find and reveal panels.
+     * @param {Hotkeys} hotkeys The bindings.
+     * @param {Map<string, function(): void>} actions Action per command id; a command without one does nothing.
      */
-    constructor(workspace) {
-      this.#workspace = workspace;
+    constructor(hotkeys, actions) {
+      this.#hotkeys = hotkeys;
+      this.#actions = actions;
     }
 
     /**
@@ -12066,34 +13519,19 @@
     }
 
     /**
-     * Runs the shortcut matching a key press.
+     * Runs the action of the command a key press is bound to, unless a settings control is recording
+     * the key press as a new binding.
      * @param {KeyboardEvent} event The key press.
      * @returns {void}
      */
     #handleKeydown = (event) => {
-      if (!KeyboardShortcuts.#isSearchShortcut(event)) return;
+      if (this.#hotkeys.isRecording || event.repeat) return;
+      const action = this.#actions.get(this.#hotkeys.commandIdFor(event));
+      if (!action) return;
       event.preventDefault();
       event.stopPropagation();
-      this.#focusConversationSearch();
+      action();
     };
-
-    /**
-     * Whether a key press is the search shortcut.
-     * @param {KeyboardEvent} event The key press.
-     * @returns {boolean} True for Cmd+K or Ctrl+K without Shift or Alt.
-     */
-    static #isSearchShortcut(event) {
-      return (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k';
-    }
-
-    /**
-     * Shows the first docked conversation list and focuses its search box; does nothing when none is docked.
-     * @returns {void}
-     */
-    #focusConversationSearch() {
-      const docked = this.#workspace.findDockedPanel(panel => panel instanceof ConversationListPanel);
-      if (docked && this.#workspace.revealPanel(docked.panelId)) docked.panel.focusSearch();
-    }
   }
 
   /**
@@ -12542,9 +13980,9 @@
     }
   }
 
-  var stylesheet$6 = ".claude-plus-folder {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-folder:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-breadcrumb {\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  margin-bottom: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-breadcrumb__back-link {\r\n  color: var(--claude-plus-color-accent);\r\n  cursor: pointer;\r\n}\r\n";
+  var stylesheet$5 = ".claude-plus-folder {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-folder:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n\r\n.claude-plus-breadcrumb {\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  margin-bottom: 6px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-breadcrumb__back-link {\r\n  color: var(--claude-plus-color-accent);\r\n  cursor: pointer;\r\n}\r\n";
 
-  StyleRegistry.register(stylesheet$6);
+  StyleRegistry.register(stylesheet$5);
 
   /**
    * Uploaded and produced files: a table of conversations with files, and per conversation a table
@@ -12736,418 +14174,6 @@
       this.elements.folderTableHost.hidden = true;
       this.elements.fileTableHost.hidden = false;
       this.#fileTable.setRows(folder.files);
-    }
-  }
-
-  /**
-   * Finds chats, files, web sources and tool uses matching a SearchQuery. Qualifiers naming a kind
-   * (file, source, outlet, tool) restrict the results to those kinds; chat, before and after apply to
-   * every kind; free terms must match the item's text or its conversation title.
-   */
-  class SearchEngine {
-    /**
-     * Result kinds selected by each kind qualifier.
-     * @type {Readonly<Record<string, string>>}
-     */
-    static #KIND_OF_QUALIFIER = Object.freeze({ file: 'file', source: 'source', outlet: 'source', tool: 'tool' });
-
-    /**
-     * Label of each kind, for reasons and the kind column.
-     * @type {Readonly<Record<string, string>>}
-     */
-    static #KIND_LABELS = Object.freeze({ chat: 'Chat', file: 'File', source: 'Source', tool: 'Tool' });
-
-    /**
-     * Label of a result kind.
-     * @param {string} kind Result kind.
-     * @returns {string} The label.
-     */
-    static kindLabel(kind) {
-      return SearchEngine.#KIND_LABELS[kind] ?? kind;
-    }
-
-    /**
-     * Searches everything indexed plus the listed conversation titles.
-     * @param {SearchQuery} query The query.
-     * @param {StatsAggregate} aggregate Indexed statistics.
-     * @param {ConversationListing[]} conversations Listed conversations.
-     * @returns {SearchItem[]} Matching items, each with its reason.
-     */
-    static find(query, aggregate, conversations) {
-      const kinds = SearchEngine.#selectedKinds(query);
-      return SearchEngine.#items(aggregate, conversations)
-        .filter(item => kinds.has(item.kind) && SearchEngine.#matches(item, query))
-        .map(item => ({ ...item, reason: SearchEngine.#reason(item, query) }));
-    }
-
-    /**
-     * Kinds the query can return.
-     * @param {SearchQuery} query The query.
-     * @returns {Set<string>} The kinds named by kind qualifiers, or every kind when none is used.
-     */
-    static #selectedKinds(query) {
-      const named = Object.keys(SearchEngine.#KIND_OF_QUALIFIER).filter(qualifier => query.uses(qualifier)).map(qualifier => SearchEngine.#KIND_OF_QUALIFIER[qualifier]);
-      return new Set(named.length ? named : Object.keys(SearchEngine.#KIND_LABELS));
-    }
-
-    /**
-     * Every searchable item.
-     * @param {StatsAggregate} aggregate Indexed statistics.
-     * @param {ConversationListing[]} conversations Listed conversations.
-     * @returns {SearchItem[]} Chats, files, sources and tool uses.
-     */
-    static #items(aggregate, conversations) {
-      const chats = conversations.map(conversation => SearchEngine.#item('chat', ConversationListingFields.title(conversation) || UNTITLED, null, { conversationId: ConversationListingFields.id(conversation), conversationTitle: ConversationListingFields.title(conversation) || UNTITLED, timestamp: ConversationListingFields.updatedAt(conversation), isImported: ConversationListingFields.isImported(conversation) }));
-      const files = aggregate.folders.flatMap(folder => folder.files).map(file => SearchEngine.#item('file', file.title || file.path, null, file));
-      const sources = aggregate.sources.map(source => SearchEngine.#item('source', source.title, `${source.outlet || ''} ${source.url}`, source));
-      const tools = [...aggregate.perConversation].flatMap(([conversationId, summary]) => summary.toolCalls.map(call => SearchEngine.#item('tool', call.name, null, { conversationId, conversationTitle: summary.title, timestamp: call.timestamp, isImported: summary.isImported, messageId: call.messageId })));
-      return [...chats, ...files, ...sources, ...tools];
-    }
-
-    /**
-     * Creates a search item.
-     * @param {string} kind Item kind.
-     * @param {string} text The item's own text.
-     * @param {?string} detail Secondary text.
-     * @param {{conversationId: string, conversationTitle: string, timestamp: ?string, isImported: ?boolean, messageId: ?string}} origin Conversation, time and message of the item.
-     * @returns {SearchItem} The item.
-     */
-    static #item(kind, text, detail, origin) {
-      return { kind, text, detail, conversationId: origin.conversationId, conversationTitle: origin.conversationTitle, timestamp: origin.timestamp, isImported: Boolean(origin.isImported), messageId: origin.messageId ?? null };
-    }
-
-    /**
-     * Whether an item satisfies every part of the query.
-     * @param {SearchItem} item The item.
-     * @param {SearchQuery} query The query.
-     * @returns {boolean} True when it matches.
-     */
-    static #matches(item, query) {
-      return SearchEngine.#matchesKindQualifiers(item, query)
-        && query.patterns('chat').every(pattern => pattern.matches(item.conversationTitle))
-        && SearchEngine.#matchesDates(item, query)
-        && query.terms.every(term => term.matches(item.text) || term.matches(item.conversationTitle));
-    }
-
-    /**
-     * Whether an item satisfies the qualifiers of its kind.
-     * @param {SearchItem} item The item.
-     * @param {SearchQuery} query The query.
-     * @returns {boolean} True when every file, source, outlet or tool pattern relevant to the item matches.
-     */
-    static #matchesKindQualifiers(item, query) {
-      const checks = {
-        file: () => query.patterns('file').every(pattern => pattern.matches(item.text)),
-        source: () => query.patterns('source').every(pattern => pattern.matches(item.text) || pattern.matches(item.detail))
-          && query.patterns('outlet').every(pattern => pattern.matches(item.detail)),
-        tool: () => query.patterns('tool').every(pattern => pattern.matches(item.text)),
-        chat: () => true,
-      };
-      return checks[item.kind]();
-    }
-
-    /**
-     * Whether an item's day is inside the before/after bounds.
-     * @param {SearchItem} item The item.
-     * @param {SearchQuery} query The query.
-     * @returns {boolean} True when inside the bounds, or when no date qualifier is used.
-     */
-    static #matchesDates(item, query) {
-      return new DateRange(query.lastValue('after'), query.lastValue('before')).contains(item.timestamp);
-    }
-
-    /**
-     * Human-readable explanation of why an item matched.
-     * @param {SearchItem} item The item.
-     * @param {SearchQuery} query The query.
-     * @returns {string} The criteria it satisfied, separated by semicolons.
-     */
-    static #reason(item, query) {
-      const qualifierReasons = ['file', 'source', 'outlet', 'tool', 'chat', 'after', 'before']
-        .filter(qualifier => query.uses(qualifier))
-        .map(qualifier => `${qualifier}: ${query.lastValue(qualifier)}`);
-      const termReasons = query.terms.map(term => `"${term.text}" in ${term.matches(item.text) ? SearchEngine.kindLabel(item.kind).toLowerCase() : 'chat title'}`);
-      return [...qualifierReasons, ...termReasons].join('; ');
-    }
-  }
-
-  /**
-   * A parsed search query: free terms plus qualifiers such as `file:*.pdf` or `outlet:"new york times"`.
-   * Qualifier values and terms may contain `*` wildcards; `before:` and `after:` take YYYY-MM-DD dates.
-   */
-  class SearchQuery {
-    /**
-     * Canonical qualifier per accepted qualifier name.
-     * @type {Readonly<Record<string, string>>}
-     */
-    static #QUALIFIER_NAMES = Object.freeze({ chat: 'chat', title: 'chat', file: 'file', outlet: 'outlet', source: 'source', url: 'source', tool: 'tool', before: 'before', after: 'after' });
-
-    /**
-     * One token: a qualifier with a quoted or plain value, a quoted term, or a plain term.
-     * @type {RegExp}
-     */
-    static #TOKEN = /(\w+):(?:"([^"]*)"|(\S+))|"([^"]*)"|(\S+)/g;
-
-    /**
-     * Free terms; each must match the item's own text or its conversation title.
-     * @type {WildcardPattern[]}
-     */
-    #terms;
-
-    /**
-     * Qualifier values by canonical qualifier.
-     * @type {Map<string, string[]>}
-     */
-    #qualifiers;
-
-    /**
-     * Creates a query.
-     * @param {WildcardPattern[]} terms Free terms.
-     * @param {Map<string, string[]>} qualifiers Qualifier values by canonical qualifier.
-     */
-    constructor(terms, qualifiers) {
-      this.#terms = terms;
-      this.#qualifiers = qualifiers;
-    }
-
-    /**
-     * Parses query text. Unknown qualifiers are treated as free terms.
-     * @param {string} text Query text.
-     * @returns {SearchQuery} The query.
-     */
-    static parse(text) {
-      const terms = [];
-      const qualifiers = new Map();
-      for (const token of text.matchAll(SearchQuery.#TOKEN)) SearchQuery.#addToken(token, terms, qualifiers);
-      return new SearchQuery(terms, qualifiers);
-    }
-
-    /**
-     * Whether the query has nothing to search for.
-     * @returns {boolean} True without terms and qualifiers.
-     */
-    get isEmpty() {
-      return this.#terms.length === 0 && this.#qualifiers.size === 0;
-    }
-
-    /**
-     * Free terms.
-     * @returns {WildcardPattern[]} The terms.
-     */
-    get terms() {
-      return this.#terms;
-    }
-
-    /**
-     * Patterns of a qualifier.
-     * @param {string} qualifier Canonical qualifier name.
-     * @returns {WildcardPattern[]} One pattern per value; empty when the qualifier isn't used.
-     */
-    patterns(qualifier) {
-      return (this.#qualifiers.get(qualifier) ?? []).map(value => new WildcardPattern(value));
-    }
-
-    /**
-     * Last value of a qualifier.
-     * @param {string} qualifier Canonical qualifier name.
-     * @returns {string} The value, or an empty string when the qualifier isn't used.
-     */
-    lastValue(qualifier) {
-      const values = this.#qualifiers.get(qualifier) ?? [];
-      return values.length ? values[values.length - 1] : '';
-    }
-
-    /**
-     * Whether a qualifier is used.
-     * @param {string} qualifier Canonical qualifier name.
-     * @returns {boolean} True when it has at least one value.
-     */
-    uses(qualifier) {
-      return this.#qualifiers.has(qualifier);
-    }
-
-    /**
-     * Adds one token to the terms or qualifiers.
-     * @param {RegExpMatchArray} token Token match.
-     * @param {WildcardPattern[]} terms Free terms; modified in place.
-     * @param {Map<string, string[]>} qualifiers Qualifier values; modified in place.
-     * @returns {void}
-     */
-    static #addToken(token, terms, qualifiers) {
-      const qualifier = SearchQuery.#qualifierOf(token);
-      if (!qualifier) {
-        terms.push(new WildcardPattern(token[4] ?? token[0]));
-        return;
-      }
-      qualifiers.set(qualifier.name, [...(qualifiers.get(qualifier.name) ?? []), qualifier.value]);
-    }
-
-    /**
-     * The known qualifier a token carries.
-     * @param {RegExpMatchArray} token Token match.
-     * @returns {?{name: string, value: string}} The canonical qualifier and its value, or null for a free term.
-     */
-    static #qualifierOf(token) {
-      const name = token[1] ? SearchQuery.#QUALIFIER_NAMES[token[1].toLowerCase()] : undefined;
-      return name ? { name, value: token[2] ?? token[3] } : null;
-    }
-  }
-
-  var stylesheet$5 = ".claude-plus-search-result {\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-search-result:hover > td {\r\n  background: var(--claude-plus-color-hover);\r\n}\r\n";
-
-  StyleRegistry.register(stylesheet$5);
-
-  /**
-   * Structured search over chats, files, web sources and tool uses, e.g. `file:*.pdf`,
-   * `outlet:*nbc*`, `tool:web_search`, `chat:budget`, `after:2026-01-01`. Results show what matched,
-   * where, when and why; clicking one opens its conversation in the active chat.
-   */
-  class SearchPanel extends Panel {
-    /**
-     * Conversation statistics.
-     * @type {StatsIndex}
-     */
-    #stats;
-
-    /**
-     * Shared conversation list.
-     * @type {CombinedConversationDirectory}
-     */
-    #directory;
-
-    /**
-     * Navigation.
-     * @type {Router}
-     */
-    #router;
-
-    /**
-     * Table settings storage.
-     * @type {Preferences}
-     */
-    #preferences;
-
-    /**
-     * The current query.
-     * @type {SearchQuery}
-     */
-    #query = SearchQuery.parse('');
-
-    /**
-     * The results table; created with the DOM.
-     * @type {?ColumnTable}
-     */
-    #table = null;
-
-    /**
-     * Creates the panel.
-     * @param {object} services Panel dependencies.
-     * @param {StatsIndex} services.stats Conversation statistics.
-     * @param {CombinedConversationDirectory} services.directory Shared conversation list.
-     * @param {Router} services.router Navigation.
-     * @param {Preferences} services.preferences Table settings storage.
-     */
-    constructor({ stats, directory, router, preferences }) {
-      super('Search');
-      this.#stats = stats;
-      this.#directory = directory;
-      this.#router = router;
-      this.#preferences = preferences;
-    }
-
-    /**
-     * HTML of the panel body.
-     * @returns {string} Query input, syntax hint and results host.
-     */
-    createBodyHtml() {
-      return `
-      <input class="claude-plus-search-input" data-name="queryInput" type="text" placeholder="Search… e.g. file:*.pdf outlet:*nbc*" />
-      <div class="claude-plus-hint">Qualifiers: chat: file: source: outlet: tool: after:YYYY-MM-DD before:YYYY-MM-DD — * is a wildcard, quote values with spaces.</div>
-      <div class="claude-plus-table-host" data-name="tableHost"></div>`;
-    }
-
-    /**
-     * Creates the results table, wires the query and result clicks, and follows data changes.
-     * @returns {void}
-     */
-    bindEvents() {
-      this.#table = new ColumnTable({
-        container: this.elements.tableHost,
-        tableId: 'searchResults',
-        columns: SearchPanel.#columns(),
-        preferences: this.#preferences,
-        defaultSort: { column: 'date', direction: -1 },
-        rowAttributes: item => `class="claude-plus-search-result" data-conversation-id="${escapeHtml(item.conversationId)}" data-message-id="${escapeHtml(item.messageId ?? '')}"`,
-        emptyText: 'No results.',
-      });
-      this.elements.queryInput.addEventListener('input', () => this.#runQuery(this.elements.queryInput.value));
-      this.#table.bodyElement.addEventListener('click', event => this.#onResultClick(event));
-      this.listenTo(this.#stats, 'aggregate', () => this.render());
-      this.listenTo(this.#directory, 'conversations', () => this.render());
-    }
-
-    /**
-     * Shows the results of the current query; none for an empty query.
-     * @returns {void}
-     */
-    render() {
-      this.#table.setRows(this.#query.isEmpty ? [] : SearchEngine.find(this.#query, this.#stats.aggregate, this.#directory.conversations));
-    }
-
-    /**
-     * Closes the table's typeahead and ends the subscriptions.
-     * @returns {void}
-     */
-    dispose() {
-      if (this.#table) this.#table.dispose();
-      super.dispose();
-    }
-
-    /**
-     * Columns of the results table.
-     * @returns {TableColumn[]} Match, kind, chat, date and reason.
-     */
-    static #columns() {
-      return [
-        { id: 'match', label: 'Match', isAlwaysVisible: true, sortValue: item => item.text.toLowerCase(), cellHtml: item => escapeHtml(item.text) },
-        { id: 'kind', label: 'Kind', isVisibleByDefault: true, filter: 'values', sortValue: item => SearchEngine.kindLabel(item.kind), cellHtml: item => escapeHtml(SearchEngine.kindLabel(item.kind)) },
-        { id: 'origin', label: 'Origin', isVisibleByDefault: true, filter: 'values', sortValue: item => SearchPanel.#originLabel(item), filterValue: item => SearchPanel.#originLabel(item), cellHtml: item => escapeHtml(SearchPanel.#originLabel(item)) },
-        { id: 'conversation', label: 'Chat', isVisibleByDefault: true, filter: 'values', sortValue: item => item.conversationTitle.toLowerCase(), filterValue: item => item.conversationTitle, cellHtml: item => escapeHtml(item.conversationTitle) },
-        { id: 'date', label: 'Date', isVisibleByDefault: true, filter: 'date', sortValue: item => toEpochMs(item.timestamp), filterValue: item => item.timestamp, cellHtml: item => escapeHtml(formatTimestamp(item.timestamp)) },
-        { id: 'reason', label: 'Why', isVisibleByDefault: true, sortValue: item => item.reason, cellHtml: item => escapeHtml(item.reason) },
-      ];
-    }
-
-    /**
-     * A search item's origin label, for the Origin column.
-     * @param {SearchItem} item The item.
-     * @returns {'Live'|'Imported'} The label.
-     */
-    static #originLabel(item) {
-      return item.isImported ? 'Imported' : 'Live';
-    }
-
-    /**
-     * Parses new query text and shows its results.
-     * @param {string} text Query text.
-     * @returns {void}
-     */
-    #runQuery(text) {
-      this.#query = SearchQuery.parse(text);
-      this.render();
-    }
-
-    /**
-     * Opens the clicked result's conversation in the active chat, then scrolls to and highlights the
-     * matched message, if the result is tied to one.
-     * @param {MouseEvent} event Click in the results body.
-     * @returns {Promise<void>} Resolves once opened and, when applicable, scrolled to.
-     */
-    async #onResultClick(event) {
-      const row = event.target.closest('[data-conversation-id]');
-      if (!row) return;
-      await this.#router.openConversation(row.dataset.conversationId);
-      if (row.dataset.messageId) this.#router.scrollToMessage(row.dataset.messageId);
     }
   }
 
@@ -14849,6 +15875,147 @@
   }
 
   /**
+   * The list of one hotkey group's commands in the settings: each with its chord, a button that
+   * records a new chord from the next key press (Escape cancels, Backspace or Delete clears it),
+   * and a button returning it to its default. A chord another command has is refused with a message.
+   */
+  class HotkeyEditor {
+    /**
+     * The bindings.
+     * @type {Hotkeys}
+     */
+    #hotkeys;
+
+    /**
+     * The group's commands.
+     * @type {HotkeyGroup}
+     */
+    #group;
+
+    /**
+     * Element the list is built into.
+     * @type {HTMLElement}
+     */
+    #container;
+
+    /**
+     * Id of the command whose chord is being recorded, or null.
+     * @type {?string}
+     */
+    #recordingId = null;
+
+    /**
+     * Text explaining why the last change was refused, or an empty string.
+     * @type {string}
+     */
+    #message = '';
+
+    /**
+     * Builds the list and follows the bindings.
+     * @param {object} parts What the editor works with.
+     * @param {HTMLElement} parts.container Element the list is built into.
+     * @param {Hotkeys} parts.hotkeys The bindings.
+     * @param {HotkeyGroup} parts.group The group whose commands are listed.
+     */
+    constructor({ container, hotkeys, group }) {
+      this.#container = container;
+      this.#hotkeys = hotkeys;
+      this.#group = group;
+      container.addEventListener('click', event => this.#onClick(event));
+      this.render();
+    }
+
+    /**
+     * Shows every command with its chord.
+     * @returns {void}
+     */
+    render() {
+      const rows = this.#group.commands.map(command => this.#rowHtml(command)).join('');
+      const list = rows || emptyStateHtml(`No ${this.#group.label} hotkeys yet.`);
+      this.#container.innerHTML = `${list}<div class="claude-plus-settings-dialog__hotkey-message">${escapeHtml(this.#message)}</div>`;
+    }
+
+    /**
+     * Stops recording, if a chord is being recorded.
+     * @returns {void}
+     */
+    stopRecording() {
+      window.removeEventListener('keydown', this.#onRecordedKey, true);
+      this.#hotkeys.setRecording(false);
+      this.#recordingId = null;
+    }
+
+    /**
+     * HTML of one command's row.
+     * @param {{id: string, label: string}} command The command.
+     * @returns {string} The row.
+     */
+    #rowHtml(command) {
+      const isRecording = this.#recordingId === command.id;
+      const chordText = isRecording ? 'Press keys… (Esc cancels, Backspace clears)' : HotkeyChord.format(this.#hotkeys.chordOf(command.id));
+      const resetButton = this.#hotkeys.isCustomized(command.id) ? '<button class="claude-plus-toolbar__button" data-action="reset">Reset</button>' : '';
+      return `<div class="claude-plus-settings-dialog__layout-row" data-command-id="${escapeHtml(command.id)}">
+      <span class="claude-plus-settings-dialog__layout-name">${escapeHtml(command.label)}</span>
+      <button class="claude-plus-toolbar__button" data-action="record">${escapeHtml(chordText)}</button>
+      ${resetButton}
+    </div>`;
+    }
+
+    /**
+     * Starts recording for, or resets, the command of the clicked row.
+     * @param {MouseEvent} event The click in the list.
+     * @returns {void}
+     */
+    #onClick(event) {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+      const commandId = button.closest('[data-command-id]').dataset.commandId;
+      this.stopRecording();
+      if (button.dataset.action === 'record') this.#startRecording(commandId);
+      else this.#report(this.#hotkeys.reset(commandId));
+      this.render();
+    }
+
+    /**
+     * Records the next key press as the command's chord.
+     * @param {string} commandId The command.
+     * @returns {void}
+     */
+    #startRecording(commandId) {
+      this.#recordingId = commandId;
+      this.#message = '';
+      this.#hotkeys.setRecording(true);
+      window.addEventListener('keydown', this.#onRecordedKey, true);
+    }
+
+    /**
+     * Takes the key press as the chord being recorded: Escape cancels, Backspace and Delete leave the
+     * command without a chord, a lone modifier key waits for the rest of the chord.
+     * @param {KeyboardEvent} event The key press.
+     * @returns {void}
+     */
+    #onRecordedKey = (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const chord = HotkeyChord.fromEvent(event);
+      if (chord === null) return;
+      const commandId = this.#recordingId;
+      this.stopRecording();
+      if (chord !== 'Escape') this.#report(this.#hotkeys.setChord(commandId, ['Backspace', 'Delete'].includes(chord) ? '' : chord));
+      this.render();
+    };
+
+    /**
+     * Remembers why a change was refused, for the message under the list.
+     * @param {?{label: string}} conflict The command that already has the chord, or null when the change was made.
+     * @returns {void}
+     */
+    #report(conflict) {
+      this.#message = conflict ? `That key combination is already used by "${conflict.label}".` : '';
+    }
+  }
+
+  /**
    * Optional categories of a data export: how to detect and count them in a classified result, their
    * count line's noun phrase, the toggle they show when present (null for a category with no opt-out,
    * like Artifacts), and the classified fields an unchecked toggle clears.
@@ -15479,7 +16646,7 @@
     }
   }
 
-  var stylesheet$2 = ".claude-plus-settings-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-settings-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 420px;\n  max-width: 90vw;\n  max-height: 85vh;\n  overflow-y: auto;\n  font-size: 13px;\n}\n\n.claude-plus-settings-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n}\n\n.claude-plus-settings-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-settings-dialog__tabs {\n  display: flex;\n  gap: 4px;\n  margin-bottom: 8px;\n  border-bottom: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-settings-dialog__tab {\n  background: none;\n  border: none;\n  border-bottom: 2px solid transparent;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font: inherit;\n  padding: 6px 10px;\n}\n\n.claude-plus-settings-dialog__tab:hover {\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-settings-dialog__tab--active {\n  color: var(--claude-plus-color-text);\n  border-bottom-color: var(--claude-plus-color-accent);\n}\n\n.claude-plus-settings-dialog__section {\n  padding: 12px 0;\n  border-top: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-settings-dialog__section:first-of-type {\n  border-top: none;\n}\n\n.claude-plus-settings-dialog__section h3 {\n  margin: 0 0 8px;\n  font-size: 12px;\n  text-transform: uppercase;\n  letter-spacing: 0.04em;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__row {\n  display: flex;\n  gap: 8px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-settings-dialog__layout-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 6px 0;\n}\n\n.claude-plus-settings-dialog__layout-name {\n  flex: 1;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-settings-dialog__colors {\n  display: flex;\n  gap: 14px;\n  flex-wrap: wrap;\n  margin-bottom: 12px;\n}\n\n.claude-plus-settings-dialog__color-field {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__color-field input[type='color'] {\n  width: 36px;\n  height: 28px;\n  padding: 0;\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  background: none;\n  cursor: pointer;\n}\n\n.claude-plus-settings-dialog__field {\n  display: block;\n  margin-bottom: 10px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__field input[type='text'] {\n  display: block;\n  width: 100%;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 6px 8px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font: inherit;\n}\n";
+  var stylesheet$2 = ".claude-plus-settings-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-settings-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 420px;\n  max-width: 90vw;\n  max-height: 85vh;\n  overflow-y: auto;\n  font-size: 13px;\n}\n\n.claude-plus-settings-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n}\n\n.claude-plus-settings-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-settings-dialog__tabs {\n  display: flex;\n  gap: 4px;\n  margin-bottom: 8px;\n  border-bottom: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-settings-dialog__tab {\n  background: none;\n  border: none;\n  border-bottom: 2px solid transparent;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font: inherit;\n  padding: 6px 10px;\n}\n\n.claude-plus-settings-dialog__tab:hover {\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-settings-dialog__tab--active {\n  color: var(--claude-plus-color-text);\n  border-bottom-color: var(--claude-plus-color-accent);\n}\n\n.claude-plus-settings-dialog__section {\n  padding: 12px 0;\n  border-top: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-settings-dialog__section:first-of-type {\n  border-top: none;\n}\n\n.claude-plus-settings-dialog__section h3 {\n  margin: 0 0 8px;\n  font-size: 12px;\n  text-transform: uppercase;\n  letter-spacing: 0.04em;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__row {\n  display: flex;\n  gap: 8px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-settings-dialog__layout-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 6px 0;\n}\n\n.claude-plus-settings-dialog__layout-name {\n  flex: 1;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-settings-dialog__colors {\n  display: flex;\n  gap: 14px;\n  flex-wrap: wrap;\n  margin-bottom: 12px;\n}\n\n.claude-plus-settings-dialog__color-field {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__color-field input[type='color'] {\n  width: 36px;\n  height: 28px;\n  padding: 0;\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  background: none;\n  cursor: pointer;\n}\n\n.claude-plus-settings-dialog__field {\n  display: block;\n  margin-bottom: 10px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__field input[type='text'] {\n  display: block;\n  width: 100%;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 6px 8px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font: inherit;\n}\n\n.claude-plus-settings-dialog__hotkey-message {\n  min-height: 1em;\n  color: var(--claude-plus-color-error);\n  font-size: 12px;\n}\n";
 
   StyleRegistry.register(stylesheet$2);
 
@@ -15526,6 +16693,18 @@
     #onImported;
 
     /**
+     * Hotkey bindings.
+     * @type {Hotkeys}
+     */
+    #hotkeys;
+
+    /**
+     * The hotkey lists, one per group, set once the content is built.
+     * @type {HotkeyEditor[]}
+     */
+    #hotkeyEditors = [];
+
+    /**
      * The dialog's named elements, set once the content is built.
      * @type {?Object<string, HTMLElement>}
      */
@@ -15533,35 +16712,43 @@
 
     /**
      * Creates the dialog without showing it.
-     * @param {LayoutLibrary} layoutLibrary Saved layouts.
-     * @param {SettingsTransfer} settingsTransfer Settings export and import.
-     * @param {Theme} theme Colors and fonts.
-     * @param {ImportOrchestrator} importOrchestrator Runs a data-export import.
-     * @param {Preferences} preferences Import review table settings storage.
-     * @param {function(): void} onImported Called once an import has actually written anything.
+     * @param {object} services What the dialog works with.
+     * @param {LayoutLibrary} services.layoutLibrary Saved layouts.
+     * @param {SettingsTransfer} services.settingsTransfer Settings export and import.
+     * @param {Theme} services.theme Colors and fonts.
+     * @param {ImportOrchestrator} services.importOrchestrator Runs a data-export import.
+     * @param {Preferences} services.preferences Import review table settings storage.
+     * @param {Hotkeys} services.hotkeys Hotkey bindings.
+     * @param {function(): void} services.onImported Called once an import has actually written anything.
      */
-    constructor(layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, onImported) {
+    constructor({ layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, hotkeys, onImported }) {
       super();
       this.#layoutLibrary = layoutLibrary;
       this.#settingsTransfer = settingsTransfer;
       this.#theme = theme;
       this.#importOrchestrator = importOrchestrator;
       this.#preferences = preferences;
+      this.#hotkeys = hotkeys;
       this.#onImported = onImported;
     }
 
     /**
      * Opens the Settings screen.
-     * @param {LayoutLibrary} layoutLibrary Saved layouts.
-     * @param {SettingsTransfer} settingsTransfer Settings export and import.
-     * @param {Theme} theme Colors and fonts.
-     * @param {ImportOrchestrator} importOrchestrator Runs a data-export import.
-     * @param {Preferences} preferences Import review table settings storage.
-     * @param {function(): void} onImported Called once an import has actually written anything.
+     * @param {object} services What the dialog works with; see the constructor.
      * @returns {Promise<void>} Resolves once closed.
      */
-    static open(layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, onImported) {
-      return new SettingsDialog(layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, onImported).show();
+    static open(services) {
+      return new SettingsDialog(services).show();
+    }
+
+    /**
+     * Ends any hotkey recording and removes the dialog.
+     * @param {*} result Result of the dialog.
+     * @returns {void}
+     */
+    close(result) {
+      this.#hotkeyEditors.forEach(editor => editor.stopRecording());
+      super.close(result);
     }
 
     /**
@@ -15582,6 +16769,7 @@
       this.#bindEvents();
       this.#renderLayouts();
       this.#renderThemeFields();
+      this.#hotkeyEditors = this.#hotkeys.groups.map(group => new HotkeyEditor({ container: this.#elements[`${group.id}Hotkeys`], hotkeys: this.#hotkeys, group }));
       return [box];
     }
 
@@ -15625,6 +16813,10 @@
         </div>
       </section>
       <section class="claude-plus-settings-dialog__section">
+        <h3>Hotkeys</h3>
+        <div data-name="appHotkeys"></div>
+      </section>
+      <section class="claude-plus-settings-dialog__section">
         <h3>Theme</h3>
         <div class="claude-plus-settings-dialog__colors" data-name="colorFields"></div>
         <label class="claude-plus-settings-dialog__field">Interface font<input type="text" data-name="uiFontInput" placeholder="System default"></label>
@@ -15646,6 +16838,10 @@
         <div class="claude-plus-settings-dialog__row">
           <button class="claude-plus-toolbar__button" data-name="importChatExportButton">Import chat export…</button>
         </div>
+      </section>
+      <section class="claude-plus-settings-dialog__section">
+        <h3>Hotkeys</h3>
+        <div data-name="anthropicHotkeys"></div>
       </section>`;
     }
 
@@ -15830,6 +17026,12 @@
     #importOrchestrator;
 
     /**
+     * Hotkey bindings, edited in the settings.
+     * @type {Hotkeys}
+     */
+    #hotkeys;
+
+    /**
      * Called once an import has actually written anything.
      * @type {function(): void}
      */
@@ -15862,16 +17064,18 @@
      * @param {SettingsTransfer} services.settingsTransfer Settings export and import.
      * @param {Theme} services.theme Colors and fonts.
      * @param {ImportOrchestrator} services.importOrchestrator Runs a data-export import.
+     * @param {Hotkeys} services.hotkeys Hotkey bindings, edited in the settings.
      * @param {function(): void} services.onImported Called once an import has actually written anything.
      * @param {function(): void} services.onHide Called when the hide button is clicked.
      */
-    constructor({ preferences, workspace, layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported, onHide }) {
+    constructor({ preferences, workspace, layoutLibrary, settingsTransfer, theme, importOrchestrator, hotkeys, onImported, onHide }) {
       this.#preferences = preferences;
       this.#workspace = workspace;
       this.#layoutLibrary = layoutLibrary;
       this.#settingsTransfer = settingsTransfer;
       this.#theme = theme;
       this.#importOrchestrator = importOrchestrator;
+      this.#hotkeys = hotkeys;
       this.#onImported = onImported;
       this.#onHide = onHide;
       const storedSize = Number.parseFloat(preferences.read(STORAGE_KEYS.messageFontSize));
@@ -15888,7 +17092,7 @@
       const elements = collectNamedElements(toolbar);
       elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
       elements.layoutsButton.addEventListener('click', () => this.#showLayoutsMenu(elements.layoutsButton));
-      elements.settingsButton.addEventListener('click', () => SettingsDialog.open(this.#layoutLibrary, this.#settingsTransfer, this.#theme, this.#importOrchestrator, this.#preferences, this.#onImported));
+      elements.settingsButton.addEventListener('click', () => SettingsDialog.open({ layoutLibrary: this.#layoutLibrary, settingsTransfer: this.#settingsTransfer, theme: this.#theme, importOrchestrator: this.#importOrchestrator, preferences: this.#preferences, hotkeys: this.#hotkeys, onImported: this.#onImported }));
       elements.resetLayoutButton.addEventListener('click', () => this.#workspace.resetLayout());
       elements.hideButton.addEventListener('click', () => this.#onHide());
       this.#applyFontSize(elements.fontSizeLabel);
@@ -16716,10 +17920,22 @@
       const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
       const importOrchestrator = new ImportOrchestrator(database, importedConversations, stats);
       const onImported = async () => { await directory.refreshImported(); ClaudePlusApp.#reindexImported(services); };
-      new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, onImported, onHide: () => this.hide() }).mount();
+      const hotkeys = new Hotkeys(preferences, ClaudePlusApp.#hotkeyGroups());
+      new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, hotkeys, onImported, onHide: () => this.hide() }).mount();
       workspace.mount();
       ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
-      new KeyboardShortcuts(workspace).install();
+      new KeyboardShortcuts(hotkeys, new HotkeyActions({ workspace, panelFactory, paneManager }).toMap()).install();
+    }
+
+    /**
+     * The hotkey command groups: the app's own, then each vendor's.
+     * @returns {HotkeyGroup[]} The groups.
+     */
+    static #hotkeyGroups() {
+      return [
+        { id: 'app', label: 'App', commands: HOTKEY_COMMANDS },
+        { id: 'anthropic', label: 'Anthropic', commands: ANTHROPIC_HOTKEY_COMMANDS },
+      ];
     }
 
     /**

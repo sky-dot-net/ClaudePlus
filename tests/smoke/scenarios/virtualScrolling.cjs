@@ -162,6 +162,71 @@ async function checkMessageWindowMiddle(run) {
 }
 
 /**
+ * Runs in the page: the in-chat search's position label and how many ranges it has painted.
+ * @returns {{label: string, marked: number, current: number}} The label and the painted matches and current matches.
+ */
+function readFindState() {
+  const label = document.querySelector('.claude-plus-panel--focused [data-name="countLabel"]').textContent;
+  return { label, marked: CSS.highlights.get('claude-plus-find')?.size ?? 0, current: CSS.highlights.get('claude-plus-find-current')?.size ?? 0 };
+}
+
+/**
+ * Types into the in-chat search field and waits for the result to be shown.
+ * @param {SmokeRun} run The smoke run.
+ * @param {string} text The text to search for.
+ * @param {number} matchCount How many matches the finished search shows.
+ * @returns {Promise<{label: string, marked: number, current: number}>} The state once shown.
+ */
+async function findInChat(run, text, matchCount) {
+  const input = run.page.locator('.claude-plus-panel--focused [data-name="findInput"]');
+  await input.fill(text);
+  await run.page.waitForFunction(total => document.querySelector('.claude-plus-panel--focused [data-name="countLabel"]').textContent.endsWith(`/${total}`), matchCount, { timeout: 30000 });
+  return run.page.evaluate(readFindState);
+}
+
+/**
+ * Checks the in-chat search finds a message a windowed list has not rendered, scrolls to it and
+ * marks the match, and that * works as a wildcard.
+ * @param {SmokeRun} run The smoke run.
+ * @returns {Promise<void>} Resolves once checked.
+ */
+async function checkFindAcrossWindow(run) {
+  const { page } = run;
+  await page.evaluate(scrollMessageList, 0);
+  await page.keyboard.press('Control+f');
+  const state = await findInChat(run, 'number 3999:', 1);
+  await page.waitForTimeout(300);
+  const rendered = await page.evaluate(scrollMessageList, null);
+  run.check('in-chat search finds a message that is not rendered, scrolls to it and marks it', state.current === 1 && rendered.first <= 3999 && rendered.last >= 3999, JSON.stringify({ state, rendered }));
+  const wildcard = await findInChat(run, 'number 399*:', 11);
+  run.check('in-chat search accepts * as a wildcard', wildcard.label.endsWith('/11') && wildcard.current === 1, JSON.stringify(wildcard));
+}
+
+/**
+ * Checks the regular-expression checkbox, its per-chat memory, and the first, previous, next and
+ * last buttons with wrap-around.
+ * @param {SmokeRun} run The smoke run.
+ * @returns {Promise<void>} Resolves once checked.
+ */
+async function checkFindRegexAndButtons(run) {
+  const { page } = run;
+  const bar = page.locator('.claude-plus-panel--focused .claude-plus-find-bar');
+  await bar.locator('[data-name="regexCheckbox"]').check();
+  await findInChat(run, 'number 39(8|9)9:', 2);
+  const stored = await page.evaluate(() => localStorage.getItem('claudePlus.conversationSettings'));
+  run.check('the regex checkbox is remembered for the chat', stored.includes('"findIsRegex":true'), stored);
+  const labels = [];
+  for (const button of ['lastButton', 'firstButton', 'nextButton', 'nextButton', 'previousButton']) {
+    await bar.locator(`[data-name="${button}"]`).click();
+    labels.push(await bar.locator('[data-name="countLabel"]').textContent());
+  }
+  run.check('last, first, next, next (wrapping) and previous move through the matches', labels.join(' ') === '2/2 1/2 2/2 1/2 2/2', labels.join(' '));
+  await bar.locator('[data-name="findInput"]').press('Escape');
+  const cleared = await page.evaluate(readFindState);
+  run.check('closing the in-chat search removes its marks', await bar.isHidden() && cleared.marked === 0, JSON.stringify(cleared));
+}
+
+/**
  * Runs in the page: narrows the message list step by step faster than the list's settle time and
  * counts how often its rendered messages were replaced during that and after it had settled.
  * @returns {Promise<{during: number, after: number}>} Replacements while the width was changing and once it stopped.
@@ -204,6 +269,8 @@ async function virtualScrolling(run) {
   await checkTableWindowing(run);
   await checkMessageWindowEnds(run);
   await checkMessageWindowMiddle(run);
+  await checkFindAcrossWindow(run);
+  await checkFindRegexAndButtons(run);
   await checkResizeWaitsForSettle(run);
 }
 

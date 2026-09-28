@@ -1,4 +1,5 @@
 import { ActivityTracker } from '../stats/ActivityTracker.js';
+import { ANTHROPIC_HOTKEY_COMMANDS } from '../vendors/anthropic/config/ANTHROPIC_HOTKEY_COMMANDS.js';
 import { ChatPaneManager } from '../chat/ChatPaneManager.js';
 import { ClaudeApi } from '../vendors/anthropic/api/ClaudeApi.js';
 import { ComposerPanel } from '../ui/panels/ComposerPanel.js';
@@ -10,6 +11,9 @@ import { ConversationListingFields } from '../vendors/anthropic/types/Conversati
 import { DATABASE } from '../config/DATABASE.js';
 import { DockTree } from '../dock/DockTree.js';
 import { DockWorkspace } from '../dock/DockWorkspace.js';
+import { HOTKEY_COMMANDS } from '../config/HOTKEY_COMMANDS.js';
+import { HotkeyActions } from '../ui/HotkeyActions.js';
+import { Hotkeys } from '../hotkeys/Hotkeys.js';
 import { ImportOrchestrator } from '../import/ImportOrchestrator.js';
 import { ImportedConversationStore } from '../import/ImportedConversationStore.js';
 import { IndexedDbStore } from '../core/IndexedDbStore.js';
@@ -216,10 +220,22 @@ export class ClaudePlusApp {
     const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
     const importOrchestrator = new ImportOrchestrator(database, importedConversations, stats);
     const onImported = async () => { await directory.refreshImported(); ClaudePlusApp.#reindexImported(services); };
-    new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, onImported, onHide: () => this.hide() }).mount();
+    const hotkeys = new Hotkeys(preferences, ClaudePlusApp.#hotkeyGroups());
+    new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, hotkeys, onImported, onHide: () => this.hide() }).mount();
     workspace.mount();
     ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
-    new KeyboardShortcuts(workspace).install();
+    new KeyboardShortcuts(hotkeys, new HotkeyActions({ workspace, panelFactory, paneManager }).toMap()).install();
+  }
+
+  /**
+   * The hotkey command groups: the app's own, then each vendor's.
+   * @returns {HotkeyGroup[]} The groups.
+   */
+  static #hotkeyGroups() {
+    return [
+      { id: 'app', label: 'App', commands: HOTKEY_COMMANDS },
+      { id: 'anthropic', label: 'Anthropic', commands: ANTHROPIC_HOTKEY_COMMANDS },
+    ];
   }
 
   /**

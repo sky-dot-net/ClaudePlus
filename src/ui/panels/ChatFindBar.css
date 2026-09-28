@@ -1,0 +1,75 @@
+.claude-plus-find-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 4px 6px;
+  background: var(--claude-plus-color-raised);
+  border: 1px solid var(--claude-plus-color-border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.claude-plus-find-bar[hidden] {
+  display: none;
+}
+
+.claude-plus-find-bar__input {
+  flex: 1;
+  min-width: 80px;
+  background: var(--claude-plus-color-background);
+  color: inherit;
+  border: 1px solid var(--claude-plus-color-border-strong);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font: inherit;
+}
+
+.claude-plus-find-bar__input--invalid {
+  border-color: var(--claude-plus-color-error);
+}
+
+.claude-plus-find-bar__regex {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.claude-plus-find-bar__count {
+  min-width: 48px;
+  text-align: center;
+  color: var(--claude-plus-color-text-muted);
+  white-space: nowrap;
+}
+
+.claude-plus-find-bar__button {
+  background: var(--claude-plus-color-button);
+  border: none;
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+.claude-plus-find-bar__button:hover:not(:disabled) {
+  background: var(--claude-plus-color-button-hover);
+}
+
+.claude-plus-find-bar__button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+::highlight(claude-plus-find) {
+  background-color: rgba(245, 197, 66, 0.45);
+  color: inherit;
+}
+
+::highlight(claude-plus-find-current) {
+  background-color: #ff9632;
+  color: #000;
+}

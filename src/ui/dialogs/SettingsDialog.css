@@ -141,3 +141,9 @@
   color: var(--claude-plus-color-text);
   font: inherit;
 }
+
+.claude-plus-settings-dialog__hotkey-message {
+  min-height: 1em;
+  color: var(--claude-plus-color-error);
+  font-size: 12px;
+}

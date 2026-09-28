@@ -11,6 +11,8 @@ export const STORAGE_KEYS = Object.freeze({
   chatPanes: 'claudePlus.chatPanes',
   savedLayouts: 'claudePlus.savedLayouts',
   subPaneEdges: 'claudePlus.subPaneEdges',
+  conversationSettings: 'claudePlus.conversationSettings',
+  hotkeys: 'claudePlus.hotkeys',
   tablePrefix: 'claudePlus.table.',
   modelCatalog: 'claudePlus.modelCatalog',
   theme: 'claudePlus.theme',

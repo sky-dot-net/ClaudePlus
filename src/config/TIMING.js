@@ -12,6 +12,7 @@
  * messageHighlightMs: how long a message stays highlighted after being scrolled to from search.
  * resizeSettleMs: how long a list's width must stay unchanged before it is laid out again, so
  * dragging a panel divider doesn't re-render on every pixel.
+ * findTypingMs: pause after the last keystroke in the in-chat search field before it searches.
  * @type {Readonly<Record<string, number>>}
  */
 export const TIMING = Object.freeze({
@@ -29,4 +30,5 @@ export const TIMING = Object.freeze({
   modelCatalogTtlMs: 12 * 60 * 60 * 1000,
   messageHighlightMs: 2_000,
   resizeSettleMs: 200,
+  findTypingMs: 150,
 });

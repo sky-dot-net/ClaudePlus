@@ -1,3 +1,4 @@
+import { ChatFindHighlighter } from './ChatFindHighlighter.js';
 import { FrameScheduler } from '../../dom/FrameScheduler.js';
 import { ImageViewerDialog } from '../dialogs/ImageViewerDialog.js';
 import { LIMITS } from '../../config/LIMITS.js';
@@ -116,6 +117,24 @@ export class MessageListView {
   #highlightedIndex = -1;
 
   /**
+   * Marks the in-chat search's matches in the rendered messages.
+   * @type {ChatFindHighlighter}
+   */
+  #findHighlighter = new ChatFindHighlighter();
+
+  /**
+   * Expression of the in-chat search being shown, or null while there is none.
+   * @type {?RegExp}
+   */
+  #findRegex = null;
+
+  /**
+   * The in-chat search's current match, or null for none.
+   * @type {?{messageIndex: number, ordinal: number}}
+   */
+  #findHit = null;
+
+  /**
    * The conversation the list last rendered, to notice a different one.
    * @type {?string|undefined}
    */
@@ -166,7 +185,69 @@ export class MessageListView {
    * @returns {void}
    */
   dispose() {
+    this.#findHighlighter.clear();
     this.#virtualList.dispose();
+  }
+
+  /**
+   * Shows an in-chat search's matches in the messages that are rendered now and in any that are
+   * rendered later, as the list scrolls; without an expression, shows none.
+   * @param {?RegExp} regex The global expression to mark, or null to stop marking.
+   * @param {?{messageIndex: number, ordinal: number}} currentHit The match to mark as current, if any.
+   * @returns {void}
+   */
+  showFind(regex, currentHit) {
+    this.#findRegex = regex;
+    this.#findHit = currentHit;
+    this.#paintFind();
+  }
+
+  /**
+   * Scrolls an in-chat search match to the middle of the view, whichever message it is in.
+   * @param {{messageIndex: number, ordinal: number}} hit The match.
+   * @returns {void}
+   */
+  revealFindHit(hit) {
+    this.#findHit = hit;
+    this.#virtualList.scrollToIndex(hit.messageIndex, 'center');
+    this.#centerFindHit();
+    requestAnimationFrame(() => this.#centerFindHit());
+  }
+
+  /**
+   * Position of the first message that is at least partly in view.
+   * @returns {number} The position; 0 when none is rendered.
+   */
+  firstVisibleIndex() {
+    const top = this.#listElement.getBoundingClientRect().top;
+    const visible = [...this.#listElement.querySelectorAll('[data-message-index]')].find(element => element.getBoundingClientRect().bottom > top);
+    return visible ? Number(visible.dataset.messageIndex) : 0;
+  }
+
+  /**
+   * Repaints the search matches and scrolls the current one into the middle of the view.
+   * @returns {void}
+   */
+  #centerFindHit() {
+    const range = this.#paintFind();
+    if (!range) return;
+    const rect = range.getBoundingClientRect();
+    const listRect = this.#listElement.getBoundingClientRect();
+    this.#listElement.scrollTop += rect.top + rect.height / 2 - (listRect.top + listRect.height / 2);
+  }
+
+  /**
+   * Marks the search's matches in the rendered messages.
+   * @returns {?Range} The current match's range, when it is in a rendered message.
+   */
+  #paintFind() {
+    if (!this.#findRegex) {
+      this.#findHighlighter.clear();
+      return null;
+    }
+    const bodies = [...this.#listElement.querySelectorAll('[data-message-index] .claude-plus-message__body')];
+    const messages = bodies.map(body => ({ body, messageIndex: Number(body.closest('[data-message-index]').dataset.messageIndex) }));
+    return this.#findHighlighter.paint(messages, this.#findRegex, this.#findHit);
   }
 
   /**
@@ -223,6 +304,7 @@ export class MessageListView {
       this.#fillWidgetSlotsIn(element, this.#session.messages[from + offset]);
       element.classList.toggle('claude-plus-message--highlighted', from + offset === this.#highlightedIndex);
     });
+    this.#paintFind();
   }
 
   /**
@@ -289,9 +371,11 @@ export class MessageListView {
   #renderMessageBody(message) {
     const index = this.#session.messages.indexOf(message);
     const container = this.#listElement.querySelector(`[data-message-index="${index}"]`);
-    const body = container ? container.querySelector('.claude-plus-message__body') : null;
+    if (!container) return;
+    const body = container.querySelector('.claude-plus-message__body');
     if (body) body.innerHTML = MessageListView.#messageBodyHtml(message);
-    if (container) this.#fillWidgetSlotsIn(container, message);
+    this.#fillWidgetSlotsIn(container, message);
+    this.#paintFind();
   }
 
   /**

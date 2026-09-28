@@ -1,23 +1,30 @@
-import { ConversationListPanel } from './panels/ConversationListPanel.js';
-
 /**
- * Global keyboard shortcuts. Cmd+K (Ctrl+K elsewhere) reveals a conversation list and focuses
- * its search. Shortcuts are handled in the capture phase and stopped there, so claude.ai's own
- * hidden app never reacts to them.
+ * Runs the action of the hotkey command a key press triggers. Which key triggers which command
+ * comes from the Hotkeys bindings, so the user's changes apply at once. Key presses are handled in
+ * the capture phase and stopped there, so claude.ai's own hidden app and the browser never react to
+ * a chord bound to a command.
  */
 export class KeyboardShortcuts {
   /**
-   * Workspace used to reveal panels.
-   * @type {DockWorkspace}
+   * The bindings.
+   * @type {Hotkeys}
    */
-  #workspace;
+  #hotkeys;
+
+  /**
+   * Action per command id.
+   * @type {Map<string, function(): void>}
+   */
+  #actions;
 
   /**
    * Creates the shortcuts.
-   * @param {DockWorkspace} workspace Workspace used to find and reveal panels.
+   * @param {Hotkeys} hotkeys The bindings.
+   * @param {Map<string, function(): void>} actions Action per command id; a command without one does nothing.
    */
-  constructor(workspace) {
-    this.#workspace = workspace;
+  constructor(hotkeys, actions) {
+    this.#hotkeys = hotkeys;
+    this.#actions = actions;
   }
 
   /**
@@ -29,32 +36,17 @@ export class KeyboardShortcuts {
   }
 
   /**
-   * Runs the shortcut matching a key press.
+   * Runs the action of the command a key press is bound to, unless a settings control is recording
+   * the key press as a new binding.
    * @param {KeyboardEvent} event The key press.
    * @returns {void}
    */
   #handleKeydown = (event) => {
-    if (!KeyboardShortcuts.#isSearchShortcut(event)) return;
+    if (this.#hotkeys.isRecording || event.repeat) return;
+    const action = this.#actions.get(this.#hotkeys.commandIdFor(event));
+    if (!action) return;
     event.preventDefault();
     event.stopPropagation();
-    this.#focusConversationSearch();
+    action();
   };
-
-  /**
-   * Whether a key press is the search shortcut.
-   * @param {KeyboardEvent} event The key press.
-   * @returns {boolean} True for Cmd+K or Ctrl+K without Shift or Alt.
-   */
-  static #isSearchShortcut(event) {
-    return (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k';
-  }
-
-  /**
-   * Shows the first docked conversation list and focuses its search box; does nothing when none is docked.
-   * @returns {void}
-   */
-  #focusConversationSearch() {
-    const docked = this.#workspace.findDockedPanel(panel => panel instanceof ConversationListPanel);
-    if (docked && this.#workspace.revealPanel(docked.panelId)) docked.panel.focusSearch();
-  }
 }

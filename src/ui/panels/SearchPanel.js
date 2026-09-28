@@ -108,6 +108,16 @@ export class SearchPanel extends Panel {
   }
 
   /**
+   * Moves keyboard focus to the query field and selects its text.
+   * @returns {void}
+   */
+  focusQuery() {
+    const input = this.element.querySelector('[data-name="queryInput"]');
+    input.focus();
+    input.select();
+  }
+
+  /**
    * Closes the table's typeahead and ends the subscriptions.
    * @returns {void}
    */

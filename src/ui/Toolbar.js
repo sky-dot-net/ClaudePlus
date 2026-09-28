@@ -58,6 +58,12 @@ export class Toolbar {
   #importOrchestrator;
 
   /**
+   * Hotkey bindings, edited in the settings.
+   * @type {Hotkeys}
+   */
+  #hotkeys;
+
+  /**
    * Called once an import has actually written anything.
    * @type {function(): void}
    */
@@ -90,16 +96,18 @@ export class Toolbar {
    * @param {SettingsTransfer} services.settingsTransfer Settings export and import.
    * @param {Theme} services.theme Colors and fonts.
    * @param {ImportOrchestrator} services.importOrchestrator Runs a data-export import.
+   * @param {Hotkeys} services.hotkeys Hotkey bindings, edited in the settings.
    * @param {function(): void} services.onImported Called once an import has actually written anything.
    * @param {function(): void} services.onHide Called when the hide button is clicked.
    */
-  constructor({ preferences, workspace, layoutLibrary, settingsTransfer, theme, importOrchestrator, onImported, onHide }) {
+  constructor({ preferences, workspace, layoutLibrary, settingsTransfer, theme, importOrchestrator, hotkeys, onImported, onHide }) {
     this.#preferences = preferences;
     this.#workspace = workspace;
     this.#layoutLibrary = layoutLibrary;
     this.#settingsTransfer = settingsTransfer;
     this.#theme = theme;
     this.#importOrchestrator = importOrchestrator;
+    this.#hotkeys = hotkeys;
     this.#onImported = onImported;
     this.#onHide = onHide;
     const storedSize = Number.parseFloat(preferences.read(STORAGE_KEYS.messageFontSize));
@@ -116,7 +124,7 @@ export class Toolbar {
     const elements = collectNamedElements(toolbar);
     elements.fontSizeSlider.addEventListener('input', () => this.#changeFontSize(Number.parseFloat(elements.fontSizeSlider.value), elements.fontSizeLabel));
     elements.layoutsButton.addEventListener('click', () => this.#showLayoutsMenu(elements.layoutsButton));
-    elements.settingsButton.addEventListener('click', () => SettingsDialog.open(this.#layoutLibrary, this.#settingsTransfer, this.#theme, this.#importOrchestrator, this.#preferences, this.#onImported));
+    elements.settingsButton.addEventListener('click', () => SettingsDialog.open({ layoutLibrary: this.#layoutLibrary, settingsTransfer: this.#settingsTransfer, theme: this.#theme, importOrchestrator: this.#importOrchestrator, preferences: this.#preferences, hotkeys: this.#hotkeys, onImported: this.#onImported }));
     elements.resetLayoutButton.addEventListener('click', () => this.#workspace.resetLayout());
     elements.hideButton.addEventListener('click', () => this.#onHide());
     this.#applyFontSize(elements.fontSizeLabel);

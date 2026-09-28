@@ -1,4 +1,5 @@
 import { Dialog } from './Dialog.js';
+import { HotkeyEditor } from './HotkeyEditor.js';
 import { ImportDialog } from './ImportDialog.js';
 import { PromptDialog } from './PromptDialog.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
@@ -54,6 +55,18 @@ export class SettingsDialog extends Dialog {
   #onImported;
 
   /**
+   * Hotkey bindings.
+   * @type {Hotkeys}
+   */
+  #hotkeys;
+
+  /**
+   * The hotkey lists, one per group, set once the content is built.
+   * @type {HotkeyEditor[]}
+   */
+  #hotkeyEditors = [];
+
+  /**
    * The dialog's named elements, set once the content is built.
    * @type {?Object<string, HTMLElement>}
    */
@@ -61,35 +74,43 @@ export class SettingsDialog extends Dialog {
 
   /**
    * Creates the dialog without showing it.
-   * @param {LayoutLibrary} layoutLibrary Saved layouts.
-   * @param {SettingsTransfer} settingsTransfer Settings export and import.
-   * @param {Theme} theme Colors and fonts.
-   * @param {ImportOrchestrator} importOrchestrator Runs a data-export import.
-   * @param {Preferences} preferences Import review table settings storage.
-   * @param {function(): void} onImported Called once an import has actually written anything.
+   * @param {object} services What the dialog works with.
+   * @param {LayoutLibrary} services.layoutLibrary Saved layouts.
+   * @param {SettingsTransfer} services.settingsTransfer Settings export and import.
+   * @param {Theme} services.theme Colors and fonts.
+   * @param {ImportOrchestrator} services.importOrchestrator Runs a data-export import.
+   * @param {Preferences} services.preferences Import review table settings storage.
+   * @param {Hotkeys} services.hotkeys Hotkey bindings.
+   * @param {function(): void} services.onImported Called once an import has actually written anything.
    */
-  constructor(layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, onImported) {
+  constructor({ layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, hotkeys, onImported }) {
     super();
     this.#layoutLibrary = layoutLibrary;
     this.#settingsTransfer = settingsTransfer;
     this.#theme = theme;
     this.#importOrchestrator = importOrchestrator;
     this.#preferences = preferences;
+    this.#hotkeys = hotkeys;
     this.#onImported = onImported;
   }
 
   /**
    * Opens the Settings screen.
-   * @param {LayoutLibrary} layoutLibrary Saved layouts.
-   * @param {SettingsTransfer} settingsTransfer Settings export and import.
-   * @param {Theme} theme Colors and fonts.
-   * @param {ImportOrchestrator} importOrchestrator Runs a data-export import.
-   * @param {Preferences} preferences Import review table settings storage.
-   * @param {function(): void} onImported Called once an import has actually written anything.
+   * @param {object} services What the dialog works with; see the constructor.
    * @returns {Promise<void>} Resolves once closed.
    */
-  static open(layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, onImported) {
-    return new SettingsDialog(layoutLibrary, settingsTransfer, theme, importOrchestrator, preferences, onImported).show();
+  static open(services) {
+    return new SettingsDialog(services).show();
+  }
+
+  /**
+   * Ends any hotkey recording and removes the dialog.
+   * @param {*} result Result of the dialog.
+   * @returns {void}
+   */
+  close(result) {
+    this.#hotkeyEditors.forEach(editor => editor.stopRecording());
+    super.close(result);
   }
 
   /**
@@ -110,6 +131,7 @@ export class SettingsDialog extends Dialog {
     this.#bindEvents();
     this.#renderLayouts();
     this.#renderThemeFields();
+    this.#hotkeyEditors = this.#hotkeys.groups.map(group => new HotkeyEditor({ container: this.#elements[`${group.id}Hotkeys`], hotkeys: this.#hotkeys, group }));
     return [box];
   }
 
@@ -153,6 +175,10 @@ export class SettingsDialog extends Dialog {
         </div>
       </section>
       <section class="claude-plus-settings-dialog__section">
+        <h3>Hotkeys</h3>
+        <div data-name="appHotkeys"></div>
+      </section>
+      <section class="claude-plus-settings-dialog__section">
         <h3>Theme</h3>
         <div class="claude-plus-settings-dialog__colors" data-name="colorFields"></div>
         <label class="claude-plus-settings-dialog__field">Interface font<input type="text" data-name="uiFontInput" placeholder="System default"></label>
@@ -174,6 +200,10 @@ export class SettingsDialog extends Dialog {
         <div class="claude-plus-settings-dialog__row">
           <button class="claude-plus-toolbar__button" data-name="importChatExportButton">Import chat export…</button>
         </div>
+      </section>
+      <section class="claude-plus-settings-dialog__section">
+        <h3>Hotkeys</h3>
+        <div data-name="anthropicHotkeys"></div>
       </section>`;
   }
 

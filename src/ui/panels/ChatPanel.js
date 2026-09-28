@@ -1,3 +1,5 @@
+import { ChatFindBar } from './ChatFindBar.js';
+import { ConversationSettings } from '../../chat/ConversationSettings.js';
 import { ConversationStatsSubPane } from './ConversationStatsSubPane.js';
 import { ConversationSubPane } from './ConversationSubPane.js';
 import { MessageListView } from './MessageListView.js';
@@ -71,6 +73,12 @@ export class ChatPanel extends Panel {
   #messageListView = null;
 
   /**
+   * The in-chat search bar.
+   * @type {?ChatFindBar}
+   */
+  #findBar = null;
+
+  /**
    * Open sub-panes by kind: 'files' and 'sources' are ConversationSubPane, 'stats' (this
    * conversation's own usage stats) is a ConversationStatsSubPane, 'toolSteps' (a message's
    * thinking and tool-call steps) is a MessageToolStepsPane.
@@ -136,6 +144,7 @@ export class ChatPanel extends Panel {
         <div class="claude-plus-chat-layout__center">
           <div class="claude-plus-chat-layout__top" data-name="topSide"></div>
           <div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-message-list" data-name="messageList"></div>
+          <div class="claude-plus-find-bar" data-name="findBar" hidden></div>
         </div>
         <div class="claude-plus-chat-layout__side" data-name="rightSide"></div>
       </div>`;
@@ -147,6 +156,7 @@ export class ChatPanel extends Panel {
    */
   bindEvents() {
     this.#messageListView = new MessageListView(this, this.elements.messageList, this.#session, message => this.#showToolSteps(message), this.#widgetExtractor);
+    this.#findBar = new ChatFindBar({ element: this.elements.findBar, ownerPanel: this, session: this.#session, listView: this.#messageListView, settings: new ConversationSettings(this.#preferences) });
     this.element.addEventListener('mousedown', () => this.#paneManager.focusPane(this.#paneId));
     this.element.addEventListener('focusin', () => this.#paneManager.focusPane(this.#paneId));
     this.listenTo(this.#paneManager, 'focus', () => this.#renderFocus());
@@ -169,6 +179,14 @@ export class ChatPanel extends Panel {
    */
   scrollToMessage(messageId) {
     this.#messageListView.scrollToMessage(messageId);
+  }
+
+  /**
+   * Opens the in-chat search, closes it when its field already has the focus, or focuses it.
+   * @returns {void}
+   */
+  toggleFind() {
+    this.#findBar.toggle();
   }
 
   /**
@@ -215,6 +233,7 @@ export class ChatPanel extends Panel {
    * @returns {void}
    */
   dispose() {
+    this.#findBar?.close();
     this.#messageListView?.dispose();
     this.#subPanes.forEach(subPane => subPane.dispose());
     this.#subPanes.clear();
