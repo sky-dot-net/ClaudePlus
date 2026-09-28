@@ -215,6 +215,7 @@ export class ChatPanel extends Panel {
    * @returns {void}
    */
   dispose() {
+    this.#messageListView?.dispose();
     this.#subPanes.forEach(subPane => subPane.dispose());
     this.#subPanes.clear();
     super.dispose();

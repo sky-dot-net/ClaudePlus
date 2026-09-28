@@ -19,6 +19,7 @@ const { searchPanel } = require('./scenarios/searchPanel.cjs');
 const { settingsTransfer } = require('./scenarios/settingsTransfer.cjs');
 const { sourceAndFilePanels } = require('./scenarios/sourceAndFilePanels.cjs');
 const { storedRecordValidation } = require('./scenarios/storedRecordValidation.cjs');
+const { virtualScrolling } = require('./scenarios/virtualScrolling.cjs');
 
 /**
  * Scenarios in the order they run; each builds on the state the previous ones left.
@@ -26,7 +27,7 @@ const { storedRecordValidation } = require('./scenarios/storedRecordValidation.c
  */
 const SCENARIOS = [
   storedRecordValidation, conversationTable, sourceAndFilePanels, searchPanel, composerSending, quoteReply, fileAttachments,
-  conversationSubPanes, addPanelMenu, activeChatBorder, imageViewer, layoutLibrary, settingsTransfer, deleteAndShortcut, importChatExport, failedMount,
+  conversationSubPanes, addPanelMenu, activeChatBorder, imageViewer, layoutLibrary, settingsTransfer, deleteAndShortcut, importChatExport, virtualScrolling, failedMount,
 ];
 
 /**

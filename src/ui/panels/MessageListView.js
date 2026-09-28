@@ -5,6 +5,7 @@ import { MessageToolSteps } from '../../vendors/anthropic/chat/MessageToolSteps.
 import { SelectionReplyButton } from './SelectionReplyButton.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { TIMING } from '../../config/TIMING.js';
+import { VirtualList } from '../virtual/VirtualList.js';
 import { escapeHtml } from '../../text/escapeHtml.js';
 import stylesheet from './MessageListView.css';
 
@@ -18,6 +19,18 @@ StyleRegistry.register(stylesheet);
  * frame.
  */
 export class MessageListView {
+  /**
+   * Gap between messages, in pixels; matches the list's CSS.
+   * @type {number}
+   */
+  static #MESSAGE_GAP = 10;
+
+  /**
+   * Height assumed for a message until some have been measured, in pixels.
+   * @type {number}
+   */
+  static #ESTIMATED_MESSAGE_HEIGHT = 110;
+
   /**
    * List element the messages are rendered into.
    * @type {HTMLElement}
@@ -83,6 +96,25 @@ export class MessageListView {
   #replyButton = new SelectionReplyButton();
 
   /**
+   * Renders only the messages near the visible area, however long the conversation is.
+   * @type {VirtualList}
+   */
+  #virtualList;
+
+  /**
+   * Position of the message offering Retry, or -1 for none; decided once per render so messages
+   * created later, as the list scrolls, agree with the ones created then.
+   * @type {number}
+   */
+  #retryableIndex = -1;
+
+  /**
+   * The conversation the list last rendered, to notice a different one.
+   * @type {?string|undefined}
+   */
+  #renderedConversationId;
+
+  /**
    * Wires the view to its list element and session.
    * @param {Panel} ownerPanel Panel owning the subscriptions.
    * @param {HTMLElement} listElement List element the messages are rendered into.
@@ -95,6 +127,7 @@ export class MessageListView {
     this.#session = session;
     this.#onShowToolSteps = onShowToolSteps;
     this.#widgetExtractor = widgetExtractor;
+    this.#virtualList = this.#createVirtualList();
     listElement.addEventListener('click', event => this.#onClick(event));
     listElement.addEventListener('dblclick', event => this.#onDoubleClick(event));
     listElement.addEventListener('keydown', event => this.#onEditKeydown(event));
@@ -106,19 +139,79 @@ export class MessageListView {
   }
 
   /**
-   * Re-renders every message, keeping the view at the bottom if it was there.
+   * Re-renders the messages near the visible area, keeping the view at the bottom if it was there
+   * and starting at the bottom for a different conversation.
    * @returns {void}
    */
   render() {
     this.#changedMessages.clear();
     this.#updateScheduler.cancel();
     this.#replyButton.hide();
-    const wasAtBottom = this.#isScrolledToBottom();
     const messages = this.#session.messages;
-    const retryableIndex = this.#session.isSending || this.#session.isReadOnly ? -1 : messages.findLastIndex(message => message.sender === 'assistant');
-    this.#listElement.innerHTML = messages.map((message, index) => this.#messageHtml(message, index, index === retryableIndex)).join('')
-      || '<div class="claude-plus-empty-state claude-plus-empty-state--padded">Start a conversation using the message box below.</div>';
-    this.#scrollToBottomIf(wasAtBottom);
+    this.#retryableIndex = this.#session.isSending || this.#session.isReadOnly ? -1 : messages.findLastIndex(message => message.sender === 'assistant');
+    this.#resetForNewConversation();
+    this.#virtualList.setCount(messages.length);
+    this.#focusEditInputIfEditing();
+  }
+
+  /**
+   * Stops following the list's scrolling and size.
+   * @returns {void}
+   */
+  dispose() {
+    this.#virtualList.dispose();
+  }
+
+  /**
+   * The windowed list rendering the messages into the list element.
+   * @returns {VirtualList} The list.
+   */
+  #createVirtualList() {
+    return new VirtualList({
+      scrollElement: this.#listElement,
+      contentElement: this.#listElement,
+      gap: MessageListView.#MESSAGE_GAP,
+      estimatedHeight: MessageListView.#ESTIMATED_MESSAGE_HEIGHT,
+      renderItems: (start, end) => this.#messagesHtml(start, end),
+      emptyHtml: () => '<div class="claude-plus-empty-state claude-plus-empty-state--padded">Start a conversation using the message box below.</div>',
+      onItemsRendered: (elements, from) => this.#onMessagesRendered(elements, from),
+      followsEnd: true,
+      endDistance: LIMITS.followOutputDistance,
+    });
+  }
+
+  /**
+   * Forgets the measured message heights when the list now shows a different conversation.
+   * @returns {void}
+   */
+  #resetForNewConversation() {
+    const conversationId = this.#session.openConversationId;
+    if (conversationId === this.#renderedConversationId) return;
+    this.#renderedConversationId = conversationId;
+    this.#virtualList.reset();
+  }
+
+  /**
+   * HTML of a run of messages.
+   * @param {number} start Index of the first message.
+   * @param {number} end Index after the last message.
+   * @returns {string} The messages.
+   */
+  #messagesHtml(start, end) {
+    const messages = this.#session.messages;
+    let html = '';
+    for (let index = start; index < end; index += 1) html += this.#messageHtml(messages[index], index, index === this.#retryableIndex);
+    return html;
+  }
+
+  /**
+   * Starts filling the widget slots of messages that just entered the window.
+   * @param {HTMLElement[]} elements The new message elements.
+   * @param {number} from Position of the first one.
+   * @returns {void}
+   */
+  #onMessagesRendered(elements, from) {
+    elements.forEach((element, offset) => this.#fillWidgetSlotsIn(element, this.#session.messages[from + offset]));
   }
 
   /**
@@ -130,13 +223,12 @@ export class MessageListView {
    */
   scrollToMessage(messageId) {
     const index = this.#session.messages.findIndex(message => message.id === messageId);
-    const element = index === -1 ? null : this.#listElement.querySelector(`[data-message-index="${index}"]`);
+    if (index === -1) return;
+    this.#virtualList.scrollToIndex(index, 'center');
+    const element = this.#virtualList.elementAt(index);
     if (!element) return;
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     element.classList.add('claude-plus-message--highlighted');
     setTimeout(() => element.classList.remove('claude-plus-message--highlighted'), TIMING.messageHighlightMs);
-    this.#focusEditInputIfEditing();
-    this.#fillWidgetSlots();
   }
 
   /**
@@ -154,10 +246,9 @@ export class MessageListView {
    * @returns {void}
    */
   #renderChangedMessages() {
-    const wasAtBottom = this.#isScrolledToBottom();
     this.#changedMessages.forEach(message => this.#renderMessageBody(message));
     this.#changedMessages.clear();
-    this.#scrollToBottomIf(wasAtBottom);
+    this.#virtualList.keepEndInView();
   }
 
   /**
@@ -171,17 +262,6 @@ export class MessageListView {
     const body = container ? container.querySelector('.claude-plus-message__body') : null;
     if (body) body.innerHTML = MessageListView.#messageBodyHtml(message);
     if (container) this.#fillWidgetSlotsIn(container, message);
-  }
-
-  /**
-   * Starts filling every currently rendered message's widget slots with their real cards.
-   * @returns {void}
-   */
-  #fillWidgetSlots() {
-    this.#session.messages.forEach((message, index) => {
-      const container = this.#listElement.querySelector(`[data-message-index="${index}"]`);
-      if (container) this.#fillWidgetSlotsIn(container, message);
-    });
   }
 
   /**
@@ -537,21 +617,4 @@ export class MessageListView {
     return message ? message.text || message.errorText || '' : '';
   }
 
-  /**
-   * Whether the list is scrolled to (or near) the bottom.
-   * @returns {boolean} True within LIMITS.followOutputDistance of the bottom.
-   */
-  #isScrolledToBottom() {
-    const list = this.#listElement;
-    return list.scrollHeight - list.scrollTop - list.clientHeight < LIMITS.followOutputDistance;
-  }
-
-  /**
-   * Scrolls to the bottom if the list was there before an update.
-   * @param {boolean} wasAtBottom Whether the list was at the bottom.
-   * @returns {void}
-   */
-  #scrollToBottomIf(wasAtBottom) {
-    if (wasAtBottom) this.#listElement.scrollTop = this.#listElement.scrollHeight;
-  }
 }

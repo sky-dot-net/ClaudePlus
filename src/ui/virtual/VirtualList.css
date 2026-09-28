@@ -1,0 +1,8 @@
+.claude-plus-virtual-spacer {
+  flex: none;
+}
+
+tr.claude-plus-virtual-spacer td {
+  padding: 0;
+  border: 0;
+}

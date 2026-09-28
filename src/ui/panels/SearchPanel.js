@@ -1,5 +1,4 @@
 import { ColumnTable } from '../tables/ColumnTable.js';
-import { LIMITS } from '../../config/LIMITS.js';
 import { Panel } from './Panel.js';
 import { SearchEngine } from '../../search/SearchEngine.js';
 import { SearchQuery } from '../../search/SearchQuery.js';
@@ -93,7 +92,6 @@ export class SearchPanel extends Panel {
       defaultSort: { column: 'date', direction: -1 },
       rowAttributes: item => `class="claude-plus-search-result" data-conversation-id="${escapeHtml(item.conversationId)}" data-message-id="${escapeHtml(item.messageId ?? '')}"`,
       emptyText: 'No results.',
-      maxRenderedRows: LIMITS.searchResults,
     });
     this.elements.queryInput.addEventListener('input', () => this.#runQuery(this.elements.queryInput.value));
     this.#table.bodyElement.addEventListener('click', event => this.#onResultClick(event));

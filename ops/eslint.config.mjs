@@ -19,7 +19,7 @@ const documentedContexts = [
  * @type {Record<string, string>}
  */
 const browserGlobals = Object.fromEntries([
-  'AbortController', 'Blob', 'CSS', 'CompressionStream', 'DOMException', 'Event', 'File', 'FormData', 'HTMLElement', 'Intl', 'Response',
+  'AbortController', 'Blob', 'CSS', 'CompressionStream', 'DOMException', 'Event', 'File', 'FormData', 'HTMLElement', 'Intl', 'ResizeObserver', 'Response',
   'TextDecoderStream', 'TextEncoder', 'URL', 'URLSearchParams', 'cancelAnimationFrame', 'clearInterval', 'clearTimeout',
   'console', 'crypto', 'document', 'fetch', 'getComputedStyle', 'history', 'indexedDB', 'localStorage', 'location', 'navigator',
   'requestAnimationFrame', 'setInterval', 'setTimeout', 'window',

@@ -5,8 +5,10 @@ import { STORAGE_KEYS } from '../../config/STORAGE_KEYS.js';
 import { SortOrder } from './SortOrder.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
 import { ValueCombobox } from './ValueCombobox.js';
+import { VirtualList } from '../virtual/VirtualList.js';
 import { collectNamedElements } from '../../dom/collectNamedElements.js';
 import { columnFilterValue } from './columnFilterValue.js';
+import { createElement } from '../../dom/createElement.js';
 import { escapeHtml } from '../../text/escapeHtml.js';
 import { filterControlHtml } from './filterControlHtml.js';
 import stylesheet from './ColumnTable.css';
@@ -26,6 +28,18 @@ export class ColumnTable {
    * @type {number}
    */
   static #MIN_COLUMN_WIDTH = 40;
+
+  /**
+   * Height assumed for a row until some have been measured, in pixels.
+   * @type {number}
+   */
+  static #ESTIMATED_ROW_HEIGHT = 27;
+
+  /**
+   * Class of the table while its columns are locked to fixed widths.
+   * @type {string}
+   */
+  static #LOCKED_CLASS = 'claude-plus-column-table__table--locked';
 
   /**
    * Storage key of the column and sort settings.
@@ -58,16 +72,22 @@ export class ColumnTable {
   #emptyText;
 
   /**
-   * Most rows rendered at once, after filtering and sorting.
-   * @type {number}
-   */
-  #maxRenderedRows;
-
-  /**
    * Current rows, unfiltered.
    * @type {object[]}
    */
   #rows = [];
+
+  /**
+   * The rows passing the filters, in sort order: what the windowed list renders from.
+   * @type {object[]}
+   */
+  #visibleRows = [];
+
+  /**
+   * Renders only the rows near the visible area, however many there are.
+   * @type {VirtualList}
+   */
+  #virtualList;
 
   /**
    * Which columns are shown.
@@ -124,15 +144,13 @@ export class ColumnTable {
    * @param {{column: string, direction: number}} options.defaultSort Sort used until the user sorts.
    * @param {function(object): string} options.rowAttributes Returns the escaped attributes of a row's tr element.
    * @param {string} options.emptyText Shown when no row passes the filters.
-   * @param {number} [options.maxRenderedRows] Most rows rendered at once; unlimited by default.
    */
-  constructor({ container, tableId, columns, preferences, defaultSort, rowAttributes, emptyText, maxRenderedRows = Infinity }) {
+  constructor({ container, tableId, columns, preferences, defaultSort, rowAttributes, emptyText }) {
     this.#storageKey = `${STORAGE_KEYS.tablePrefix}${tableId}`;
     this.#columns = columns;
     this.#preferences = preferences;
     this.#rowAttributes = rowAttributes;
     this.#emptyText = emptyText;
-    this.#maxRenderedRows = maxRenderedRows;
     const stored = preferences.readJson(this.#storageKey) ?? {};
     this.#visibility = new ColumnVisibility(columns, stored.visibleColumnIds);
     this.#sortOrder = new SortOrder(columns, stored.sortOrder, defaultSort);
@@ -140,6 +158,7 @@ export class ColumnTable {
     this.#columnWidths = new ColumnWidths(stored.columnWidths);
     container.innerHTML = ColumnTable.#skeletonHtml(columns);
     this.#elements = collectNamedElements(container);
+    this.#virtualList = this.#createVirtualList();
     this.#bindEvents();
     this.#renderColumns();
   }
@@ -168,6 +187,7 @@ export class ColumnTable {
    */
   dispose() {
     this.#comboboxes.forEach(combobox => combobox.dispose());
+    this.#virtualList.dispose();
   }
 
   /**
@@ -180,7 +200,47 @@ export class ColumnTable {
       .map(column => `<label class="claude-plus-column-table__column-toggle"><input type="checkbox" data-column-toggle="${column.id}" /> ${escapeHtml(column.label)}</label>`)
       .join('');
     const picker = toggles ? `<details class="claude-plus-column-table__column-picker"><summary>Columns</summary><div data-name="columnToggles">${toggles}</div></details>` : '';
-    return `${picker}<div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-column-table"><table class="claude-plus-column-table__table"><thead><tr data-name="headerRow"></tr><tr class="claude-plus-column-table__filter-row" data-name="filterRow"></tr></thead><tbody data-name="tableBody"></tbody></table></div>`;
+    return `${picker}<div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-column-table" data-name="scroller"><table class="claude-plus-column-table__table" data-name="table"><colgroup data-name="columnGroup"></colgroup><thead><tr data-name="headerRow"></tr><tr class="claude-plus-column-table__filter-row" data-name="filterRow"></tr></thead><tbody data-name="tableBody"></tbody></table></div>`;
+  }
+
+  /**
+   * The windowed list rendering the rows into the table body: its rows are measured, and the
+   * columns locked to the widths the visible rows gave them so they don't shift while scrolling.
+   * @returns {VirtualList} The list.
+   */
+  #createVirtualList() {
+    return new VirtualList({
+      scrollElement: this.#elements.scroller,
+      contentElement: this.#elements.tableBody,
+      gap: 0,
+      estimatedHeight: ColumnTable.#ESTIMATED_ROW_HEIGHT,
+      renderItems: (start, end) => this.#rowsHtml(start, end),
+      emptyHtml: () => `<tr><td colspan="${this.#visibility.visibleColumns.length}" class="claude-plus-empty-state">${escapeHtml(this.#emptyText)}</td></tr>`,
+      createSpacer: () => this.#createRowSpacer(),
+      setSpacerHeight: ColumnTable.#setRowSpacerHeight,
+      onWidthChange: () => this.#relayout(),
+    });
+  }
+
+  /**
+   * A spacer standing in for unrendered rows: a row with one cell spanning every column.
+   * @returns {HTMLElement} The spacer row.
+   */
+  #createRowSpacer() {
+    const row = createElement('tr', { className: 'claude-plus-virtual-spacer' });
+    row.append(createElement('td', { colSpan: this.#visibility.visibleColumns.length }));
+    return row;
+  }
+
+  /**
+   * Sizes a spacer row, hiding it while it has no size.
+   * @param {HTMLElement} spacer The spacer row.
+   * @param {number} height Height in pixels.
+   * @returns {void}
+   */
+  static #setRowSpacerHeight(spacer, height) {
+    spacer.hidden = height <= 0;
+    spacer.firstElementChild.style.height = `${height}px`;
   }
 
   /**
@@ -261,7 +321,10 @@ export class ColumnTable {
   #onResizeMouseMove = (event) => {
     this.#resizing.currentWidth = ColumnTable.#clampedWidth(this.#resizing.currentWidth + (event.clientX - this.#resizing.startX));
     this.#resizing.startX = event.clientX;
-    this.#resizing.headerElement.style.width = `${this.#resizing.currentWidth}px`;
+    const { headerElement, currentWidth } = this.#resizing;
+    headerElement.style.width = `${currentWidth}px`;
+    const column = this.#elements.columnGroup.children[[...this.#elements.headerRow.children].indexOf(headerElement)];
+    if (column) column.style.width = `${currentWidth}px`;
   };
 
   /**
@@ -388,14 +451,47 @@ export class ColumnTable {
   }
 
   /**
-   * Renders the rows passing the filters, sorted and limited.
+   * Filters and sorts the rows, then lays the table out for them.
    * @returns {void}
    */
   #renderBody() {
+    this.#visibleRows = this.#sortOrder.sort(this.#filters.apply(this.#rows, this.#visibility));
+    this.#relayout();
+  }
+
+  /**
+   * Renders the visible window of rows with the columns sized to fit them, then locks the columns
+   * at those widths: the window changes as the table scrolls, and columns sized by whichever rows
+   * happen to be rendered would jitter.
+   * @returns {void}
+   */
+  #relayout() {
+    this.#elements.table.classList.remove(ColumnTable.#LOCKED_CLASS);
+    this.#elements.columnGroup.innerHTML = '';
+    this.#virtualList.setCount(this.#visibleRows.length);
+    this.#lockColumns();
+  }
+
+  /**
+   * Fixes every column at its current width; skipped while the table is hidden and has none.
+   * @returns {void}
+   */
+  #lockColumns() {
+    const widths = [...this.#elements.headerRow.children].map(header => header.getBoundingClientRect().width);
+    if (widths.length === 0 || widths.includes(0)) return;
+    this.#elements.columnGroup.innerHTML = widths.map(width => `<col style="width:${width}px">`).join('');
+    this.#elements.table.classList.add(ColumnTable.#LOCKED_CLASS);
+  }
+
+  /**
+   * HTML of a run of the visible rows.
+   * @param {number} start Index of the first row.
+   * @param {number} end Index after the last row.
+   * @returns {string} The tr elements.
+   */
+  #rowsHtml(start, end) {
     const visibleColumns = this.#visibility.visibleColumns;
-    const rows = this.#sortOrder.sort(this.#filters.apply(this.#rows, this.#visibility)).slice(0, this.#maxRenderedRows);
-    this.#elements.tableBody.innerHTML = rows.map(row => this.#rowHtml(row, visibleColumns)).join('')
-      || `<tr><td colspan="${visibleColumns.length}" class="claude-plus-empty-state">${escapeHtml(this.#emptyText)}</td></tr>`;
+    return this.#visibleRows.slice(start, end).map(row => this.#rowHtml(row, visibleColumns)).join('');
   }
 
   /**

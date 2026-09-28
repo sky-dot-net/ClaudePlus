@@ -1,12 +1,12 @@
 /**
  * Result limits. sidebarPageSize / backfillPageSize: conversations requested per API page.
- * listedSources: web sources listed at once. rankedOutlets: outlets in the ranking.
+ * rankedOutlets: outlets in the ranking.
  * toolResultCharacters: characters of a tool result shown. provisionalTitleLength: characters of
  * the first prompt used as a new conversation's title. backfillRefreshInterval: conversations
  * stored between aggregate refreshes during a backfill. followOutputDistance: distance from the
  * bottom, in pixels, within which the chat keeps following new output. exportFileNameLength:
  * characters of the conversation title used in an export file name. comboboxEntries: values listed
- * by a filter typeahead. searchResults: results shown by the search panel.
+ * by a filter typeahead.
  * @type {Readonly<Record<string, number>>}
  */
 export const LIMITS = Object.freeze({

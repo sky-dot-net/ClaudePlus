@@ -72,8 +72,7 @@ export class WebSourcesPanel extends Panel {
       preferences: this.#preferences,
       defaultSort: { column: 'date', direction: -1 },
       rowAttributes: source => `data-conversation-id="${escapeHtml(source.conversationId)}" data-message-id="${escapeHtml(source.messageId ?? '')}"`,
-      emptyText: 'No web sources match these filters.',
-      maxRenderedRows: LIMITS.listedSources,
+      emptyText: 'No web sources match these filters.',
     });
     this.#table.bodyElement.addEventListener('dblclick', event => this.#onRowDoubleClick(event));
     this.listenTo(this.#stats, 'aggregate', () => this.render());

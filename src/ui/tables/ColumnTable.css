@@ -33,6 +33,15 @@ details.claude-plus-column-table__column-picker summary {
   font-weight: 600;
 }
 
+.claude-plus-column-table__table--locked {
+  table-layout: fixed;
+}
+
+.claude-plus-column-table__table--locked .claude-plus-column-table__cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .claude-plus-column-table__resize-handle {
   position: absolute;
   top: 0;
