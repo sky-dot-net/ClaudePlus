@@ -1,3 +1,4 @@
+import { CommandButtons } from '../CommandButtons.js';
 import { ComposerOptionsView } from '../composer/ComposerOptionsView.js';
 import { ExportMenuButton } from '../composer/ExportMenuButton.js';
 import { Panel } from './Panel.js';
@@ -49,6 +50,12 @@ export class ComposerPanel extends Panel {
   #modelCatalog;
 
   /**
+   * The commands the panel's command buttons run.
+   * @type {Commands}
+   */
+  #commands;
+
+  /**
    * The model option controls; created once the body is built.
    * @type {?ComposerOptionsView}
    */
@@ -86,14 +93,16 @@ export class ComposerPanel extends Panel {
    * @param {StatsIndex} services.stats Conversation statistics, to hide the files/sources buttons when empty.
    * @param {ConversationExporter} services.exporter Exports the active chat.
    * @param {ModelCatalog} services.modelCatalog The selectable models and effort levels.
+   * @param {Commands} services.commands The commands the panel's command buttons run.
    */
-  constructor({ paneManager, settings, stats, exporter, modelCatalog }) {
+  constructor({ paneManager, settings, stats, exporter, modelCatalog, commands }) {
     super('Message');
     this.#paneManager = paneManager;
     this.#settings = settings;
     this.#stats = stats;
     this.#exporter = exporter;
     this.#modelCatalog = modelCatalog;
+    this.#commands = commands;
   }
 
   /**
@@ -107,6 +116,7 @@ export class ComposerPanel extends Panel {
         <select data-name="effortSelect">${optionsHtml(this.#modelCatalog.efforts, '')}</select>
         <label class="claude-plus-composer__thinking-toggle"><input type="checkbox" data-name="thinkingCheckbox" /> Extended thinking</label>
         <div class="claude-plus-fill-remaining"></div>
+        <button class="claude-plus-toolbar__button" data-name="findButton" data-command="findInChat">🔍</button>
         <button class="claude-plus-toolbar__button" data-name="filesButton" title="Files in the active chat">📁</button>
         <button class="claude-plus-toolbar__button" data-name="sourcesButton" title="Web sources of the active chat">🌐</button>
         <button class="claude-plus-toolbar__button" data-name="statsButton" title="Stats for the active chat">📈</button>
@@ -125,6 +135,7 @@ export class ComposerPanel extends Panel {
    */
   bindEvents() {
     const { promptInput, stopButton, filesButton, sourcesButton, statsButton, exportButton, stagedFiles, pendingQuote } = this.elements;
+    CommandButtons.bind(this, this.element, this.#commands);
     this.#optionsView = new ComposerOptionsView(this.elements, this.#settings);
     this.#exportButton = new ExportMenuButton(exportButton, this.#exporter);
     this.#stagedFiles = new StagedFileList(stagedFiles, file => this.#paneManager.focusedSession.uploadFile(file));

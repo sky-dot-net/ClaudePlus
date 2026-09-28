@@ -3,7 +3,8 @@
   gap: 6px;
 }
 
-.claude-plus-stats-view-toggle__button--active {
+.claude-plus-toolbar__button.claude-plus-stats-view-toggle__button--active,
+.claude-plus-toolbar__button.claude-plus-stats-view-toggle__button--active:hover {
   background: var(--claude-plus-color-accent);
   color: #fff;
 }

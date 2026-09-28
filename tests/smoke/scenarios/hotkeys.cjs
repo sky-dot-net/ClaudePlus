@@ -22,6 +22,23 @@ async function checkDefaultChords(run) {
   run.check('Ctrl+F again closes the in-chat search', await findBar.isHidden());
   await page.keyboard.press('Control+Shift+f');
   run.check('Ctrl+Shift+F focuses the global search', await page.evaluate(() => document.activeElement?.dataset.name === 'queryInput'));
+  await checkFindButton(run);
+}
+
+/**
+ * Checks the magnifying glass button in the composer: its tooltip names the hotkey, and clicking it
+ * opens and then closes the in-chat search.
+ * @param {SmokeRun} run The smoke run.
+ * @returns {Promise<void>} Resolves once checked.
+ */
+async function checkFindButton(run) {
+  const findButton = run.composer.locator('[data-name="findButton"]');
+  const findBar = run.page.locator('.claude-plus-panel--focused .claude-plus-find-bar');
+  run.check('the find button names its hotkey in its tooltip', /\((Ctrl|Cmd)\+F\)$/.test(await findButton.getAttribute('title')), await findButton.getAttribute('title'));
+  await findButton.click();
+  const isOpen = await findBar.isVisible();
+  await findButton.click();
+  run.check('the find button opens and closes the in-chat search', isOpen && await findBar.isHidden());
 }
 
 /**
@@ -76,6 +93,7 @@ async function checkRebound(run) {
   const openedByOldChord = await findBar.isVisible();
   await page.keyboard.press('Control+g');
   run.check('the rebound chord opens the in-chat search, the old one no longer does', await findBar.isVisible() && !openedByOldChord);
+  run.check('the find button shows the rebound hotkey', /\((Ctrl|Cmd)\+G\)$/.test(await run.composer.locator('[data-name="findButton"]').getAttribute('title')));
   await page.keyboard.press('Escape');
 }
 

@@ -113,6 +113,8 @@ async function checkStatsViewToggle(run) {
   const importedCount = await countFor('imported');
   const partitionsCleanly = importedCount === 2 && liveCount + importedCount === combinedCount && importedCount < combinedCount;
   run.check('stats view toggle partitions Combined into Live and Imported', partitionsCleanly, JSON.stringify({ combinedCount, liveCount, importedCount }));
+  const background = view => statsPanel.locator(`[data-view="${view}"]`).evaluate(button => getComputedStyle(button).backgroundColor);
+  run.check('the selected stats view button is colored differently from the others', await background('imported') !== await background('live'), `${await background('imported')} vs ${await background('live')}`);
 }
 
 /**

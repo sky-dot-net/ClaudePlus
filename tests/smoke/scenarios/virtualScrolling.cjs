@@ -193,6 +193,7 @@ async function findInChat(run, text, matchCount) {
 async function checkFindInMiddle(run) {
   await run.page.evaluate(scrollMessageList, 0);
   await findInChat(run, 'number 2000:', 1);
+  await run.page.waitForFunction(() => CSS.highlights.get('claude-plus-find-current')?.size === 1, null, { timeout: 15000 }).catch(() => undefined);
   await run.page.waitForTimeout(300);
   const state = await run.page.evaluate(readFindState);
   const middle = await run.page.evaluate(scrollMessageList, null);

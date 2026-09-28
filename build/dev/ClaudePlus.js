@@ -8145,6 +8145,31 @@
   }
 
   /**
+   * Connects the buttons of a panel that carry a data-command attribute to the commands of that id:
+   * a click runs the command, and the tooltip names the command and its current hotkey, updating when
+   * the user rebinds it. Any button becomes a hotkey button by getting data-command="<command id>".
+   */
+  class CommandButtons {
+    /**
+     * Wires every command button inside an element.
+     * @param {Panel} ownerPanel Panel owning the subscription to the bindings.
+     * @param {HTMLElement} root Element holding the buttons.
+     * @param {Commands} commands The commands.
+     * @returns {void}
+     */
+    static bind(ownerPanel, root, commands) {
+      const buttons = [...root.querySelectorAll('[data-command]')];
+      const showTooltips = () => buttons.forEach(button => { button.title = commands.tooltipOf(button.dataset.command); });
+      buttons.forEach(button => {
+        button.addEventListener('mousedown', event => event.preventDefault());
+        button.addEventListener('click', () => commands.run(button.dataset.command));
+      });
+      showTooltips();
+      ownerPanel.listenTo(commands.hotkeys, 'changed', showTooltips);
+    }
+  }
+
+  /**
    * The only thinking modes the completion endpoint accepts; 'off' is the default.
    * @type {Readonly<{off: string, extended: string}>}
    */
@@ -9198,6 +9223,12 @@
     #modelCatalog;
 
     /**
+     * The commands the panel's command buttons run.
+     * @type {Commands}
+     */
+    #commands;
+
+    /**
      * The model option controls; created once the body is built.
      * @type {?ComposerOptionsView}
      */
@@ -9235,14 +9266,16 @@
      * @param {StatsIndex} services.stats Conversation statistics, to hide the files/sources buttons when empty.
      * @param {ConversationExporter} services.exporter Exports the active chat.
      * @param {ModelCatalog} services.modelCatalog The selectable models and effort levels.
+     * @param {Commands} services.commands The commands the panel's command buttons run.
      */
-    constructor({ paneManager, settings, stats, exporter, modelCatalog }) {
+    constructor({ paneManager, settings, stats, exporter, modelCatalog, commands }) {
       super('Message');
       this.#paneManager = paneManager;
       this.#settings = settings;
       this.#stats = stats;
       this.#exporter = exporter;
       this.#modelCatalog = modelCatalog;
+      this.#commands = commands;
     }
 
     /**
@@ -9256,6 +9289,7 @@
         <select data-name="effortSelect">${optionsHtml(this.#modelCatalog.efforts, '')}</select>
         <label class="claude-plus-composer__thinking-toggle"><input type="checkbox" data-name="thinkingCheckbox" /> Extended thinking</label>
         <div class="claude-plus-fill-remaining"></div>
+        <button class="claude-plus-toolbar__button" data-name="findButton" data-command="findInChat">🔍</button>
         <button class="claude-plus-toolbar__button" data-name="filesButton" title="Files in the active chat">📁</button>
         <button class="claude-plus-toolbar__button" data-name="sourcesButton" title="Web sources of the active chat">🌐</button>
         <button class="claude-plus-toolbar__button" data-name="statsButton" title="Stats for the active chat">📈</button>
@@ -9274,6 +9308,7 @@
      */
     bindEvents() {
       const { promptInput, stopButton, filesButton, sourcesButton, statsButton, exportButton, stagedFiles, pendingQuote } = this.elements;
+      CommandButtons.bind(this, this.element, this.#commands);
       this.#optionsView = new ComposerOptionsView(this.elements, this.#settings);
       this.#exportButton = new ExportMenuButton(exportButton, this.#exporter);
       this.#stagedFiles = new StagedFileList(stagedFiles, file => this.#paneManager.focusedSession.uploadFile(file));
@@ -12263,6 +12298,80 @@
   }
 
   /**
+   * The commands of the app: each has an id, a label and a chord (see Hotkeys) and runs an action
+   * registered for its id. A key press and a button marked with the command's id both run it, so a
+   * button gets its hotkey - and a tooltip naming it - without any code of its own.
+   */
+  class Commands {
+    /**
+     * The bindings.
+     * @type {Hotkeys}
+     */
+    #hotkeys;
+
+    /**
+     * Action per command id.
+     * @type {Map<string, function(): void>}
+     */
+    #actions = new Map();
+
+    /**
+     * Creates the commands.
+     * @param {Hotkeys} hotkeys The bindings.
+     */
+    constructor(hotkeys) {
+      this.#hotkeys = hotkeys;
+    }
+
+    /**
+     * The bindings, for following their changes.
+     * @returns {Hotkeys} The bindings.
+     */
+    get hotkeys() {
+      return this.#hotkeys;
+    }
+
+    /**
+     * Registers the actions of commands; a command's action is set once the objects it works with exist.
+     * @param {Map<string, function(): void>} actions Action per command id.
+     * @returns {void}
+     */
+    addActions(actions) {
+      actions.forEach((action, commandId) => this.#actions.set(commandId, action));
+    }
+
+    /**
+     * The id of the command a key press triggers.
+     * @param {KeyboardEvent} event The key press.
+     * @returns {?string} The id, or null when the key press triggers no command that has an action.
+     */
+    idFor(event) {
+      const commandId = this.#hotkeys.commandIdFor(event);
+      return commandId && this.#actions.has(commandId) ? commandId : null;
+    }
+
+    /**
+     * Runs a command's action.
+     * @param {string} commandId Command id.
+     * @returns {void}
+     */
+    run(commandId) {
+      this.#actions.get(commandId)?.();
+    }
+
+    /**
+     * The text a button of a command shows as its tooltip.
+     * @param {string} commandId Command id.
+     * @returns {string} The command's label and, when it has one, its current chord.
+     */
+    tooltipOf(commandId) {
+      const label = this.#hotkeys.labelOf(commandId);
+      const chord = this.#hotkeys.chordOf(commandId);
+      return chord ? `${label} (${HotkeyChord.format(chord)})` : label;
+    }
+  }
+
+  /**
    * The hotkey bindings: every command of every group (the app's own and each vendor's) with its
    * default chord, and the user's overrides, which are stored. An override can be an empty chord,
    * meaning the command has none.
@@ -12337,6 +12446,15 @@
      */
     chordOf(commandId) {
       return commandId in this.#overrides ? this.#overrides[commandId] : (this.#find(commandId)?.defaultChord ?? '');
+    }
+
+    /**
+     * A command's label.
+     * @param {string} commandId Command id.
+     * @returns {string} The label; the id itself for an unknown command.
+     */
+    labelOf(commandId) {
+      return this.#find(commandId)?.label ?? commandId;
     }
 
     /**
@@ -13530,32 +13648,24 @@
   }
 
   /**
-   * Runs the action of the hotkey command a key press triggers. Which key triggers which command
-   * comes from the Hotkeys bindings, so the user's changes apply at once. Key presses are handled in
-   * the capture phase and stopped there, so claude.ai's own hidden app and the browser never react to
-   * a chord bound to a command.
+   * Runs the command a key press triggers. Which key triggers which command comes from the Hotkeys
+   * bindings, so the user's changes apply at once. Key presses are handled in the capture phase and
+   * stopped there, so claude.ai's own hidden app and the browser never react to a chord bound to a
+   * command.
    */
   class KeyboardShortcuts {
     /**
-     * The bindings.
-     * @type {Hotkeys}
+     * The commands.
+     * @type {Commands}
      */
-    #hotkeys;
-
-    /**
-     * Action per command id.
-     * @type {Map<string, function(): void>}
-     */
-    #actions;
+    #commands;
 
     /**
      * Creates the shortcuts.
-     * @param {Hotkeys} hotkeys The bindings.
-     * @param {Map<string, function(): void>} actions Action per command id; a command without one does nothing.
+     * @param {Commands} commands The commands.
      */
-    constructor(hotkeys, actions) {
-      this.#hotkeys = hotkeys;
-      this.#actions = actions;
+    constructor(commands) {
+      this.#commands = commands;
     }
 
     /**
@@ -13567,18 +13677,18 @@
     }
 
     /**
-     * Runs the action of the command a key press is bound to, unless a settings control is recording
-     * the key press as a new binding.
+     * Runs the command a key press is bound to, unless a settings control is recording the key press
+     * as a new binding.
      * @param {KeyboardEvent} event The key press.
      * @returns {void}
      */
     #handleKeydown = (event) => {
-      if (this.#hotkeys.isRecording || event.repeat) return;
-      const action = this.#actions.get(this.#hotkeys.commandIdFor(event));
-      if (!action) return;
+      if (this.#commands.hotkeys.isRecording || event.repeat) return;
+      const commandId = this.#commands.idFor(event);
+      if (!commandId) return;
       event.preventDefault();
       event.stopPropagation();
-      action();
+      this.#commands.run(commandId);
     };
   }
 
@@ -14235,7 +14345,7 @@
     return `${Math.round((usageWindow.utilization || 0) * 100) / 100}%`;
   }
 
-  var stylesheet$4 = ".claude-plus-stats-view-toggle {\n  display: flex;\n  gap: 6px;\n}\n\n.claude-plus-stats-view-toggle__button--active {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n";
+  var stylesheet$4 = ".claude-plus-stats-view-toggle {\n  display: flex;\n  gap: 6px;\n}\n\n.claude-plus-toolbar__button.claude-plus-stats-view-toggle__button--active,\n.claude-plus-toolbar__button.claude-plus-stats-view-toggle__button--active:hover {\n  background: var(--claude-plus-color-accent);\n  color: #fff;\n}\n";
 
   StyleRegistry.register(stylesheet$4);
 
@@ -17981,19 +18091,20 @@
      */
     #mountWorkspace(services) {
       const { preferences, theme, api, database, modelCatalog, settings, importedConversations, directory, stats, activity, rateLimits, paneManager, router } = services;
+      const commands = new Commands(new Hotkeys(preferences, ClaudePlusApp.#hotkeyGroups()));
       const panelFactory = new PanelFactory({ directory, router, paneManager, stats, activity, rateLimits, preferences });
-      const composer = new ComposerPanel({ paneManager, settings, stats, exporter: new ConversationExporter(api, paneManager), modelCatalog });
+      const composer = new ComposerPanel({ paneManager, settings, stats, exporter: new ConversationExporter(api, paneManager), modelCatalog, commands });
       const workspace = ClaudePlusApp.#createWorkspace({ preferences, paneManager, panelFactory, composer });
       paneManager.attachWorkspace(workspace);
       panelFactory.attachWorkspace(workspace);
       const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
       const importOrchestrator = new ImportOrchestrator(database, importedConversations, stats);
       const onImported = async () => { await directory.refreshImported(); ClaudePlusApp.#reindexImported(services); };
-      const hotkeys = new Hotkeys(preferences, ClaudePlusApp.#hotkeyGroups());
-      new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, hotkeys, onImported, onHide: () => this.hide() }).mount();
+      new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, hotkeys: commands.hotkeys, onImported, onHide: () => this.hide() }).mount();
       workspace.mount();
       ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
-      new KeyboardShortcuts(hotkeys, new HotkeyActions({ workspace, panelFactory, paneManager }).toMap()).install();
+      commands.addActions(new HotkeyActions({ workspace, panelFactory, paneManager }).toMap());
+      new KeyboardShortcuts(commands).install();
     }
 
     /**

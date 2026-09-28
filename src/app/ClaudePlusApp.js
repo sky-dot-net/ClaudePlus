@@ -13,6 +13,7 @@ import { DockTree } from '../dock/DockTree.js';
 import { DockWorkspace } from '../dock/DockWorkspace.js';
 import { HOTKEY_COMMANDS } from '../config/HOTKEY_COMMANDS.js';
 import { HotkeyActions } from '../ui/HotkeyActions.js';
+import { Commands } from '../hotkeys/Commands.js';
 import { Hotkeys } from '../hotkeys/Hotkeys.js';
 import { ImportOrchestrator } from '../import/ImportOrchestrator.js';
 import { ImportedConversationStore } from '../import/ImportedConversationStore.js';
@@ -212,19 +213,20 @@ export class ClaudePlusApp {
    */
   #mountWorkspace(services) {
     const { preferences, theme, api, database, modelCatalog, settings, importedConversations, directory, stats, activity, rateLimits, paneManager, router } = services;
+    const commands = new Commands(new Hotkeys(preferences, ClaudePlusApp.#hotkeyGroups()));
     const panelFactory = new PanelFactory({ directory, router, paneManager, stats, activity, rateLimits, preferences });
-    const composer = new ComposerPanel({ paneManager, settings, stats, exporter: new ConversationExporter(api, paneManager), modelCatalog });
+    const composer = new ComposerPanel({ paneManager, settings, stats, exporter: new ConversationExporter(api, paneManager), modelCatalog, commands });
     const workspace = ClaudePlusApp.#createWorkspace({ preferences, paneManager, panelFactory, composer });
     paneManager.attachWorkspace(workspace);
     panelFactory.attachWorkspace(workspace);
     const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
     const importOrchestrator = new ImportOrchestrator(database, importedConversations, stats);
     const onImported = async () => { await directory.refreshImported(); ClaudePlusApp.#reindexImported(services); };
-    const hotkeys = new Hotkeys(preferences, ClaudePlusApp.#hotkeyGroups());
-    new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, hotkeys, onImported, onHide: () => this.hide() }).mount();
+    new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, hotkeys: commands.hotkeys, onImported, onHide: () => this.hide() }).mount();
     workspace.mount();
     ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
-    new KeyboardShortcuts(hotkeys, new HotkeyActions({ workspace, panelFactory, paneManager }).toMap()).install();
+    commands.addActions(new HotkeyActions({ workspace, panelFactory, paneManager }).toMap());
+    new KeyboardShortcuts(commands).install();
   }
 
   /**

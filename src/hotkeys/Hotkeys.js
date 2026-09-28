@@ -80,6 +80,15 @@ export class Hotkeys extends EventEmitter {
   }
 
   /**
+   * A command's label.
+   * @param {string} commandId Command id.
+   * @returns {string} The label; the id itself for an unknown command.
+   */
+  labelOf(commandId) {
+    return this.#find(commandId)?.label ?? commandId;
+  }
+
+  /**
    * Whether a command's chord differs from its default.
    * @param {string} commandId Command id.
    * @returns {boolean} True when the user changed it.
