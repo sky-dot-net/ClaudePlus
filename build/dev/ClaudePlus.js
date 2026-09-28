@@ -4236,6 +4236,12 @@
     #highlightedIndex = -1;
 
     /**
+     * Timer that removes the current highlight.
+     * @type {?number}
+     */
+    #highlightTimer = null;
+
+    /**
      * Marks the in-chat search's matches in the rendered messages.
      * @type {ChatFindHighlighter}
      */
@@ -4446,20 +4452,21 @@
      * @returns {void}
      */
     #highlight(index) {
+      this.#removeHighlight();
       this.#highlightedIndex = index;
       this.#virtualList.elementAt(index)?.classList.add('claude-plus-message--highlighted');
-      setTimeout(() => this.#removeHighlight(index), TIMING.messageHighlightMs);
+      this.#highlightTimer = setTimeout(() => this.#removeHighlight(), TIMING.messageHighlightMs);
     }
 
     /**
-     * Removes the highlight of a message, unless another message has been highlighted since.
-     * @param {number} index Position of the message.
+     * Removes the current highlight, if any, and its timer.
      * @returns {void}
      */
-    #removeHighlight(index) {
-      if (this.#highlightedIndex !== index) return;
+    #removeHighlight() {
+      clearTimeout(this.#highlightTimer);
+      const index = this.#highlightedIndex;
       this.#highlightedIndex = -1;
-      this.#virtualList.elementAt(index)?.classList.remove('claude-plus-message--highlighted');
+      if (index >= 0) this.#virtualList.elementAt(index)?.classList.remove('claude-plus-message--highlighted');
     }
 
     /**
@@ -7481,6 +7488,15 @@
      */
     get focusedPanel() {
       return this.#panes.get(this.#focusedPaneId).panel;
+    }
+
+    /**
+     * Makes the focused pane the visible tab of its zone, so a chat that shares a zone with another
+     * panel (the Files panel, say) is seen when something jumps into it.
+     * @returns {void}
+     */
+    revealFocusedPane() {
+      this.#workspace.revealPanel(this.#focusedPaneId);
     }
 
     /**
@@ -12090,6 +12106,7 @@
       const row = event.target.closest('[data-conversation-id]');
       if (!row) return;
       await this.#router.openConversation(row.dataset.conversationId);
+      this.#router.revealFocusedChat();
       if (row.dataset.messageId) this.#router.scrollToMessage(row.dataset.messageId);
     }
   }
@@ -14836,11 +14853,20 @@
     }
 
     /**
-     * Scrolls the focused pane to a message, if it's currently shown there.
+     * Makes the focused chat visible if another panel in its zone is covering it.
+     * @returns {void}
+     */
+    revealFocusedChat() {
+      this.#paneManager.revealFocusedPane();
+    }
+
+    /**
+     * Reveals the focused pane and scrolls it to a message, if it's currently shown there.
      * @param {string} messageId Message id.
      * @returns {void}
      */
     scrollToMessage(messageId) {
+      this.revealFocusedChat();
       this.#paneManager.focusedPanel.scrollToMessage(messageId);
     }
 

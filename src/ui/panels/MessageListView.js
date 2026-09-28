@@ -117,6 +117,12 @@ export class MessageListView {
   #highlightedIndex = -1;
 
   /**
+   * Timer that removes the current highlight.
+   * @type {?number}
+   */
+  #highlightTimer = null;
+
+  /**
    * Marks the in-chat search's matches in the rendered messages.
    * @type {ChatFindHighlighter}
    */
@@ -327,20 +333,21 @@ export class MessageListView {
    * @returns {void}
    */
   #highlight(index) {
+    this.#removeHighlight();
     this.#highlightedIndex = index;
     this.#virtualList.elementAt(index)?.classList.add('claude-plus-message--highlighted');
-    setTimeout(() => this.#removeHighlight(index), TIMING.messageHighlightMs);
+    this.#highlightTimer = setTimeout(() => this.#removeHighlight(), TIMING.messageHighlightMs);
   }
 
   /**
-   * Removes the highlight of a message, unless another message has been highlighted since.
-   * @param {number} index Position of the message.
+   * Removes the current highlight, if any, and its timer.
    * @returns {void}
    */
-  #removeHighlight(index) {
-    if (this.#highlightedIndex !== index) return;
+  #removeHighlight() {
+    clearTimeout(this.#highlightTimer);
+    const index = this.#highlightedIndex;
     this.#highlightedIndex = -1;
-    this.#virtualList.elementAt(index)?.classList.remove('claude-plus-message--highlighted');
+    if (index >= 0) this.#virtualList.elementAt(index)?.classList.remove('claude-plus-message--highlighted');
   }
 
   /**

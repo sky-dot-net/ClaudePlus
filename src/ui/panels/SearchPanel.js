@@ -170,6 +170,7 @@ export class SearchPanel extends Panel {
     const row = event.target.closest('[data-conversation-id]');
     if (!row) return;
     await this.#router.openConversation(row.dataset.conversationId);
+    this.#router.revealFocusedChat();
     if (row.dataset.messageId) this.#router.scrollToMessage(row.dataset.messageId);
   }
 }

@@ -42,11 +42,20 @@ export class Router {
   }
 
   /**
-   * Scrolls the focused pane to a message, if it's currently shown there.
+   * Makes the focused chat visible if another panel in its zone is covering it.
+   * @returns {void}
+   */
+  revealFocusedChat() {
+    this.#paneManager.revealFocusedPane();
+  }
+
+  /**
+   * Reveals the focused pane and scrolls it to a message, if it's currently shown there.
    * @param {string} messageId Message id.
    * @returns {void}
    */
   scrollToMessage(messageId) {
+    this.revealFocusedChat();
     this.#paneManager.focusedPanel.scrollToMessage(messageId);
   }
 

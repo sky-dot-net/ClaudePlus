@@ -118,6 +118,15 @@ export class ChatPaneManager extends EventEmitter {
   }
 
   /**
+   * Makes the focused pane the visible tab of its zone, so a chat that shares a zone with another
+   * panel (the Files panel, say) is seen when something jumps into it.
+   * @returns {void}
+   */
+  revealFocusedPane() {
+    this.#workspace.revealPanel(this.#focusedPaneId);
+  }
+
+  /**
    * Whether an id belongs to a chat pane.
    * @param {string} panelId Panel id.
    * @returns {boolean} True for ids starting with "chat-".
