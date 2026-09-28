@@ -98,6 +98,7 @@ details.claude-plus-column-table__column-picker summary {
 }
 
 .claude-plus-column-table__cell {
+  user-select: none;
   padding: 4px 6px;
   border-bottom: 1px solid var(--claude-plus-color-border-faint);
   vertical-align: top;
@@ -120,4 +121,8 @@ details.claude-plus-column-table__column-picker summary {
 
 .claude-plus-column-table__cell a:hover {
   text-decoration: underline;
+}
+
+.claude-plus-column-table__table tbody tr[data-selected] > td {
+  background: var(--claude-plus-color-accent-soft);
 }

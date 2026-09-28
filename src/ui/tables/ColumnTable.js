@@ -66,6 +66,13 @@ export class ColumnTable {
   #rowAttributes;
 
   /**
+   * The row highlighted by a click, or null; kept as the row so it stays highlighted as the window
+   * of rendered rows moves.
+   * @type {?object}
+   */
+  #selectedRow = null;
+
+  /**
    * Shown when no row passes the filters.
    * @type {string}
    */
@@ -248,11 +255,25 @@ export class ColumnTable {
    * @returns {void}
    */
   #bindEvents() {
+    this.#elements.tableBody.addEventListener('click', event => this.#onBodyClick(event));
     this.#elements.headerRow.addEventListener('click', event => this.#onHeaderClick(event));
     this.#elements.headerRow.addEventListener('mousedown', event => this.#onResizeHandleMouseDown(event));
     this.#elements.headerRow.addEventListener('dblclick', event => this.#onResizeHandleDoubleClick(event));
     this.#elements.filterRow.addEventListener('input', event => this.#onFilterInput(event));
     if (this.#elements.columnToggles) this.#elements.columnToggles.addEventListener('change', event => this.#onColumnToggle(event));
+  }
+
+  /**
+   * Highlights the clicked row and un-highlights the one highlighted before.
+   * @param {MouseEvent} event Click in the body.
+   * @returns {void}
+   */
+  #onBodyClick(event) {
+    const element = event.target.closest('tr[data-table-row]');
+    if (!element) return;
+    this.#selectedRow = this.#visibleRows[Number(element.dataset.tableRow)] ?? null;
+    this.#elements.tableBody.querySelectorAll('tr[data-selected]').forEach(selected => selected.removeAttribute('data-selected'));
+    element.setAttribute('data-selected', '');
   }
 
   /**
@@ -491,17 +512,19 @@ export class ColumnTable {
    */
   #rowsHtml(start, end) {
     const visibleColumns = this.#visibility.visibleColumns;
-    return this.#visibleRows.slice(start, end).map(row => this.#rowHtml(row, visibleColumns)).join('');
+    return this.#visibleRows.slice(start, end).map((row, offset) => this.#rowHtml(row, start + offset, visibleColumns)).join('');
   }
 
   /**
    * HTML of one row.
    * @param {object} row The row.
+   * @param {number} index The row's position among the visible rows.
    * @param {TableColumn[]} visibleColumns Columns to render.
    * @returns {string} The tr element.
    */
-  #rowHtml(row, visibleColumns) {
+  #rowHtml(row, index, visibleColumns) {
     const cells = visibleColumns.map(column => `<td class="claude-plus-column-table__cell claude-plus-column-table__cell--${column.id}"${this.#widthStyleAttribute(column.id)}>${column.cellHtml(row)}</td>`);
-    return `<tr ${this.#rowAttributes(row)}>${cells.join('')}</tr>`;
+    const selected = row === this.#selectedRow ? ' data-selected' : '';
+    return `<tr data-table-row="${index}"${selected} ${this.#rowAttributes(row)}>${cells.join('')}</tr>`;
   }
 }

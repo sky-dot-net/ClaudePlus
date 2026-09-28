@@ -2682,7 +2682,7 @@
     return FILTER_CONTROLS[column.filter ?? 'none'](column);
   }
 
-  var stylesheet$p = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table--locked {\n  table-layout: fixed;\n}\n\n.claude-plus-column-table__table--locked .claude-plus-column-table__cell {\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.claude-plus-column-table__resize-handle {\r\n  position: absolute;\r\n  top: 0;\r\n  right: 0;\r\n  bottom: 0;\r\n  width: 6px;\r\n  cursor: col-resize;\r\n  z-index: 2;\r\n}\r\n\r\n.claude-plus-column-table__resize-handle:hover,\r\n.claude-plus-column-table__resize-handle:active {\r\n  background: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
+  var stylesheet$p = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table--locked {\r\n  table-layout: fixed;\r\n}\r\n\r\n.claude-plus-column-table__table--locked .claude-plus-column-table__cell {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-column-table__resize-handle {\r\n  position: absolute;\r\n  top: 0;\r\n  right: 0;\r\n  bottom: 0;\r\n  width: 6px;\r\n  cursor: col-resize;\r\n  z-index: 2;\r\n}\r\n\r\n.claude-plus-column-table__resize-handle:hover,\r\n.claude-plus-column-table__resize-handle:active {\r\n  background: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  user-select: none;\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n\n.claude-plus-column-table__table tbody tr[data-selected] > td {\n  background: var(--claude-plus-color-accent-soft);\n}\n";
 
   StyleRegistry.register(stylesheet$p);
 
@@ -2735,6 +2735,13 @@
      * @type {function(object): string}
      */
     #rowAttributes;
+
+    /**
+     * The row highlighted by a click, or null; kept as the row so it stays highlighted as the window
+     * of rendered rows moves.
+     * @type {?object}
+     */
+    #selectedRow = null;
 
     /**
      * Shown when no row passes the filters.
@@ -2919,11 +2926,25 @@
      * @returns {void}
      */
     #bindEvents() {
+      this.#elements.tableBody.addEventListener('click', event => this.#onBodyClick(event));
       this.#elements.headerRow.addEventListener('click', event => this.#onHeaderClick(event));
       this.#elements.headerRow.addEventListener('mousedown', event => this.#onResizeHandleMouseDown(event));
       this.#elements.headerRow.addEventListener('dblclick', event => this.#onResizeHandleDoubleClick(event));
       this.#elements.filterRow.addEventListener('input', event => this.#onFilterInput(event));
       if (this.#elements.columnToggles) this.#elements.columnToggles.addEventListener('change', event => this.#onColumnToggle(event));
+    }
+
+    /**
+     * Highlights the clicked row and un-highlights the one highlighted before.
+     * @param {MouseEvent} event Click in the body.
+     * @returns {void}
+     */
+    #onBodyClick(event) {
+      const element = event.target.closest('tr[data-table-row]');
+      if (!element) return;
+      this.#selectedRow = this.#visibleRows[Number(element.dataset.tableRow)] ?? null;
+      this.#elements.tableBody.querySelectorAll('tr[data-selected]').forEach(selected => selected.removeAttribute('data-selected'));
+      element.setAttribute('data-selected', '');
     }
 
     /**
@@ -3162,18 +3183,20 @@
      */
     #rowsHtml(start, end) {
       const visibleColumns = this.#visibility.visibleColumns;
-      return this.#visibleRows.slice(start, end).map(row => this.#rowHtml(row, visibleColumns)).join('');
+      return this.#visibleRows.slice(start, end).map((row, offset) => this.#rowHtml(row, start + offset, visibleColumns)).join('');
     }
 
     /**
      * HTML of one row.
      * @param {object} row The row.
+     * @param {number} index The row's position among the visible rows.
      * @param {TableColumn[]} visibleColumns Columns to render.
      * @returns {string} The tr element.
      */
-    #rowHtml(row, visibleColumns) {
+    #rowHtml(row, index, visibleColumns) {
       const cells = visibleColumns.map(column => `<td class="claude-plus-column-table__cell claude-plus-column-table__cell--${column.id}"${this.#widthStyleAttribute(column.id)}>${column.cellHtml(row)}</td>`);
-      return `<tr ${this.#rowAttributes(row)}>${cells.join('')}</tr>`;
+      const selected = row === this.#selectedRow ? ' data-selected' : '';
+      return `<tr data-table-row="${index}"${selected} ${this.#rowAttributes(row)}>${cells.join('')}</tr>`;
     }
   }
 
