@@ -1,4 +1,5 @@
 import { ColumnVisibility } from './ColumnVisibility.js';
+import { ColumnWidths } from './ColumnWidths.js';
 import { RowFilterSet } from './RowFilterSet.js';
 import { STORAGE_KEYS } from '../../config/STORAGE_KEYS.js';
 import { SortOrder } from './SortOrder.js';
@@ -14,10 +15,18 @@ StyleRegistry.register(stylesheet);
 
 /**
  * A reusable table with toggleable columns, sorting by clicking a header (clicking again reverses
- * it), and per-column filters under the headers: typeahead wildcard filters for text columns and
- * date ranges for timestamp columns. Column visibility and sort order persist per table id.
+ * it), per-column filters under the headers (typeahead wildcard filters for text columns and date
+ * ranges for timestamp columns), and a drag handle on each header's right edge to resize it
+ * (double-click a handle to restore that column's normal width). Column visibility, sort order and
+ * resized widths persist per table id.
  */
 export class ColumnTable {
+  /**
+   * Narrowest a column can be dragged to, in pixels.
+   * @type {number}
+   */
+  static #MIN_COLUMN_WIDTH = 40;
+
   /**
    * Storage key of the column and sort settings.
    * @type {string}
@@ -79,6 +88,21 @@ export class ColumnTable {
   #filters;
 
   /**
+   * Manually resized column widths.
+   * @type {ColumnWidths}
+   */
+  #columnWidths;
+
+  /**
+   * Column being dragged to resize, while a drag is in progress. currentWidth is the width being
+   * dragged to, tracked as a plain number rather than re-measured from the header afterwards: a
+   * flexible column's body cells keep their own competing width until #renderBody() next runs, so
+   * the header's rendered width mid-drag doesn't reliably reflect what was actually requested.
+   * @type {?{columnId: string, headerElement: HTMLElement, startX: number, currentWidth: number}}
+   */
+  #resizing = null;
+
+  /**
    * Named elements of the table.
    * @type {Object<string, HTMLElement>}
    */
@@ -113,6 +137,7 @@ export class ColumnTable {
     this.#visibility = new ColumnVisibility(columns, stored.visibleColumnIds);
     this.#sortOrder = new SortOrder(columns, stored.sortOrder, defaultSort);
     this.#filters = new RowFilterSet(columns);
+    this.#columnWidths = new ColumnWidths(stored.columnWidths);
     container.innerHTML = ColumnTable.#skeletonHtml(columns);
     this.#elements = collectNamedElements(container);
     this.#bindEvents();
@@ -164,16 +189,19 @@ export class ColumnTable {
    */
   #bindEvents() {
     this.#elements.headerRow.addEventListener('click', event => this.#onHeaderClick(event));
+    this.#elements.headerRow.addEventListener('mousedown', event => this.#onResizeHandleMouseDown(event));
+    this.#elements.headerRow.addEventListener('dblclick', event => this.#onResizeHandleDoubleClick(event));
     this.#elements.filterRow.addEventListener('input', event => this.#onFilterInput(event));
     if (this.#elements.columnToggles) this.#elements.columnToggles.addEventListener('change', event => this.#onColumnToggle(event));
   }
 
   /**
-   * Sorts by the clicked header's column.
+   * Sorts by the clicked header's column; ignored for a press on its resize handle.
    * @param {MouseEvent} event Click in the header row.
    * @returns {void}
    */
   #onHeaderClick(event) {
+    if (event.target.closest('[data-resize-handle]')) return;
     const header = event.target.closest('[data-sort-column]');
     if (!header) return;
     this.#sortOrder.sortBy(header.dataset.sortColumn);
@@ -210,11 +238,74 @@ export class ColumnTable {
   }
 
   /**
-   * Stores column visibility and sort order.
+   * Starts dragging a header's resize handle.
+   * @param {MouseEvent} event Mouse press in the header row.
+   * @returns {void}
+   */
+  #onResizeHandleMouseDown(event) {
+    const handle = event.target.closest('[data-resize-handle]');
+    if (!handle) return;
+    event.preventDefault();
+    const headerElement = handle.closest('th');
+    this.#resizing = { columnId: handle.dataset.resizeHandle, headerElement, startX: event.clientX, currentWidth: headerElement.getBoundingClientRect().width };
+    document.addEventListener('mousemove', this.#onResizeMouseMove);
+    document.addEventListener('mouseup', this.#onResizeMouseUp);
+  }
+
+  /**
+   * Resizes the dragged column's header live as the pointer moves; the header's own width governs
+   * the whole column's width, so the body cells don't need touching until the drag ends.
+   * @param {MouseEvent} event The pointer move.
+   * @returns {void}
+   */
+  #onResizeMouseMove = (event) => {
+    this.#resizing.currentWidth = ColumnTable.#clampedWidth(this.#resizing.currentWidth + (event.clientX - this.#resizing.startX));
+    this.#resizing.startX = event.clientX;
+    this.#resizing.headerElement.style.width = `${this.#resizing.currentWidth}px`;
+  };
+
+  /**
+   * Ends a resize drag, persisting the final width and applying it to the body cells too.
+   * @returns {void}
+   */
+  #onResizeMouseUp = () => {
+    this.#columnWidths.setWidth(this.#resizing.columnId, Math.round(this.#resizing.currentWidth));
+    this.#resizing = null;
+    document.removeEventListener('mousemove', this.#onResizeMouseMove);
+    document.removeEventListener('mouseup', this.#onResizeMouseUp);
+    this.#saveSettings();
+    this.#renderBody();
+  };
+
+  /**
+   * Restores a double-clicked handle's column to its normal width.
+   * @param {MouseEvent} event Double-click in the header row.
+   * @returns {void}
+   */
+  #onResizeHandleDoubleClick(event) {
+    const handle = event.target.closest('[data-resize-handle]');
+    if (!handle) return;
+    this.#columnWidths.reset(handle.dataset.resizeHandle);
+    this.#saveSettings();
+    this.#renderHeader();
+    this.#renderBody();
+  }
+
+  /**
+   * Clamps a dragged width to a sensible minimum.
+   * @param {number} width Proposed width in pixels.
+   * @returns {number} At least MIN_COLUMN_WIDTH.
+   */
+  static #clampedWidth(width) {
+    return Math.max(ColumnTable.#MIN_COLUMN_WIDTH, width);
+  }
+
+  /**
+   * Stores column visibility, sort order and resized widths.
    * @returns {void}
    */
   #saveSettings() {
-    this.#preferences.writeJson(this.#storageKey, { visibleColumnIds: this.#visibility.visibleColumnIds, sortOrder: this.#sortOrder });
+    this.#preferences.writeJson(this.#storageKey, { visibleColumnIds: this.#visibility.visibleColumnIds, sortOrder: this.#sortOrder, columnWidths: this.#columnWidths.stored });
   }
 
   /**
@@ -248,13 +339,26 @@ export class ColumnTable {
   }
 
   /**
-   * HTML of one header cell.
+   * HTML of one header cell, with a resize handle on its right edge.
    * @param {TableColumn} column The column.
    * @returns {string} The cell; sortable columns carry data-sort-column and show ▲ or ▼ while sorted.
    */
   #headerCellHtml(column) {
-    if (column.isNotSortable) return `<th>${escapeHtml(column.label)}</th>`;
-    return `<th class="claude-plus-column-table__sortable" data-sort-column="${column.id}">${escapeHtml(column.label)}${this.#sortOrder.indicatorFor(column.id)}</th>`;
+    const labelHtml = column.isNotSortable ? escapeHtml(column.label) : `${escapeHtml(column.label)}${this.#sortOrder.indicatorFor(column.id)}`;
+    const sortAttribute = column.isNotSortable ? '' : ` class="claude-plus-column-table__sortable" data-sort-column="${column.id}"`;
+    const handleHtml = `<span class="claude-plus-column-table__resize-handle" data-resize-handle="${column.id}"></span>`;
+    return `<th${sortAttribute}${this.#widthStyleAttribute(column.id)}>${labelHtml}${handleHtml}</th>`;
+  }
+
+  /**
+   * A style attribute pinning a column to its manually resized width, truncating overflowing
+   * content; empty for a column the user hasn't resized.
+   * @param {string} columnId Column id.
+   * @returns {string} The attribute, or an empty string.
+   */
+  #widthStyleAttribute(columnId) {
+    const width = this.#columnWidths.widthOf(columnId);
+    return width ? ` style="width:${width}px;max-width:${width}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"` : '';
   }
 
   /**
@@ -301,7 +405,7 @@ export class ColumnTable {
    * @returns {string} The tr element.
    */
   #rowHtml(row, visibleColumns) {
-    const cells = visibleColumns.map(column => `<td class="claude-plus-column-table__cell claude-plus-column-table__cell--${column.id}">${column.cellHtml(row)}</td>`);
+    const cells = visibleColumns.map(column => `<td class="claude-plus-column-table__cell claude-plus-column-table__cell--${column.id}"${this.#widthStyleAttribute(column.id)}>${column.cellHtml(row)}</td>`);
     return `<tr ${this.#rowAttributes(row)}>${cells.join('')}</tr>`;
   }
 }

@@ -667,6 +667,62 @@
   }
 
   /**
+   * Manually resized widths of a table's columns, in pixels. A column the user hasn't dragged keeps
+   * its normal (auto-sized or flexible) width.
+   */
+  class ColumnWidths {
+    /**
+     * Widths in pixels, by column id; only columns the user has resized appear here.
+     * @type {Object<string, number>}
+     */
+    #widths;
+
+    /**
+     * Restores stored widths.
+     * @param {*} stored Stored widths; ignored unless a plain object.
+     */
+    constructor(stored) {
+      this.#widths = stored && typeof stored === 'object' ? { ...stored } : {};
+    }
+
+    /**
+     * A column's resized width, if it has been resized.
+     * @param {string} columnId Column id.
+     * @returns {?number} The width in pixels, or null when not resized.
+     */
+    widthOf(columnId) {
+      return this.#widths[columnId] ?? null;
+    }
+
+    /**
+     * Sets a column's resized width.
+     * @param {string} columnId Column id.
+     * @param {number} width Width in pixels.
+     * @returns {void}
+     */
+    setWidth(columnId, width) {
+      this.#widths[columnId] = width;
+    }
+
+    /**
+     * Clears a column's resized width, restoring its normal width.
+     * @param {string} columnId Column id.
+     * @returns {void}
+     */
+    reset(columnId) {
+      delete this.#widths[columnId];
+    }
+
+    /**
+     * The widths, in a storable form.
+     * @returns {Object<string, number>} The widths by column id.
+     */
+    get stored() {
+      return { ...this.#widths };
+    }
+  }
+
+  /**
    * Parses a date string into epoch milliseconds.
    * @param {?string} isoDate ISO date string.
    * @returns {number} Epoch milliseconds, or 0 when missing or invalid.
@@ -1190,16 +1246,24 @@
     return FILTER_CONTROLS[column.filter ?? 'none'](column);
   }
 
-  var stylesheet$p = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
+  var stylesheet$p = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__resize-handle {\r\n  position: absolute;\r\n  top: 0;\r\n  right: 0;\r\n  bottom: 0;\r\n  width: 6px;\r\n  cursor: col-resize;\r\n  z-index: 2;\r\n}\r\n\r\n.claude-plus-column-table__resize-handle:hover,\r\n.claude-plus-column-table__resize-handle:active {\r\n  background: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$p);
 
   /**
    * A reusable table with toggleable columns, sorting by clicking a header (clicking again reverses
-   * it), and per-column filters under the headers: typeahead wildcard filters for text columns and
-   * date ranges for timestamp columns. Column visibility and sort order persist per table id.
+   * it), per-column filters under the headers (typeahead wildcard filters for text columns and date
+   * ranges for timestamp columns), and a drag handle on each header's right edge to resize it
+   * (double-click a handle to restore that column's normal width). Column visibility, sort order and
+   * resized widths persist per table id.
    */
   class ColumnTable {
+    /**
+     * Narrowest a column can be dragged to, in pixels.
+     * @type {number}
+     */
+    static #MIN_COLUMN_WIDTH = 40;
+
     /**
      * Storage key of the column and sort settings.
      * @type {string}
@@ -1261,6 +1325,21 @@
     #filters;
 
     /**
+     * Manually resized column widths.
+     * @type {ColumnWidths}
+     */
+    #columnWidths;
+
+    /**
+     * Column being dragged to resize, while a drag is in progress. currentWidth is the width being
+     * dragged to, tracked as a plain number rather than re-measured from the header afterwards: a
+     * flexible column's body cells keep their own competing width until #renderBody() next runs, so
+     * the header's rendered width mid-drag doesn't reliably reflect what was actually requested.
+     * @type {?{columnId: string, headerElement: HTMLElement, startX: number, currentWidth: number}}
+     */
+    #resizing = null;
+
+    /**
      * Named elements of the table.
      * @type {Object<string, HTMLElement>}
      */
@@ -1295,6 +1374,7 @@
       this.#visibility = new ColumnVisibility(columns, stored.visibleColumnIds);
       this.#sortOrder = new SortOrder(columns, stored.sortOrder, defaultSort);
       this.#filters = new RowFilterSet(columns);
+      this.#columnWidths = new ColumnWidths(stored.columnWidths);
       container.innerHTML = ColumnTable.#skeletonHtml(columns);
       this.#elements = collectNamedElements(container);
       this.#bindEvents();
@@ -1346,16 +1426,19 @@
      */
     #bindEvents() {
       this.#elements.headerRow.addEventListener('click', event => this.#onHeaderClick(event));
+      this.#elements.headerRow.addEventListener('mousedown', event => this.#onResizeHandleMouseDown(event));
+      this.#elements.headerRow.addEventListener('dblclick', event => this.#onResizeHandleDoubleClick(event));
       this.#elements.filterRow.addEventListener('input', event => this.#onFilterInput(event));
       if (this.#elements.columnToggles) this.#elements.columnToggles.addEventListener('change', event => this.#onColumnToggle(event));
     }
 
     /**
-     * Sorts by the clicked header's column.
+     * Sorts by the clicked header's column; ignored for a press on its resize handle.
      * @param {MouseEvent} event Click in the header row.
      * @returns {void}
      */
     #onHeaderClick(event) {
+      if (event.target.closest('[data-resize-handle]')) return;
       const header = event.target.closest('[data-sort-column]');
       if (!header) return;
       this.#sortOrder.sortBy(header.dataset.sortColumn);
@@ -1392,11 +1475,74 @@
     }
 
     /**
-     * Stores column visibility and sort order.
+     * Starts dragging a header's resize handle.
+     * @param {MouseEvent} event Mouse press in the header row.
+     * @returns {void}
+     */
+    #onResizeHandleMouseDown(event) {
+      const handle = event.target.closest('[data-resize-handle]');
+      if (!handle) return;
+      event.preventDefault();
+      const headerElement = handle.closest('th');
+      this.#resizing = { columnId: handle.dataset.resizeHandle, headerElement, startX: event.clientX, currentWidth: headerElement.getBoundingClientRect().width };
+      document.addEventListener('mousemove', this.#onResizeMouseMove);
+      document.addEventListener('mouseup', this.#onResizeMouseUp);
+    }
+
+    /**
+     * Resizes the dragged column's header live as the pointer moves; the header's own width governs
+     * the whole column's width, so the body cells don't need touching until the drag ends.
+     * @param {MouseEvent} event The pointer move.
+     * @returns {void}
+     */
+    #onResizeMouseMove = (event) => {
+      this.#resizing.currentWidth = ColumnTable.#clampedWidth(this.#resizing.currentWidth + (event.clientX - this.#resizing.startX));
+      this.#resizing.startX = event.clientX;
+      this.#resizing.headerElement.style.width = `${this.#resizing.currentWidth}px`;
+    };
+
+    /**
+     * Ends a resize drag, persisting the final width and applying it to the body cells too.
+     * @returns {void}
+     */
+    #onResizeMouseUp = () => {
+      this.#columnWidths.setWidth(this.#resizing.columnId, Math.round(this.#resizing.currentWidth));
+      this.#resizing = null;
+      document.removeEventListener('mousemove', this.#onResizeMouseMove);
+      document.removeEventListener('mouseup', this.#onResizeMouseUp);
+      this.#saveSettings();
+      this.#renderBody();
+    };
+
+    /**
+     * Restores a double-clicked handle's column to its normal width.
+     * @param {MouseEvent} event Double-click in the header row.
+     * @returns {void}
+     */
+    #onResizeHandleDoubleClick(event) {
+      const handle = event.target.closest('[data-resize-handle]');
+      if (!handle) return;
+      this.#columnWidths.reset(handle.dataset.resizeHandle);
+      this.#saveSettings();
+      this.#renderHeader();
+      this.#renderBody();
+    }
+
+    /**
+     * Clamps a dragged width to a sensible minimum.
+     * @param {number} width Proposed width in pixels.
+     * @returns {number} At least MIN_COLUMN_WIDTH.
+     */
+    static #clampedWidth(width) {
+      return Math.max(ColumnTable.#MIN_COLUMN_WIDTH, width);
+    }
+
+    /**
+     * Stores column visibility, sort order and resized widths.
      * @returns {void}
      */
     #saveSettings() {
-      this.#preferences.writeJson(this.#storageKey, { visibleColumnIds: this.#visibility.visibleColumnIds, sortOrder: this.#sortOrder });
+      this.#preferences.writeJson(this.#storageKey, { visibleColumnIds: this.#visibility.visibleColumnIds, sortOrder: this.#sortOrder, columnWidths: this.#columnWidths.stored });
     }
 
     /**
@@ -1430,13 +1576,26 @@
     }
 
     /**
-     * HTML of one header cell.
+     * HTML of one header cell, with a resize handle on its right edge.
      * @param {TableColumn} column The column.
      * @returns {string} The cell; sortable columns carry data-sort-column and show ▲ or ▼ while sorted.
      */
     #headerCellHtml(column) {
-      if (column.isNotSortable) return `<th>${escapeHtml(column.label)}</th>`;
-      return `<th class="claude-plus-column-table__sortable" data-sort-column="${column.id}">${escapeHtml(column.label)}${this.#sortOrder.indicatorFor(column.id)}</th>`;
+      const labelHtml = column.isNotSortable ? escapeHtml(column.label) : `${escapeHtml(column.label)}${this.#sortOrder.indicatorFor(column.id)}`;
+      const sortAttribute = column.isNotSortable ? '' : ` class="claude-plus-column-table__sortable" data-sort-column="${column.id}"`;
+      const handleHtml = `<span class="claude-plus-column-table__resize-handle" data-resize-handle="${column.id}"></span>`;
+      return `<th${sortAttribute}${this.#widthStyleAttribute(column.id)}>${labelHtml}${handleHtml}</th>`;
+    }
+
+    /**
+     * A style attribute pinning a column to its manually resized width, truncating overflowing
+     * content; empty for a column the user hasn't resized.
+     * @param {string} columnId Column id.
+     * @returns {string} The attribute, or an empty string.
+     */
+    #widthStyleAttribute(columnId) {
+      const width = this.#columnWidths.widthOf(columnId);
+      return width ? ` style="width:${width}px;max-width:${width}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"` : '';
     }
 
     /**
@@ -1483,7 +1642,7 @@
      * @returns {string} The tr element.
      */
     #rowHtml(row, visibleColumns) {
-      const cells = visibleColumns.map(column => `<td class="claude-plus-column-table__cell claude-plus-column-table__cell--${column.id}">${column.cellHtml(row)}</td>`);
+      const cells = visibleColumns.map(column => `<td class="claude-plus-column-table__cell claude-plus-column-table__cell--${column.id}"${this.#widthStyleAttribute(column.id)}>${column.cellHtml(row)}</td>`);
       return `<tr ${this.#rowAttributes(row)}>${cells.join('')}</tr>`;
     }
   }

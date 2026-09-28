@@ -33,6 +33,21 @@ details.claude-plus-column-table__column-picker summary {
   font-weight: 600;
 }
 
+.claude-plus-column-table__resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.claude-plus-column-table__resize-handle:hover,
+.claude-plus-column-table__resize-handle:active {
+  background: var(--claude-plus-color-accent);
+}
+
 .claude-plus-column-table__table thead tr:first-child th {
   top: 0;
 }
