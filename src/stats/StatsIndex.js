@@ -5,6 +5,7 @@ import { DATABASE } from '../config/DATABASE.js';
 import { EventEmitter } from '../core/EventEmitter.js';
 import { LIMITS } from '../config/LIMITS.js';
 import { LOG_PREFIX } from '../config/LOG_PREFIX.js';
+import { SUMMARY_VERSION } from '../config/SUMMARY_VERSION.js';
 import { StatsAggregate } from './StatsAggregate.js';
 import { SummaryValidator } from './SummaryValidator.js';
 import { TIMING } from '../config/TIMING.js';
@@ -152,19 +153,55 @@ export class StatsIndex extends EventEmitter {
   }
 
   /**
-   * Stores summaries for several conversations, refreshing the aggregate only once at the end -
-   * used after an import, where indexing each one individually would re-scan the whole summary
-   * store after every single conversation. Failures are logged.
-   * @param {ApiConversation[]} conversations The conversations, already shaped for the live pipeline.
-   * @returns {Promise<void>} Resolves once every conversation is stored and the aggregate refreshed.
+   * Stores an imported conversation's summary unconditionally, without recomputing the aggregate -
+   * used while an import writes a conversation, so it is indexed the moment it is stored and an
+   * interrupted import leaves nothing unindexed. The caller refreshes the aggregate once at the end.
+   * Failures are logged.
+   * @param {ApiConversation} conversation The conversation, shaped for the live pipeline.
+   * @returns {Promise<void>} Resolves once stored or failed.
    */
-  async indexConversationsBatch(conversations) {
+  async storeImportedSummary(conversation) {
     try {
-      for (const conversation of conversations) await this.#storeSummaryIfOutdated(conversation, true);
-      await this.refreshAggregate();
+      await this.#database.write(DATABASE.stores.conversationSummaries, ConversationSummarizer.summarize(conversation, true));
     } catch (error) {
-      console.warn(LOG_PREFIX, 'indexing imported conversations failed', error);
+      console.warn(LOG_PREFIX, 'indexing an imported conversation failed', error);
     }
+  }
+
+  /**
+   * Indexes every imported conversation whose summary is missing, damaged or of another version,
+   * so imported chats are searchable and counted however they got stored (an interrupted import,
+   * an import by an older version), then recomputes the aggregate once. Failures are logged.
+   * @param {ConversationListing[]} listings The imported conversations' listings.
+   * @param {function(string): Promise<?ApiConversation>} loadConversation Reads an imported conversation with its messages.
+   * @returns {Promise<void>} Resolves once done.
+   */
+  async reindexImported(listings, loadConversation) {
+    try {
+      let storedCount = 0;
+      for (const listing of listings) storedCount += await this.#reindexOneImported(listing, loadConversation);
+      if (storedCount) await this.refreshAggregate();
+    } catch (error) {
+      console.warn(LOG_PREFIX, 'reindexing imported conversations failed', error);
+    }
+  }
+
+  /**
+   * Indexes one imported conversation if its summary is outdated, yielding to the browser first so
+   * a long run never blocks the page.
+   * @param {ConversationListing} listing The conversation's listing.
+   * @param {function(string): Promise<?ApiConversation>} loadConversation Reads an imported conversation with its messages.
+   * @returns {Promise<number>} 1 when a summary was stored, else 0.
+   * @throws {DOMException} When the cache can't be read or written.
+   */
+  async #reindexOneImported(listing, loadConversation) {
+    const conversationId = ConversationListingFields.id(listing);
+    if (!(await this.#isOutdated(conversationId, ConversationListingFields.updatedAt(listing)))) return 0;
+    await wait(0);
+    const conversation = await loadConversation(conversationId);
+    if (!conversation) return 0;
+    await this.#database.write(DATABASE.stores.conversationSummaries, ConversationSummarizer.summarize(conversation, true));
+    return 1;
   }
 
   /**
@@ -263,8 +300,8 @@ export class StatsIndex extends EventEmitter {
   }
 
   /**
-   * Whether the cache lacks a conversation, holds another version of it, or holds a record that
-   * doesn't look valid.
+   * Whether the cache lacks a conversation, holds another version of it or another summary
+   * version, or holds a record that doesn't look valid.
    * @param {string} conversationId Conversation id.
    * @param {string} updatedAt Current version timestamp of the conversation.
    * @returns {Promise<boolean>} True when it must be (re)indexed.
@@ -272,7 +309,7 @@ export class StatsIndex extends EventEmitter {
    */
   async #isOutdated(conversationId, updatedAt) {
     const summary = await this.#database.read(DATABASE.stores.conversationSummaries, conversationId);
-    return !SummaryValidator.isValid(summary) || summary.updatedAt !== updatedAt;
+    return !SummaryValidator.isValid(summary) || summary.updatedAt !== updatedAt || summary.version !== SUMMARY_VERSION;
   }
 
   /**

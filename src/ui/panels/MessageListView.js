@@ -109,6 +109,13 @@ export class MessageListView {
   #retryableIndex = -1;
 
   /**
+   * Position of the message highlighted after a jump to it, or -1 for none; kept here rather than
+   * only on the element because the element is recreated whenever the list lays out again.
+   * @type {number}
+   */
+  #highlightedIndex = -1;
+
+  /**
    * The conversation the list last rendered, to notice a different one.
    * @type {?string|undefined}
    */
@@ -188,6 +195,7 @@ export class MessageListView {
     const conversationId = this.#session.openConversationId;
     if (conversationId === this.#renderedConversationId) return;
     this.#renderedConversationId = conversationId;
+    this.#highlightedIndex = -1;
     this.#virtualList.reset();
   }
 
@@ -211,7 +219,10 @@ export class MessageListView {
    * @returns {void}
    */
   #onMessagesRendered(elements, from) {
-    elements.forEach((element, offset) => this.#fillWidgetSlotsIn(element, this.#session.messages[from + offset]));
+    elements.forEach((element, offset) => {
+      this.#fillWidgetSlotsIn(element, this.#session.messages[from + offset]);
+      element.classList.toggle('claude-plus-message--highlighted', from + offset === this.#highlightedIndex);
+    });
   }
 
   /**
@@ -225,10 +236,29 @@ export class MessageListView {
     const index = this.#session.messages.findIndex(message => message.id === messageId);
     if (index === -1) return;
     this.#virtualList.scrollToIndex(index, 'center');
-    const element = this.#virtualList.elementAt(index);
-    if (!element) return;
-    element.classList.add('claude-plus-message--highlighted');
-    setTimeout(() => element.classList.remove('claude-plus-message--highlighted'), TIMING.messageHighlightMs);
+    this.#highlight(index);
+  }
+
+  /**
+   * Highlights a message for TIMING.messageHighlightMs, surviving the list laying out again.
+   * @param {number} index Position of the message.
+   * @returns {void}
+   */
+  #highlight(index) {
+    this.#highlightedIndex = index;
+    this.#virtualList.elementAt(index)?.classList.add('claude-plus-message--highlighted');
+    setTimeout(() => this.#removeHighlight(index), TIMING.messageHighlightMs);
+  }
+
+  /**
+   * Removes the highlight of a message, unless another message has been highlighted since.
+   * @param {number} index Position of the message.
+   * @returns {void}
+   */
+  #removeHighlight(index) {
+    if (this.#highlightedIndex !== index) return;
+    this.#highlightedIndex = -1;
+    this.#virtualList.elementAt(index)?.classList.remove('claude-plus-message--highlighted');
   }
 
   /**

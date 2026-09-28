@@ -1,5 +1,6 @@
 import { MessageContent } from '../chat/MessageContent.js';
 import { QUOTE_ATTACHMENT_NAME_PATTERN } from '../config/QUOTE_ATTACHMENT_NAME_PATTERN.js';
+import { SUMMARY_VERSION } from '../../../config/SUMMARY_VERSION.js';
 import { TIMING } from '../../../config/TIMING.js';
 import { UNTITLED } from '../../../config/UNTITLED.js';
 import { addToCount } from '../../../math/addToCount.js';
@@ -43,6 +44,7 @@ export class ConversationSummarizer {
       conversationId: conversation.uuid,
       title: conversation.name || UNTITLED,
       updatedAt: conversation.updated_at,
+      version: SUMMARY_VERSION,
       isImported,
       promptCount: 0,
       toolCallCounts: Object.create(null),

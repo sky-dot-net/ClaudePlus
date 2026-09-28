@@ -6,6 +6,7 @@ import { CombinedConversationDirectory } from '../import/CombinedConversationDir
 import { ComposerSettings } from '../chat/ComposerSettings.js';
 import { ConversationDirectory } from '../vendors/anthropic/chat/ConversationDirectory.js';
 import { ConversationExporter } from '../export/ConversationExporter.js';
+import { ConversationListingFields } from '../vendors/anthropic/types/ConversationListingFields.js';
 import { DATABASE } from '../config/DATABASE.js';
 import { DockTree } from '../dock/DockTree.js';
 import { DockWorkspace } from '../dock/DockWorkspace.js';
@@ -214,7 +215,7 @@ export class ClaudePlusApp {
     panelFactory.attachWorkspace(workspace);
     const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
     const importOrchestrator = new ImportOrchestrator(database, importedConversations, stats);
-    const onImported = () => { directory.refreshImported(); stats.refreshAggregate(); };
+    const onImported = async () => { await directory.refreshImported(); ClaudePlusApp.#reindexImported(services); };
     new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, onImported, onHide: () => this.hide() }).mount();
     workspace.mount();
     ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
@@ -328,12 +329,29 @@ export class ClaudePlusApp {
    * @param {StatsIndex} services.stats Conversation statistics.
    * @param {ActivityTracker} services.activity Active-time tracking.
    * @param {RateLimitMonitor} services.rateLimits Usage windows.
+   * @param {ImportedConversationStore} services.importedConversations Imported conversations.
    * @returns {Promise<void>} Resolves once the focused pane's conversation is shown.
    */
-  static async #loadData({ directory, router, paneManager, stats, activity, rateLimits }) {
+  static async #loadData(services) {
+    const { directory, router, paneManager, stats, activity, rateLimits } = services;
     rateLimits.start();
     await Promise.all([stats.refreshAggregate(), activity.start(), directory.refresh(), directory.refreshImported()]);
+    ClaudePlusApp.#reindexImported(services);
     paneManager.openRestoredConversations();
     await router.start();
+  }
+
+  /**
+   * Indexes, in the background, every imported conversation whose statistics are missing or
+   * outdated, so imported chats are searchable however they got stored.
+   * @param {object} services Services created by #mountInterface.
+   * @param {CombinedConversationDirectory} services.directory Shared conversation list.
+   * @param {StatsIndex} services.stats Conversation statistics.
+   * @param {ImportedConversationStore} services.importedConversations Imported conversations.
+   * @returns {void}
+   */
+  static #reindexImported({ directory, stats, importedConversations }) {
+    const listings = directory.conversations.filter(listing => ConversationListingFields.isImported(listing));
+    stats.reindexImported(listings, conversationId => importedConversations.get(conversationId));
   }
 }

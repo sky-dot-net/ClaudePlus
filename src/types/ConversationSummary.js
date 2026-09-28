@@ -4,6 +4,7 @@
  * @property {string} conversationId Conversation id; the store's key.
  * @property {string} title Conversation title.
  * @property {string} updatedAt Version of the conversation the summary was computed from.
+ * @property {number} [version] SUMMARY_VERSION the summary was computed with; absent on older records.
  * @property {boolean} isImported Whether it came from an imported data export rather than the live API.
  * @property {number} promptCount Number of human messages.
  * @property {Object<string, number>} toolCallCounts Tool calls per tool name.

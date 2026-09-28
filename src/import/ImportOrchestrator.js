@@ -159,8 +159,10 @@ export class ImportOrchestrator {
   }
 
   /**
-   * Streams every conversation again, writing only the ones selected from the preview, then indexes
-   * every one that was written in a single batch so its date and turn count are correct right away.
+   * Streams every conversation again, writing only the ones selected from the preview and indexing
+   * each one the moment it is written, so its date, turn count, files, sources and tools are
+   * searchable right away and an interrupted import leaves nothing unindexed; the statistics are
+   * recomputed once at the end.
    * @param {File} conversationsFile The conversations.json file.
    * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
    * @param {Set<string>} selectedConversationIds Ids of the conversations to write.
@@ -171,30 +173,28 @@ export class ImportOrchestrator {
    */
   async #applyConversations(conversationsFile, artifactsById, selectedConversationIds, importedAt, onProgress) {
     const tally = { new: 0, changed: 0, renamedOnly: 0, unchanged: 0, failed: 0 };
-    const indexable = [];
     let processed = 0;
     for await (const rawConversation of StreamingJsonArrayReader.readArray(conversationsFile)) {
-      if (selectedConversationIds.has(rawConversation.uuid)) await this.#applyOneConversation(rawConversation, artifactsById, importedAt, tally, indexable);
+      if (selectedConversationIds.has(rawConversation.uuid)) await this.#applyOneConversation(rawConversation, artifactsById, importedAt, tally);
       processed += 1;
       await ImportOrchestrator.#reportProgressIfDue(processed, onProgress);
     }
     onProgress?.(processed);
-    await this.#stats.indexConversationsBatch(indexable);
+    await this.#stats.refreshAggregate();
     return tally;
   }
 
   /**
-   * Maps, classifies and merges one selected conversation, tallying its classification and queuing
-   * it for indexing when it was actually written.
+   * Maps, classifies and merges one selected conversation, tallying its classification and indexing
+   * it when it was actually written.
    * @param {object} rawConversation A conversations.json entry.
    * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
    * @param {string} importedAt ISO timestamp of this import.
    * @param {{new: number, changed: number, renamedOnly: number, unchanged: number, failed: number}} tally Counts to update.
-   * @param {ApiConversation[]} indexable Written conversations to index, appended to in place.
    * @returns {Promise<void>} Resolves once written, if anything changed; a failure is logged and
    * tallied rather than thrown, so it doesn't stop the rest of the selected conversations from importing.
    */
-  async #applyOneConversation(rawConversation, artifactsById, importedAt, tally, indexable) {
+  async #applyOneConversation(rawConversation, artifactsById, importedAt, tally) {
     try {
       const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
       const stored = await this.#conversationStore.getRecord(mapped.conversationId);
@@ -202,7 +202,7 @@ export class ImportOrchestrator {
       const merged = ImportMerger.mergeConversation(stored, mapped, importedAt);
       if (merged) {
         await this.#conversationStore.write(merged);
-        indexable.push(ImportedConversationStore.toApiConversation(merged));
+        await this.#stats.storeImportedSummary(ImportedConversationStore.toApiConversation(merged));
       }
     } catch (error) {
       tally.failed += 1;

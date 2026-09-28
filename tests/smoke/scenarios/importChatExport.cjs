@@ -89,6 +89,7 @@ async function checkImportedConversationBehavior(run) {
   await page.waitForTimeout(300);
   run.check('clicking a message-specific search result scrolls to and highlights it', await page.locator('.claude-plus-message--highlighted').count() === 1);
   await checkStatsViewToggle(run);
+  await checkImportedIndexRebuilt(run);
 }
 
 /**
@@ -111,6 +112,40 @@ async function checkStatsViewToggle(run) {
   const importedCount = await countFor('imported');
   const partitionsCleanly = importedCount === 2 && liveCount + importedCount === combinedCount && importedCount < combinedCount;
   run.check('stats view toggle partitions Combined into Live and Imported', partitionsCleanly, JSON.stringify({ combinedCount, liveCount, importedCount }));
+}
+
+/**
+ * Runs in the page: removes every imported conversation's summary from the stats cache, as if an
+ * import had been interrupted before indexing them.
+ * @returns {Promise<number>} How many summaries were removed.
+ */
+async function removeImportedSummaries() {
+  const database = await new Promise(resolve => { const request = indexedDB.open('claudePlus'); request.onsuccess = () => resolve(request.result); });
+  const transaction = database.transaction('conversationSummaries', 'readwrite');
+  const store = transaction.objectStore('conversationSummaries');
+  const summaries = await new Promise(resolve => { const request = store.getAll(); request.onsuccess = () => resolve(request.result); });
+  const imported = summaries.filter(summary => summary.isImported);
+  imported.forEach(summary => store.delete(summary.conversationId));
+  await new Promise(resolve => { transaction.oncomplete = resolve; });
+  database.close();
+  return imported.length;
+}
+
+/**
+ * Checks that imported conversations left without statistics are indexed again when the app starts.
+ * @param {SmokeRun} run The smoke run.
+ * @returns {Promise<void>} Resolves once checked.
+ */
+async function checkImportedIndexRebuilt(run) {
+  const { page } = run;
+  const removedCount = await page.evaluate(removeImportedSummaries);
+  await run.reload();
+  await run.openTab('Stats');
+  const statsPanel = run.panelWith('viewToggle');
+  await statsPanel.locator('[data-view="imported"]').click();
+  const importedCount = () => statsPanel.locator('[data-name="indexedConversationCount"]').textContent().then(Number);
+  await page.waitForFunction(() => document.querySelector('[data-name="indexedConversationCount"]')?.textContent === '2', null, { timeout: 5000 }).catch(() => undefined);
+  run.check('imported conversations without statistics are indexed again at startup', removedCount === 2 && await importedCount() === 2, JSON.stringify({ removedCount, importedCount: await importedCount() }));
 }
 
 /**

@@ -3602,6 +3602,13 @@
     #retryableIndex = -1;
 
     /**
+     * Position of the message highlighted after a jump to it, or -1 for none; kept here rather than
+     * only on the element because the element is recreated whenever the list lays out again.
+     * @type {number}
+     */
+    #highlightedIndex = -1;
+
+    /**
      * The conversation the list last rendered, to notice a different one.
      * @type {?string|undefined}
      */
@@ -3681,6 +3688,7 @@
       const conversationId = this.#session.openConversationId;
       if (conversationId === this.#renderedConversationId) return;
       this.#renderedConversationId = conversationId;
+      this.#highlightedIndex = -1;
       this.#virtualList.reset();
     }
 
@@ -3704,7 +3712,10 @@
      * @returns {void}
      */
     #onMessagesRendered(elements, from) {
-      elements.forEach((element, offset) => this.#fillWidgetSlotsIn(element, this.#session.messages[from + offset]));
+      elements.forEach((element, offset) => {
+        this.#fillWidgetSlotsIn(element, this.#session.messages[from + offset]);
+        element.classList.toggle('claude-plus-message--highlighted', from + offset === this.#highlightedIndex);
+      });
     }
 
     /**
@@ -3718,10 +3729,29 @@
       const index = this.#session.messages.findIndex(message => message.id === messageId);
       if (index === -1) return;
       this.#virtualList.scrollToIndex(index, 'center');
-      const element = this.#virtualList.elementAt(index);
-      if (!element) return;
-      element.classList.add('claude-plus-message--highlighted');
-      setTimeout(() => element.classList.remove('claude-plus-message--highlighted'), TIMING.messageHighlightMs);
+      this.#highlight(index);
+    }
+
+    /**
+     * Highlights a message for TIMING.messageHighlightMs, surviving the list laying out again.
+     * @param {number} index Position of the message.
+     * @returns {void}
+     */
+    #highlight(index) {
+      this.#highlightedIndex = index;
+      this.#virtualList.elementAt(index)?.classList.add('claude-plus-message--highlighted');
+      setTimeout(() => this.#removeHighlight(index), TIMING.messageHighlightMs);
+    }
+
+    /**
+     * Removes the highlight of a message, unless another message has been highlighted since.
+     * @param {number} index Position of the message.
+     * @returns {void}
+     */
+    #removeHighlight(index) {
+      if (this.#highlightedIndex !== index) return;
+      this.#highlightedIndex = -1;
+      this.#virtualList.elementAt(index)?.classList.remove('claude-plus-message--highlighted');
     }
 
     /**
@@ -8949,6 +8979,47 @@
   }
 
   /**
+   * Field access for a ConversationListing, so callers never read its raw API field names directly.
+   */
+  class ConversationListingFields {
+    /**
+     * A listing's id.
+     * @param {ConversationListing} listing The listing.
+     * @returns {string} Its conversation id.
+     */
+    static id(listing) {
+      return listing.uuid;
+    }
+
+    /**
+     * A listing's title.
+     * @param {ConversationListing} listing The listing.
+     * @returns {string} Its title; may be empty.
+     */
+    static title(listing) {
+      return listing.name;
+    }
+
+    /**
+     * When a listing last changed.
+     * @param {ConversationListing} listing The listing.
+     * @returns {string} ISO timestamp of the last change.
+     */
+    static updatedAt(listing) {
+      return listing.updated_at;
+    }
+
+    /**
+     * Whether a listing came from an imported data export rather than the live API.
+     * @param {ConversationListing} listing The listing.
+     * @returns {boolean} True for an imported conversation.
+     */
+    static isImported(listing) {
+      return Boolean(listing.isImported);
+    }
+  }
+
+  /**
    * Workspace geometry. Pixel values are CSS pixels; fractions are of the containing area.
    * toolbarHeight / tabStripHeight: fixed bar heights. minimumSplitFraction: smallest share a split
    * child can be resized to. edgeDockFraction: share of a panel docked at an outer edge.
@@ -11366,8 +11437,10 @@
     }
 
     /**
-     * Streams every conversation again, writing only the ones selected from the preview, then indexes
-     * every one that was written in a single batch so its date and turn count are correct right away.
+     * Streams every conversation again, writing only the ones selected from the preview and indexing
+     * each one the moment it is written, so its date, turn count, files, sources and tools are
+     * searchable right away and an interrupted import leaves nothing unindexed; the statistics are
+     * recomputed once at the end.
      * @param {File} conversationsFile The conversations.json file.
      * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
      * @param {Set<string>} selectedConversationIds Ids of the conversations to write.
@@ -11378,30 +11451,28 @@
      */
     async #applyConversations(conversationsFile, artifactsById, selectedConversationIds, importedAt, onProgress) {
       const tally = { new: 0, changed: 0, renamedOnly: 0, unchanged: 0, failed: 0 };
-      const indexable = [];
       let processed = 0;
       for await (const rawConversation of StreamingJsonArrayReader.readArray(conversationsFile)) {
-        if (selectedConversationIds.has(rawConversation.uuid)) await this.#applyOneConversation(rawConversation, artifactsById, importedAt, tally, indexable);
+        if (selectedConversationIds.has(rawConversation.uuid)) await this.#applyOneConversation(rawConversation, artifactsById, importedAt, tally);
         processed += 1;
         await ImportOrchestrator.#reportProgressIfDue(processed, onProgress);
       }
       onProgress?.(processed);
-      await this.#stats.indexConversationsBatch(indexable);
+      await this.#stats.refreshAggregate();
       return tally;
     }
 
     /**
-     * Maps, classifies and merges one selected conversation, tallying its classification and queuing
-     * it for indexing when it was actually written.
+     * Maps, classifies and merges one selected conversation, tallying its classification and indexing
+     * it when it was actually written.
      * @param {object} rawConversation A conversations.json entry.
      * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
      * @param {string} importedAt ISO timestamp of this import.
      * @param {{new: number, changed: number, renamedOnly: number, unchanged: number, failed: number}} tally Counts to update.
-     * @param {ApiConversation[]} indexable Written conversations to index, appended to in place.
      * @returns {Promise<void>} Resolves once written, if anything changed; a failure is logged and
      * tallied rather than thrown, so it doesn't stop the rest of the selected conversations from importing.
      */
-    async #applyOneConversation(rawConversation, artifactsById, importedAt, tally, indexable) {
+    async #applyOneConversation(rawConversation, artifactsById, importedAt, tally) {
       try {
         const mapped = ClaudeExportMapper.mapConversation(rawConversation, artifactsById);
         const stored = await this.#conversationStore.getRecord(mapped.conversationId);
@@ -11409,7 +11480,7 @@
         const merged = ImportMerger.mergeConversation(stored, mapped, importedAt);
         if (merged) {
           await this.#conversationStore.write(merged);
-          indexable.push(ImportedConversationStore.toApiConversation(merged));
+          await this.#stats.storeImportedSummary(ImportedConversationStore.toApiConversation(merged));
         }
       } catch (error) {
         tally.failed += 1;
@@ -11672,47 +11743,6 @@
         this.createClosingButton('Cancel', false, () => false),
         this.createClosingButton(this.#confirmLabel, true, () => true),
       ];
-    }
-  }
-
-  /**
-   * Field access for a ConversationListing, so callers never read its raw API field names directly.
-   */
-  class ConversationListingFields {
-    /**
-     * A listing's id.
-     * @param {ConversationListing} listing The listing.
-     * @returns {string} Its conversation id.
-     */
-    static id(listing) {
-      return listing.uuid;
-    }
-
-    /**
-     * A listing's title.
-     * @param {ConversationListing} listing The listing.
-     * @returns {string} Its title; may be empty.
-     */
-    static title(listing) {
-      return listing.name;
-    }
-
-    /**
-     * When a listing last changed.
-     * @param {ConversationListing} listing The listing.
-     * @returns {string} ISO timestamp of the last change.
-     */
-    static updatedAt(listing) {
-      return listing.updated_at;
-    }
-
-    /**
-     * Whether a listing came from an imported data export rather than the live API.
-     * @param {ConversationListing} listing The listing.
-     * @returns {boolean} True for an imported conversation.
-     */
-    static isImported(listing) {
-      return Boolean(listing.isImported);
     }
   }
 
@@ -13935,6 +13965,14 @@
   }
 
   /**
+   * Version of the conversation summaries' content. A stored summary of another version is
+   * recomputed the next time its conversation is indexed, opened, imported or reconciled, so a change
+   * to what a summary contains reaches conversations whose own timestamp did not change.
+   * @type {number}
+   */
+  const SUMMARY_VERSION = 2;
+
+  /**
    * Adds to a counter in a count map, creating it at zero first.
    * @param {Object<string, number>} counts The count map; modified in place.
    * @param {string} key Counter to increase.
@@ -14005,6 +14043,7 @@
         conversationId: conversation.uuid,
         title: conversation.name || UNTITLED,
         updatedAt: conversation.updated_at,
+        version: SUMMARY_VERSION,
         isImported,
         promptCount: 0,
         toolCallCounts: Object.create(null),
@@ -14437,19 +14476,55 @@
     }
 
     /**
-     * Stores summaries for several conversations, refreshing the aggregate only once at the end -
-     * used after an import, where indexing each one individually would re-scan the whole summary
-     * store after every single conversation. Failures are logged.
-     * @param {ApiConversation[]} conversations The conversations, already shaped for the live pipeline.
-     * @returns {Promise<void>} Resolves once every conversation is stored and the aggregate refreshed.
+     * Stores an imported conversation's summary unconditionally, without recomputing the aggregate -
+     * used while an import writes a conversation, so it is indexed the moment it is stored and an
+     * interrupted import leaves nothing unindexed. The caller refreshes the aggregate once at the end.
+     * Failures are logged.
+     * @param {ApiConversation} conversation The conversation, shaped for the live pipeline.
+     * @returns {Promise<void>} Resolves once stored or failed.
      */
-    async indexConversationsBatch(conversations) {
+    async storeImportedSummary(conversation) {
       try {
-        for (const conversation of conversations) await this.#storeSummaryIfOutdated(conversation, true);
-        await this.refreshAggregate();
+        await this.#database.write(DATABASE.stores.conversationSummaries, ConversationSummarizer.summarize(conversation, true));
       } catch (error) {
-        console.warn(LOG_PREFIX, 'indexing imported conversations failed', error);
+        console.warn(LOG_PREFIX, 'indexing an imported conversation failed', error);
       }
+    }
+
+    /**
+     * Indexes every imported conversation whose summary is missing, damaged or of another version,
+     * so imported chats are searchable and counted however they got stored (an interrupted import,
+     * an import by an older version), then recomputes the aggregate once. Failures are logged.
+     * @param {ConversationListing[]} listings The imported conversations' listings.
+     * @param {function(string): Promise<?ApiConversation>} loadConversation Reads an imported conversation with its messages.
+     * @returns {Promise<void>} Resolves once done.
+     */
+    async reindexImported(listings, loadConversation) {
+      try {
+        let storedCount = 0;
+        for (const listing of listings) storedCount += await this.#reindexOneImported(listing, loadConversation);
+        if (storedCount) await this.refreshAggregate();
+      } catch (error) {
+        console.warn(LOG_PREFIX, 'reindexing imported conversations failed', error);
+      }
+    }
+
+    /**
+     * Indexes one imported conversation if its summary is outdated, yielding to the browser first so
+     * a long run never blocks the page.
+     * @param {ConversationListing} listing The conversation's listing.
+     * @param {function(string): Promise<?ApiConversation>} loadConversation Reads an imported conversation with its messages.
+     * @returns {Promise<number>} 1 when a summary was stored, else 0.
+     * @throws {DOMException} When the cache can't be read or written.
+     */
+    async #reindexOneImported(listing, loadConversation) {
+      const conversationId = ConversationListingFields.id(listing);
+      if (!(await this.#isOutdated(conversationId, ConversationListingFields.updatedAt(listing)))) return 0;
+      await wait(0);
+      const conversation = await loadConversation(conversationId);
+      if (!conversation) return 0;
+      await this.#database.write(DATABASE.stores.conversationSummaries, ConversationSummarizer.summarize(conversation, true));
+      return 1;
     }
 
     /**
@@ -14548,8 +14623,8 @@
     }
 
     /**
-     * Whether the cache lacks a conversation, holds another version of it, or holds a record that
-     * doesn't look valid.
+     * Whether the cache lacks a conversation, holds another version of it or another summary
+     * version, or holds a record that doesn't look valid.
      * @param {string} conversationId Conversation id.
      * @param {string} updatedAt Current version timestamp of the conversation.
      * @returns {Promise<boolean>} True when it must be (re)indexed.
@@ -14557,7 +14632,7 @@
      */
     async #isOutdated(conversationId, updatedAt) {
       const summary = await this.#database.read(DATABASE.stores.conversationSummaries, conversationId);
-      return !SummaryValidator.isValid(summary) || summary.updatedAt !== updatedAt;
+      return !SummaryValidator.isValid(summary) || summary.updatedAt !== updatedAt || summary.version !== SUMMARY_VERSION;
     }
 
     /**
@@ -16640,7 +16715,7 @@
       panelFactory.attachWorkspace(workspace);
       const layoutLibrary = new LayoutLibrary({ preferences, workspace, paneManager, panelFactory });
       const importOrchestrator = new ImportOrchestrator(database, importedConversations, stats);
-      const onImported = () => { directory.refreshImported(); stats.refreshAggregate(); };
+      const onImported = async () => { await directory.refreshImported(); ClaudePlusApp.#reindexImported(services); };
       new Toolbar({ preferences, workspace, layoutLibrary, settingsTransfer: new SettingsTransfer(preferences), theme, importOrchestrator, onImported, onHide: () => this.hide() }).mount();
       workspace.mount();
       ClaudePlusApp.#refreshTabTitlesOnChange(workspace, directory, paneManager);
@@ -16754,13 +16829,30 @@
      * @param {StatsIndex} services.stats Conversation statistics.
      * @param {ActivityTracker} services.activity Active-time tracking.
      * @param {RateLimitMonitor} services.rateLimits Usage windows.
+     * @param {ImportedConversationStore} services.importedConversations Imported conversations.
      * @returns {Promise<void>} Resolves once the focused pane's conversation is shown.
      */
-    static async #loadData({ directory, router, paneManager, stats, activity, rateLimits }) {
+    static async #loadData(services) {
+      const { directory, router, paneManager, stats, activity, rateLimits } = services;
       rateLimits.start();
       await Promise.all([stats.refreshAggregate(), activity.start(), directory.refresh(), directory.refreshImported()]);
+      ClaudePlusApp.#reindexImported(services);
       paneManager.openRestoredConversations();
       await router.start();
+    }
+
+    /**
+     * Indexes, in the background, every imported conversation whose statistics are missing or
+     * outdated, so imported chats are searchable however they got stored.
+     * @param {object} services Services created by #mountInterface.
+     * @param {CombinedConversationDirectory} services.directory Shared conversation list.
+     * @param {StatsIndex} services.stats Conversation statistics.
+     * @param {ImportedConversationStore} services.importedConversations Imported conversations.
+     * @returns {void}
+     */
+    static #reindexImported({ directory, stats, importedConversations }) {
+      const listings = directory.conversations.filter(listing => ConversationListingFields.isImported(listing));
+      stats.reindexImported(listings, conversationId => importedConversations.get(conversationId));
     }
   }
 
