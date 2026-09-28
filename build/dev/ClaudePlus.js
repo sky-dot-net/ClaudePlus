@@ -15459,7 +15459,7 @@
     async refreshAggregate() {
       try {
         const records = await this.#database.readAll(DATABASE.stores.conversationSummaries);
-        const summaries = records.filter(record => SummaryValidator.isValid(record));
+        const summaries = records.filter(record => SummaryValidator.isValid(record)).map(record => StatsIndex.#withoutQuoteFiles(record));
         this.#aggregate = StatsAggregate.fromSummaries(summaries);
         this.#aggregate.skippedRecordCount = records.length - summaries.length;
         this.#liveAggregate = StatsAggregate.fromSummaries(summaries.filter(summary => !summary.isImported));
@@ -15468,6 +15468,18 @@
       } catch (error) {
         console.warn(LOG_PREFIX, 'reading stats failed', error);
       }
+    }
+
+    /**
+     * A summary without the quote-reply text files claude.ai attaches, which are not real files. New
+     * summaries never contain them; this also cleans summaries stored before that was so, whatever
+     * their conversation's version, so they never show up until the conversation is indexed again.
+     * @param {ConversationSummary} summary A valid stored summary.
+     * @returns {ConversationSummary} The summary, with its file list cleaned when it had such files.
+     */
+    static #withoutQuoteFiles(summary) {
+      const files = summary.files.filter(file => !QUOTE_ATTACHMENT_NAME_PATTERN.test(file.path) && !QUOTE_ATTACHMENT_NAME_PATTERN.test(file.title));
+      return files.length === summary.files.length ? summary : { ...summary, files };
     }
 
     /**
@@ -15480,7 +15492,7 @@
     async summaryFor(conversationId) {
       try {
         const summary = await this.#database.read(DATABASE.stores.conversationSummaries, conversationId);
-        return SummaryValidator.isValid(summary) ? summary : null;
+        return SummaryValidator.isValid(summary) ? StatsIndex.#withoutQuoteFiles(summary) : null;
       } catch (error) {
         console.warn(LOG_PREFIX, 'reading a conversation summary failed', error);
         return null;

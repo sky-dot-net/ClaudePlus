@@ -90,6 +90,7 @@ async function checkImportedConversationBehavior(run) {
   run.check('clicking a message-specific search result scrolls to and highlights it', await page.locator('.claude-plus-message--highlighted').count() === 1);
   await checkStatsViewToggle(run);
   await checkImportedIndexRebuilt(run);
+  await checkQuoteFilesStayHidden(run);
 }
 
 /**
@@ -129,6 +130,35 @@ async function removeImportedSummaries() {
   await new Promise(resolve => { transaction.oncomplete = resolve; });
   database.close();
   return imported.length;
+}
+
+/**
+ * Runs in the page: stores a summary, as an older version might have stored it, that lists
+ * claude.ai's quote-reply text file as a file of the conversation.
+ * @returns {Promise<void>} Resolves once stored.
+ */
+async function storeSummaryWithQuoteFile() {
+  const database = await new Promise(resolve => { const request = indexedDB.open('claudePlus'); request.onsuccess = () => resolve(request.result); });
+  const transaction = database.transaction('conversationSummaries', 'readwrite');
+  const file = { path: 'excerpt_from_previous_claude_message.txt', title: 'excerpt_from_previous_claude_message.txt', timestamp: '2026-01-01T00:00:00Z', source: 'user', messageId: 'm1' };
+  transaction.objectStore('conversationSummaries').put({ conversationId: 'old-summary', title: 'Old summary', updatedAt: '2026-01-01T00:00:00Z', version: 2, isImported: false, promptCount: 1, toolCallCounts: {}, toolCalls: [], sources: [], files: [file], estimatedTokensIn: 1, estimatedTokensOut: 1, responseTimesMs: [] });
+  await new Promise(resolve => { transaction.oncomplete = resolve; });
+  database.close();
+}
+
+/**
+ * Checks that a stored summary listing the quote-reply text file never shows it in the global search.
+ * @param {SmokeRun} run The smoke run.
+ * @returns {Promise<void>} Resolves once checked.
+ */
+async function checkQuoteFilesStayHidden(run) {
+  await run.page.evaluate(storeSummaryWithQuoteFile);
+  await run.reload();
+  await run.openTab('Search');
+  const searchPanel = run.panelWith('queryInput');
+  await searchPanel.locator('[data-name="queryInput"]').fill('excerpt_from_previous');
+  await run.page.waitForTimeout(150);
+  run.check('quote-reply text files never appear in the global search', await searchPanel.locator('tbody tr.claude-plus-search-result').count() === 0);
 }
 
 /**
