@@ -2023,6 +2023,13 @@
     static #MAX_FILL_PASSES = 6;
 
     /**
+     * Times an item scrolled to is aligned, since rendering and measuring the items around it can
+     * move it a little each time.
+     * @type {number}
+     */
+    static #ALIGN_PASSES = 3;
+
+    /**
      * Options given to the constructor, with defaults filled in.
      * @type {object}
      */
@@ -2193,17 +2200,30 @@
     }
 
     /**
-     * Scrolls an item into view, rendering it first.
+     * Scrolls an item into view. The window is rendered around the item itself, then the scroll
+     * position is set from where the rendered item actually is - not from the estimated heights of
+     * everything above it, which are far off in a long list and put the view on the wrong items.
      * @param {number} index Item index.
      * @param {'start'|'center'} block Where in the view to put it.
      * @returns {void}
      */
     scrollToIndex(index, block) {
-      const viewportHeight = this.#scrollElement.clientHeight;
-      const top = this.#contentOffset() + this.#heights.offsetOf(index);
-      this.#scrollElement.scrollTop = block === 'center' ? top - (viewportHeight - this.#heights.heightOf(index)) / 2 : top;
-      this.#update(true);
-      this.#alignRendered(index, block);
+      if (!this.#canRender() || index < 0 || index >= this.#heights.count) return;
+      this.#renderAround(index);
+      for (let pass = 0; pass < VirtualList.#ALIGN_PASSES; pass += 1) this.#alignRendered(index, block);
+    }
+
+    /**
+     * Replaces the window with the items around one: those a view's height above and below it.
+     * @param {number} index Item index.
+     * @returns {void}
+     */
+    #renderAround(index) {
+      const height = this.#scrollElement.clientHeight;
+      const top = this.#heights.offsetOf(index);
+      const start = this.#heights.indexAt(Math.max(0, top - height));
+      const end = Math.min(this.#heights.count, this.#heights.indexAt(top + this.#heights.heightOf(index) + height) + 1);
+      this.#replaceWith(start, end);
     }
 
     /**
@@ -2395,6 +2415,7 @@
       this.#end = end;
       this.#updateSpacers();
       this.#register(elements, start);
+      this.#updateSpacers();
     }
 
     /**
@@ -7058,6 +7079,15 @@
     }
 
     /**
+     * Whether a conversation is the open one and its messages have been loaded.
+     * @param {string} conversationId Conversation id.
+     * @returns {boolean} True when it is open and shows saved messages, so opening it again would only reload the same ones.
+     */
+    isLoaded(conversationId) {
+      return this.#state.openConversationId === conversationId && this.#state.messages.some(message => message.isPersisted);
+    }
+
+    /**
      * Messages of the open conversation.
      * @returns {ChatMessage[]} The current branch, oldest first.
      */
@@ -7647,7 +7677,8 @@
      * @returns {Promise<void>} Resolves once it is shown.
      */
     openInFocusedPane(conversationId) {
-      return this.focusedSession.openConversation(conversationId);
+      const session = this.focusedSession;
+      return session.isLoaded(conversationId) ? Promise.resolve() : session.openConversation(conversationId);
     }
 
     /**

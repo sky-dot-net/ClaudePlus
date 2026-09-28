@@ -78,6 +78,15 @@ export class ChatSession extends EventEmitter {
   }
 
   /**
+   * Whether a conversation is the open one and its messages have been loaded.
+   * @param {string} conversationId Conversation id.
+   * @returns {boolean} True when it is open and shows saved messages, so opening it again would only reload the same ones.
+   */
+  isLoaded(conversationId) {
+    return this.#state.openConversationId === conversationId && this.#state.messages.some(message => message.isPersisted);
+  }
+
+  /**
    * Messages of the open conversation.
    * @returns {ChatMessage[]} The current branch, oldest first.
    */

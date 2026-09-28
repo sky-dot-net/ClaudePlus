@@ -274,7 +274,8 @@ export class ChatPaneManager extends EventEmitter {
    * @returns {Promise<void>} Resolves once it is shown.
    */
   openInFocusedPane(conversationId) {
-    return this.focusedSession.openConversation(conversationId);
+    const session = this.focusedSession;
+    return session.isLoaded(conversationId) ? Promise.resolve() : session.openConversation(conversationId);
   }
 
   /**

@@ -185,6 +185,21 @@ async function findInChat(run, text, matchCount) {
 }
 
 /**
+ * Checks the in-chat search, started from the top of a long chat, lands on a message in its
+ * middle, however far off the estimated heights above it are.
+ * @param {SmokeRun} run The smoke run.
+ * @returns {Promise<void>} Resolves once checked.
+ */
+async function checkFindInMiddle(run) {
+  await run.page.evaluate(scrollMessageList, 0);
+  await findInChat(run, 'number 2000:', 1);
+  await run.page.waitForTimeout(300);
+  const state = await run.page.evaluate(readFindState);
+  const middle = await run.page.evaluate(scrollMessageList, null);
+  run.check('in-chat search lands on a message in the middle of a long chat, whatever the estimated heights', state.current === 1 && middle.first <= 2000 && middle.last >= 2000, JSON.stringify({ state, middle }));
+}
+
+/**
  * Checks the in-chat search finds a message a windowed list has not rendered, scrolls to it and
  * marks the match, and that * works as a wildcard.
  * @param {SmokeRun} run The smoke run.
@@ -198,6 +213,7 @@ async function checkFindAcrossWindow(run) {
   await page.waitForTimeout(300);
   const rendered = await page.evaluate(scrollMessageList, null);
   run.check('in-chat search finds a message that is not rendered, scrolls to it and marks it', state.current === 1 && rendered.first <= 3999 && rendered.last >= 3999, JSON.stringify({ state, rendered }));
+  await checkFindInMiddle(run);
   const wildcard = await findInChat(run, 'number 399*:', 11);
   run.check('in-chat search accepts * as a wildcard', wildcard.label.endsWith('/11') && wildcard.current === 1, JSON.stringify(wildcard));
 }
