@@ -12867,12 +12867,13 @@
      * How a newly mapped conversation compares to what's already stored.
      * @param {?ImportedConversationRecord} storedRecord The stored record, or null when not seen before.
      * @param {{conversationId: string, title: string, messages: ApiMessage[]}} mapped The newly mapped conversation.
-     * @returns {'new'|'changed'|'renamedOnly'|'unchanged'} The classification.
+     * @returns {'new'|'changed'|'renamedOnly'|'unchanged'} The classification; 'renamedOnly' also
+     * covers a stored record that has no date yet (stored by an older version), whose date is filled in.
      */
     static classifyConversation(storedRecord, mapped) {
       if (!storedRecord) return 'new';
       if (ImportMerger.#hasNewMessages(storedRecord, mapped)) return 'changed';
-      return storedRecord.title === mapped.title ? 'unchanged' : 'renamedOnly';
+      return storedRecord.title === mapped.title && storedRecord.updatedAt ? 'unchanged' : 'renamedOnly';
     }
 
     /**
@@ -13059,7 +13060,7 @@
      */
     async listings() {
       const records = await this.#database.readAll(DATABASE.stores.importedConversations);
-      return records.map(record => ({ uuid: record.conversationId, name: record.title, updated_at: record.updatedAt, isImported: true }));
+      return records.map(record => ({ uuid: record.conversationId, name: record.title, updated_at: ImportedConversationStore.updatedAtOf(record), isImported: true }));
     }
 
     /**
@@ -13086,7 +13087,28 @@
      * @returns {ApiConversation} The conversation.
      */
     static toApiConversation(record) {
-      return { uuid: record.conversationId, name: record.title, updated_at: record.updatedAt, current_leaf_message_uuid: record.currentLeafId, chat_messages: record.messages };
+      return { uuid: record.conversationId, name: record.title, updated_at: ImportedConversationStore.updatedAtOf(record), current_leaf_message_uuid: record.currentLeafId, chat_messages: record.messages };
+    }
+
+    /**
+     * When a stored conversation last changed. Records stored by an older version have no updatedAt,
+     * so it is taken from their newest message, else from when they were imported - the same value
+     * every time, so listings and summaries agree without the record being rewritten.
+     * @param {ImportedConversationRecord} record The record.
+     * @returns {string} An ISO timestamp; an empty string when nothing dates the record.
+     */
+    static updatedAtOf(record) {
+      if (record.updatedAt) return record.updatedAt;
+      return ImportedConversationStore.#newestMessageTime(record.messages ?? []) || record.lastImportedAt || '';
+    }
+
+    /**
+     * The newest creation time among messages.
+     * @param {ApiMessage[]} messages The messages.
+     * @returns {string} An ISO timestamp; an empty string when none has one.
+     */
+    static #newestMessageTime(messages) {
+      return messages.map(message => message.created_at).filter(time => typeof time === 'string').reduce((newest, time) => (time > newest ? time : newest), '');
     }
   }
 
@@ -15730,10 +15752,25 @@
     async reindexImported(listings, loadConversation) {
       try {
         let storedCount = 0;
-        for (const listing of listings) storedCount += await this.#reindexOneImported(listing, loadConversation);
+        for (const listing of listings) storedCount += await this.#reindexOneImportedSafely(listing, loadConversation);
         if (storedCount) await this.refreshAggregate();
       } catch (error) {
         console.warn(LOG_PREFIX, 'reindexing imported conversations failed', error);
+      }
+    }
+
+    /**
+     * Indexes one imported conversation, logging a failure instead of letting it stop the others.
+     * @param {ConversationListing} listing The conversation's listing.
+     * @param {function(string): Promise<?ApiConversation>} loadConversation Reads an imported conversation with its messages.
+     * @returns {Promise<number>} 1 when a summary was stored, else 0.
+     */
+    async #reindexOneImportedSafely(listing, loadConversation) {
+      try {
+        return await this.#reindexOneImported(listing, loadConversation);
+      } catch (error) {
+        console.warn(LOG_PREFIX, 'indexing an imported conversation failed', ConversationListingFields.id(listing), error);
+        return 0;
       }
     }
 

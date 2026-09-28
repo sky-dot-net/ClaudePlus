@@ -44,7 +44,7 @@ export class ImportedConversationStore {
    */
   async listings() {
     const records = await this.#database.readAll(DATABASE.stores.importedConversations);
-    return records.map(record => ({ uuid: record.conversationId, name: record.title, updated_at: record.updatedAt, isImported: true }));
+    return records.map(record => ({ uuid: record.conversationId, name: record.title, updated_at: ImportedConversationStore.updatedAtOf(record), isImported: true }));
   }
 
   /**
@@ -71,6 +71,27 @@ export class ImportedConversationStore {
    * @returns {ApiConversation} The conversation.
    */
   static toApiConversation(record) {
-    return { uuid: record.conversationId, name: record.title, updated_at: record.updatedAt, current_leaf_message_uuid: record.currentLeafId, chat_messages: record.messages };
+    return { uuid: record.conversationId, name: record.title, updated_at: ImportedConversationStore.updatedAtOf(record), current_leaf_message_uuid: record.currentLeafId, chat_messages: record.messages };
+  }
+
+  /**
+   * When a stored conversation last changed. Records stored by an older version have no updatedAt,
+   * so it is taken from their newest message, else from when they were imported - the same value
+   * every time, so listings and summaries agree without the record being rewritten.
+   * @param {ImportedConversationRecord} record The record.
+   * @returns {string} An ISO timestamp; an empty string when nothing dates the record.
+   */
+  static updatedAtOf(record) {
+    if (record.updatedAt) return record.updatedAt;
+    return ImportedConversationStore.#newestMessageTime(record.messages ?? []) || record.lastImportedAt || '';
+  }
+
+  /**
+   * The newest creation time among messages.
+   * @param {ApiMessage[]} messages The messages.
+   * @returns {string} An ISO timestamp; an empty string when none has one.
+   */
+  static #newestMessageTime(messages) {
+    return messages.map(message => message.created_at).filter(time => typeof time === 'string').reduce((newest, time) => (time > newest ? time : newest), '');
   }
 }

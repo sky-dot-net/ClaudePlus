@@ -192,10 +192,25 @@ export class StatsIndex extends EventEmitter {
   async reindexImported(listings, loadConversation) {
     try {
       let storedCount = 0;
-      for (const listing of listings) storedCount += await this.#reindexOneImported(listing, loadConversation);
+      for (const listing of listings) storedCount += await this.#reindexOneImportedSafely(listing, loadConversation);
       if (storedCount) await this.refreshAggregate();
     } catch (error) {
       console.warn(LOG_PREFIX, 'reindexing imported conversations failed', error);
+    }
+  }
+
+  /**
+   * Indexes one imported conversation, logging a failure instead of letting it stop the others.
+   * @param {ConversationListing} listing The conversation's listing.
+   * @param {function(string): Promise<?ApiConversation>} loadConversation Reads an imported conversation with its messages.
+   * @returns {Promise<number>} 1 when a summary was stored, else 0.
+   */
+  async #reindexOneImportedSafely(listing, loadConversation) {
+    try {
+      return await this.#reindexOneImported(listing, loadConversation);
+    } catch (error) {
+      console.warn(LOG_PREFIX, 'indexing an imported conversation failed', ConversationListingFields.id(listing), error);
+      return 0;
     }
   }
 

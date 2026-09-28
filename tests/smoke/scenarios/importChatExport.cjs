@@ -91,6 +91,7 @@ async function checkImportedConversationBehavior(run) {
   await checkStatsViewToggle(run);
   await checkImportedIndexRebuilt(run);
   await checkQuoteFilesStayHidden(run);
+  await checkRecordsWithoutDates(run);
 }
 
 /**
@@ -132,6 +133,44 @@ async function removeImportedSummaries() {
   await new Promise(resolve => { transaction.oncomplete = resolve; });
   database.close();
   return imported.length;
+}
+
+/**
+ * Runs in the page: strips the date from an imported conversation's record and removes its
+ * summary, as a record stored by an older version looks.
+ * @param {string} conversationId Id of the conversation.
+ * @returns {Promise<void>} Resolves once stored.
+ */
+async function storeRecordWithoutDate(conversationId) {
+  const database = await new Promise(resolve => { const request = indexedDB.open('claudePlus'); request.onsuccess = () => resolve(request.result); });
+  const transaction = database.transaction(['importedConversations', 'conversationSummaries'], 'readwrite');
+  const records = transaction.objectStore('importedConversations');
+  const record = await new Promise(resolve => { const request = records.get(conversationId); request.onsuccess = () => resolve(request.result); });
+  delete record.updatedAt;
+  records.put(record);
+  transaction.objectStore('conversationSummaries').delete(conversationId);
+  await new Promise(resolve => { transaction.oncomplete = resolve; });
+  database.close();
+}
+
+/**
+ * Checks that a stored imported conversation without a date still shows a date and is indexed.
+ * @param {SmokeRun} run The smoke run.
+ * @returns {Promise<void>} Resolves once checked.
+ */
+async function checkRecordsWithoutDates(run) {
+  await run.page.evaluate(storeRecordWithoutDate, IMPORTED_CONVERSATION_ID);
+  await run.reload();
+  await run.page.waitForTimeout(500);
+  const row = run.chatsPanel.locator(`tr[data-conversation-id="${IMPORTED_CONVERSATION_ID}"]`);
+  const rowText = await row.textContent();
+  const summaryCount = await run.page.evaluate(async conversationId => {
+    const database = await new Promise(resolve => { const request = indexedDB.open('claudePlus'); request.onsuccess = () => resolve(request.result); });
+    const summary = await new Promise(resolve => { const request = database.transaction('conversationSummaries').objectStore('conversationSummaries').get(conversationId); request.onsuccess = () => resolve(request.result); });
+    database.close();
+    return summary ? 1 : 0;
+  }, IMPORTED_CONVERSATION_ID);
+  run.check('an imported conversation stored without a date shows a date and is indexed', /\d{2}\/\d{2}\/\d{4}/.test(rowText) && summaryCount === 1, `${rowText} / ${summaryCount}`);
 }
 
 /**
