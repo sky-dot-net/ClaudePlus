@@ -8,7 +8,7 @@ export function importResultHtml(result) {
   const lines = [
     `${conversations.new} brand-new conversation(s) saved`,
     `${conversations.changed} already-imported conversation(s) got new messages (a continuation or branch since last time)`,
-    `${conversations.renamedOnly} already-imported conversation(s) were only renamed`,
+    `${conversations.metadataChanged} already-imported conversation(s) only had their metadata (title or date) changed`,
     `${conversations.unchanged} already-imported conversation(s) had nothing new`,
     conversations.failed > 0 ? `${conversations.failed} selected conversation(s) failed to import - see the browser console for details` : null,
     `${result.memoryFiles.written} of ${result.memoryFiles.total} memory file(s) saved`,

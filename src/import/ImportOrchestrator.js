@@ -84,7 +84,7 @@ export class ImportOrchestrator {
    * @param {Set<string>} selectedConversationIds Ids of the conversations to actually write.
    * @param {function(number): void} [onConversationProgress] Called with the number of
    * conversations processed so far, periodically during the scan.
-   * @returns {Promise<object>} Per-category counts: conversations {new, changed, renamedOnly,
+   * @returns {Promise<object>} Per-category counts: conversations {new, changed, metadataChanged,
    * unchanged} (only among the selected ones), and written/total for memoryFiles, artifacts,
    * projects, feedbackPeriods and loginEvents; accountProfile is true when a profile was written.
    */
@@ -168,11 +168,11 @@ export class ImportOrchestrator {
    * @param {Set<string>} selectedConversationIds Ids of the conversations to write.
    * @param {string} importedAt ISO timestamp of this import.
    * @param {function(number): void} [onProgress] Called with the number processed so far.
-   * @returns {Promise<{new: number, changed: number, renamedOnly: number, unchanged: number, failed: number}>}
+   * @returns {Promise<{new: number, changed: number, metadataChanged: number, unchanged: number, failed: number}>}
    * The counts, among the selected conversations only.
    */
   async #applyConversations(conversationsFile, artifactsById, selectedConversationIds, importedAt, onProgress) {
-    const tally = { new: 0, changed: 0, renamedOnly: 0, unchanged: 0, failed: 0 };
+    const tally = { new: 0, changed: 0, metadataChanged: 0, unchanged: 0, failed: 0 };
     let processed = 0;
     for await (const rawConversation of StreamingJsonArrayReader.readArray(conversationsFile)) {
       if (selectedConversationIds.has(rawConversation.uuid)) await this.#applyOneConversation(rawConversation, artifactsById, importedAt, tally);
@@ -190,7 +190,7 @@ export class ImportOrchestrator {
    * @param {object} rawConversation A conversations.json entry.
    * @param {Map<string, {html: string}>} artifactsById Parsed Artifact content, by artifact id.
    * @param {string} importedAt ISO timestamp of this import.
-   * @param {{new: number, changed: number, renamedOnly: number, unchanged: number, failed: number}} tally Counts to update.
+   * @param {{new: number, changed: number, metadataChanged: number, unchanged: number, failed: number}} tally Counts to update.
    * @returns {Promise<void>} Resolves once written, if anything changed; a failure is logged and
    * tallied rather than thrown, so it doesn't stop the rest of the selected conversations from importing.
    */

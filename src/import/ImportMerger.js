@@ -9,13 +9,13 @@ export class ImportMerger {
    * How a newly mapped conversation compares to what's already stored.
    * @param {?ImportedConversationRecord} storedRecord The stored record, or null when not seen before.
    * @param {{conversationId: string, title: string, messages: ApiMessage[]}} mapped The newly mapped conversation.
-   * @returns {'new'|'changed'|'renamedOnly'|'unchanged'} The classification; 'renamedOnly' also
-   * covers a stored record that has no date yet (stored by an older version), whose date is filled in.
+   * @returns {'new'|'changed'|'metadataChanged'|'unchanged'} The classification; 'metadataChanged' means the
+   * messages are known but the title differs or the stored record has no date yet.
    */
   static classifyConversation(storedRecord, mapped) {
     if (!storedRecord) return 'new';
     if (ImportMerger.#hasNewMessages(storedRecord, mapped)) return 'changed';
-    return storedRecord.title === mapped.title && storedRecord.updatedAt ? 'unchanged' : 'renamedOnly';
+    return storedRecord.title === mapped.title && storedRecord.updatedAt ? 'unchanged' : 'metadataChanged';
   }
 
   /**
@@ -28,7 +28,7 @@ export class ImportMerger {
   static mergeConversation(storedRecord, mapped, importedAt) {
     const classification = ImportMerger.classifyConversation(storedRecord, mapped);
     if (classification === 'unchanged') return null;
-    if (classification === 'renamedOnly') return { ...storedRecord, title: mapped.title, updatedAt: mapped.updatedAt, lastImportedAt: importedAt };
+    if (classification === 'metadataChanged') return { ...storedRecord, title: mapped.title, updatedAt: mapped.updatedAt, lastImportedAt: importedAt };
     const messages = classification === 'new' ? mapped.messages : ImportMerger.#addedMessages(storedRecord, mapped);
     return { conversationId: mapped.conversationId, title: mapped.title, updatedAt: mapped.updatedAt, messages, currentLeafId: ImportMerger.defaultLeafOf(messages), lastImportedAt: importedAt };
   }

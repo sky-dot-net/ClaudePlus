@@ -6,7 +6,7 @@ import { escapeHtml } from '../../../text/escapeHtml.js';
  * Label shown for each classification of a previewed conversation.
  * @type {Readonly<Record<string, string>>}
  */
-const CLASSIFICATION_LABELS = Object.freeze({ new: 'New', changed: 'Changed', renamedOnly: 'Renamed', unchanged: 'Unchanged' });
+const CLASSIFICATION_LABELS = Object.freeze({ new: 'New', changed: 'Changed', metadataChanged: 'Metadata changed', unchanged: 'Unchanged' });
 
 /**
  * HTML of a classification badge.

@@ -12,7 +12,7 @@ export class ImportReviewTable {
    * Rows pre-checked by default: every classification except a truly unchanged conversation.
    * @type {ReadonlySet<string>}
    */
-  static #DEFAULT_SELECTED_CLASSIFICATIONS = new Set(['new', 'changed', 'renamedOnly']);
+  static #DEFAULT_SELECTED_CLASSIFICATIONS = new Set(['new', 'changed', 'metadataChanged']);
 
   /**
    * Element the table is built in.
