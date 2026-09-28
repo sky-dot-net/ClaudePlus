@@ -10,6 +10,8 @@
  * modelCatalogTimeoutMs: time budget for extracting the model/effort catalog before giving up.
  * modelCatalogTtlMs: how long an extracted catalog is trusted before it's refreshed again.
  * messageHighlightMs: how long a message stays highlighted after being scrolled to from search.
+ * resizeSettleMs: how long a list's width must stay unchanged before it is laid out again, so
+ * dragging a panel divider doesn't re-render on every pixel.
  * @type {Readonly<Record<string, number>>}
  */
 export const TIMING = Object.freeze({
@@ -26,4 +28,5 @@ export const TIMING = Object.freeze({
   modelCatalogTimeoutMs: 20_000,
   modelCatalogTtlMs: 12 * 60 * 60 * 1000,
   messageHighlightMs: 2_000,
+  resizeSettleMs: 200,
 });

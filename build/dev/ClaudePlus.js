@@ -97,6 +97,8 @@
    * modelCatalogTimeoutMs: time budget for extracting the model/effort catalog before giving up.
    * modelCatalogTtlMs: how long an extracted catalog is trusted before it's refreshed again.
    * messageHighlightMs: how long a message stays highlighted after being scrolled to from search.
+   * resizeSettleMs: how long a list's width must stay unchanged before it is laid out again, so
+   * dragging a panel divider doesn't re-render on every pixel.
    * @type {Readonly<Record<string, number>>}
    */
   const TIMING = Object.freeze({
@@ -113,6 +115,7 @@
     modelCatalogTimeoutMs: 20_000,
     modelCatalogTtlMs: 12 * 60 * 60 * 1000,
     messageHighlightMs: 2_000,
+    resizeSettleMs: 200,
   });
 
   /**
@@ -1270,6 +1273,24 @@
    */
   class ItemHeights {
     /**
+     * Fraction of the measured heights dropped from each end before averaging.
+     * @type {number}
+     */
+    static #TRIM_FRACTION = 0.1;
+
+    /**
+     * How much the number of measurements must grow, as a factor, before the estimate is recomputed.
+     * @type {number}
+     */
+    static #REFRESH_GROWTH = 1.25;
+
+    /**
+     * Measurements added on top of that growth before the estimate is recomputed.
+     * @type {number}
+     */
+    static #REFRESH_SLACK = 4;
+
+    /**
      * Gap after every item, in pixels; counted between items but not after the last one.
      * @type {number}
      */
@@ -1288,12 +1309,6 @@
     #measured = [];
 
     /**
-     * Sum of every measured height.
-     * @type {number}
-     */
-    #measuredSum = 0;
-
-    /**
      * Number of measured items.
      * @type {number}
      */
@@ -1304,6 +1319,20 @@
      * @type {number}
      */
     #count = 0;
+
+    /**
+     * The current estimate for unmeasured items, kept until enough new measurements have arrived to
+     * be worth recomputing it: an estimate that moved with every render would move the whole
+     * unrendered part of the list under the view with it.
+     * @type {?number}
+     */
+    #estimateCache = null;
+
+    /**
+     * Number of measurements the cached estimate was computed from.
+     * @type {number}
+     */
+    #estimateBasis = 0;
 
     /**
      * Creates an empty model.
@@ -1339,11 +1368,11 @@
      * @returns {void}
      */
     clear() {
-      const estimate = this.#estimate();
+      this.#initialEstimate = this.#estimate();
       this.#measured = [];
-      this.#measuredSum = 0;
       this.#measuredCount = 0;
-      this.#initialEstimate = estimate;
+      this.#estimateCache = null;
+      this.#estimateBasis = 0;
     }
 
     /**
@@ -1357,7 +1386,6 @@
       if (previous === height) return false;
       this.#forget(index);
       this.#measured[index] = height;
-      this.#measuredSum += height;
       this.#measuredCount += 1;
       return true;
     }
@@ -1429,10 +1457,28 @@
 
     /**
      * The height assumed for an unmeasured item.
-     * @returns {number} The average measured height, or the initial estimate before any measurement.
+     * @returns {number} The trimmed average of the measured heights, refreshed only once the number
+     * of measurements has grown by a quarter; the initial estimate before any measurement.
      */
     #estimate() {
-      return this.#measuredCount > 0 ? this.#measuredSum / this.#measuredCount : this.#initialEstimate;
+      if (this.#measuredCount === 0) return this.#initialEstimate;
+      if (this.#estimateCache === null || this.#measuredCount > this.#estimateBasis * ItemHeights.#REFRESH_GROWTH + ItemHeights.#REFRESH_SLACK) {
+        this.#estimateCache = this.#trimmedAverage();
+        this.#estimateBasis = this.#measuredCount;
+      }
+      return this.#estimateCache;
+    }
+
+    /**
+     * The average of the measured heights without the tallest and shortest tenth, so a few enormous
+     * (or empty) items don't drag the estimate for all the others.
+     * @returns {number} The average in pixels.
+     */
+    #trimmedAverage() {
+      const heights = this.#measured.filter(height => height !== undefined).sort((first, second) => first - second);
+      const trim = Math.floor(heights.length * ItemHeights.#TRIM_FRACTION);
+      const kept = heights.slice(trim, heights.length - trim);
+      return kept.reduce((sum, height) => sum + height, 0) / kept.length;
     }
 
     /**
@@ -1443,7 +1489,6 @@
     #forget(index) {
       const previous = this.#measured[index];
       if (previous === undefined) return;
-      this.#measuredSum -= previous;
       this.#measuredCount -= 1;
       this.#measured[index] = undefined;
     }
@@ -1546,6 +1591,12 @@
      * @type {number}
      */
     #width;
+
+    /**
+     * Timer waiting for the scroll element's width to stop changing, or null while none is.
+     * @type {?number}
+     */
+    #resizeTimer = null;
 
     /**
      * Runs the window update once per frame while scrolling.
@@ -1674,6 +1725,7 @@
      * @returns {void}
      */
     dispose() {
+      this.#cancelWidthSettle();
       this.#frame.cancel();
       this.#observer.disconnect();
       this.#scrollElement.removeEventListener('scroll', this.#onScroll);
@@ -1759,6 +1811,7 @@
         isForced = false;
         this.#apply(this.#windowFor(view));
       }
+      this.#frame.schedule();
     }
 
     /**
@@ -2010,10 +2063,9 @@
      * @returns {void}
      */
     #onResize(entries) {
-      const isContainerResized = entries.some(entry => entry.target === this.#scrollElement);
-      const areItemsResized = entries.filter(entry => entry.target !== this.#scrollElement).map(entry => this.#noteItemSize(entry.target)).some(Boolean);
-      if (isContainerResized) this.#onContainerResized();
-      if (areItemsResized) this.#stabilize();
+      if (entries.some(entry => entry.target === this.#scrollElement)) this.#onContainerResized();
+      if (this.#resizeTimer !== null) return;
+      if (entries.filter(entry => entry.target !== this.#scrollElement).map(entry => this.#noteItemSize(entry.target)).some(Boolean)) this.#stabilize();
     }
 
     /**
@@ -2027,18 +2079,42 @@
     }
 
     /**
-     * Lays out again after the scroll element changed size: from scratch when its width changed,
-     * since that rewraps every item, else just fills any newly visible space.
+     * Reacts to the scroll element changing size: just fills any newly visible space when only its
+     * height changed, and lays everything out again when its width changed - but only once the width
+     * has stopped changing, so dragging a divider doesn't re-render on every pixel of movement.
      * @returns {void}
      */
     #onContainerResized() {
       if (!this.#canRender()) return;
-      const width = this.#scrollElement.clientWidth;
-      if (width === this.#width) {
+      if (this.#scrollElement.clientWidth === this.#width) {
+        this.#cancelWidthSettle();
         this.#update(this.#items.length === 0);
-        return;
+      } else if (this.#items.length === 0) {
+        this.#applyWidthChange();
+      } else {
+        clearTimeout(this.#resizeTimer);
+        this.#resizeTimer = setTimeout(() => this.#applyWidthChange(), TIMING.resizeSettleMs);
       }
-      this.#width = width;
+    }
+
+    /**
+     * Forgets a width change that is waiting to settle.
+     * @returns {void}
+     */
+    #cancelWidthSettle() {
+      clearTimeout(this.#resizeTimer);
+      this.#resizeTimer = null;
+    }
+
+    /**
+     * Lays everything out from scratch for the scroll element's new width, since that rewraps every
+     * item and so changes every height.
+     * @returns {void}
+     */
+    #applyWidthChange() {
+      this.#resizeTimer = null;
+      if (!this.#canRender()) return;
+      this.#width = this.#scrollElement.clientWidth;
       this.#heights.clear();
       if (this.#options.onWidthChange) this.#options.onWidthChange();
       else this.refresh();

@@ -5,6 +5,24 @@
  */
 export class ItemHeights {
   /**
+   * Fraction of the measured heights dropped from each end before averaging.
+   * @type {number}
+   */
+  static #TRIM_FRACTION = 0.1;
+
+  /**
+   * How much the number of measurements must grow, as a factor, before the estimate is recomputed.
+   * @type {number}
+   */
+  static #REFRESH_GROWTH = 1.25;
+
+  /**
+   * Measurements added on top of that growth before the estimate is recomputed.
+   * @type {number}
+   */
+  static #REFRESH_SLACK = 4;
+
+  /**
    * Gap after every item, in pixels; counted between items but not after the last one.
    * @type {number}
    */
@@ -23,12 +41,6 @@ export class ItemHeights {
   #measured = [];
 
   /**
-   * Sum of every measured height.
-   * @type {number}
-   */
-  #measuredSum = 0;
-
-  /**
    * Number of measured items.
    * @type {number}
    */
@@ -39,6 +51,20 @@ export class ItemHeights {
    * @type {number}
    */
   #count = 0;
+
+  /**
+   * The current estimate for unmeasured items, kept until enough new measurements have arrived to
+   * be worth recomputing it: an estimate that moved with every render would move the whole
+   * unrendered part of the list under the view with it.
+   * @type {?number}
+   */
+  #estimateCache = null;
+
+  /**
+   * Number of measurements the cached estimate was computed from.
+   * @type {number}
+   */
+  #estimateBasis = 0;
 
   /**
    * Creates an empty model.
@@ -74,11 +100,11 @@ export class ItemHeights {
    * @returns {void}
    */
   clear() {
-    const estimate = this.#estimate();
+    this.#initialEstimate = this.#estimate();
     this.#measured = [];
-    this.#measuredSum = 0;
     this.#measuredCount = 0;
-    this.#initialEstimate = estimate;
+    this.#estimateCache = null;
+    this.#estimateBasis = 0;
   }
 
   /**
@@ -92,7 +118,6 @@ export class ItemHeights {
     if (previous === height) return false;
     this.#forget(index);
     this.#measured[index] = height;
-    this.#measuredSum += height;
     this.#measuredCount += 1;
     return true;
   }
@@ -164,10 +189,28 @@ export class ItemHeights {
 
   /**
    * The height assumed for an unmeasured item.
-   * @returns {number} The average measured height, or the initial estimate before any measurement.
+   * @returns {number} The trimmed average of the measured heights, refreshed only once the number
+   * of measurements has grown by a quarter; the initial estimate before any measurement.
    */
   #estimate() {
-    return this.#measuredCount > 0 ? this.#measuredSum / this.#measuredCount : this.#initialEstimate;
+    if (this.#measuredCount === 0) return this.#initialEstimate;
+    if (this.#estimateCache === null || this.#measuredCount > this.#estimateBasis * ItemHeights.#REFRESH_GROWTH + ItemHeights.#REFRESH_SLACK) {
+      this.#estimateCache = this.#trimmedAverage();
+      this.#estimateBasis = this.#measuredCount;
+    }
+    return this.#estimateCache;
+  }
+
+  /**
+   * The average of the measured heights without the tallest and shortest tenth, so a few enormous
+   * (or empty) items don't drag the estimate for all the others.
+   * @returns {number} The average in pixels.
+   */
+  #trimmedAverage() {
+    const heights = this.#measured.filter(height => height !== undefined).sort((first, second) => first - second);
+    const trim = Math.floor(heights.length * ItemHeights.#TRIM_FRACTION);
+    const kept = heights.slice(trim, heights.length - trim);
+    return kept.reduce((sum, height) => sum + height, 0) / kept.length;
   }
 
   /**
@@ -178,7 +221,6 @@ export class ItemHeights {
   #forget(index) {
     const previous = this.#measured[index];
     if (previous === undefined) return;
-    this.#measuredSum -= previous;
     this.#measuredCount -= 1;
     this.#measured[index] = undefined;
   }

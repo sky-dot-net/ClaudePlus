@@ -1,6 +1,7 @@
 import { FrameScheduler } from '../../dom/FrameScheduler.js';
 import { ItemHeights } from './ItemHeights.js';
 import { StyleRegistry } from '../../styles/StyleRegistry.js';
+import { TIMING } from '../../config/TIMING.js';
 import { createElement } from '../../dom/createElement.js';
 import stylesheet from './VirtualList.css';
 
@@ -99,6 +100,12 @@ export class VirtualList {
    * @type {number}
    */
   #width;
+
+  /**
+   * Timer waiting for the scroll element's width to stop changing, or null while none is.
+   * @type {?number}
+   */
+  #resizeTimer = null;
 
   /**
    * Runs the window update once per frame while scrolling.
@@ -227,6 +234,7 @@ export class VirtualList {
    * @returns {void}
    */
   dispose() {
+    this.#cancelWidthSettle();
     this.#frame.cancel();
     this.#observer.disconnect();
     this.#scrollElement.removeEventListener('scroll', this.#onScroll);
@@ -312,6 +320,7 @@ export class VirtualList {
       isForced = false;
       this.#apply(this.#windowFor(view));
     }
+    this.#frame.schedule();
   }
 
   /**
@@ -563,10 +572,9 @@ export class VirtualList {
    * @returns {void}
    */
   #onResize(entries) {
-    const isContainerResized = entries.some(entry => entry.target === this.#scrollElement);
-    const areItemsResized = entries.filter(entry => entry.target !== this.#scrollElement).map(entry => this.#noteItemSize(entry.target)).some(Boolean);
-    if (isContainerResized) this.#onContainerResized();
-    if (areItemsResized) this.#stabilize();
+    if (entries.some(entry => entry.target === this.#scrollElement)) this.#onContainerResized();
+    if (this.#resizeTimer !== null) return;
+    if (entries.filter(entry => entry.target !== this.#scrollElement).map(entry => this.#noteItemSize(entry.target)).some(Boolean)) this.#stabilize();
   }
 
   /**
@@ -580,18 +588,42 @@ export class VirtualList {
   }
 
   /**
-   * Lays out again after the scroll element changed size: from scratch when its width changed,
-   * since that rewraps every item, else just fills any newly visible space.
+   * Reacts to the scroll element changing size: just fills any newly visible space when only its
+   * height changed, and lays everything out again when its width changed - but only once the width
+   * has stopped changing, so dragging a divider doesn't re-render on every pixel of movement.
    * @returns {void}
    */
   #onContainerResized() {
     if (!this.#canRender()) return;
-    const width = this.#scrollElement.clientWidth;
-    if (width === this.#width) {
+    if (this.#scrollElement.clientWidth === this.#width) {
+      this.#cancelWidthSettle();
       this.#update(this.#items.length === 0);
-      return;
+    } else if (this.#items.length === 0) {
+      this.#applyWidthChange();
+    } else {
+      clearTimeout(this.#resizeTimer);
+      this.#resizeTimer = setTimeout(() => this.#applyWidthChange(), TIMING.resizeSettleMs);
     }
-    this.#width = width;
+  }
+
+  /**
+   * Forgets a width change that is waiting to settle.
+   * @returns {void}
+   */
+  #cancelWidthSettle() {
+    clearTimeout(this.#resizeTimer);
+    this.#resizeTimer = null;
+  }
+
+  /**
+   * Lays everything out from scratch for the scroll element's new width, since that rewraps every
+   * item and so changes every height.
+   * @returns {void}
+   */
+  #applyWidthChange() {
+    this.#resizeTimer = null;
+    if (!this.#canRender()) return;
+    this.#width = this.#scrollElement.clientWidth;
     this.#heights.clear();
     if (this.#options.onWidthChange) this.#options.onWidthChange();
     else this.refresh();

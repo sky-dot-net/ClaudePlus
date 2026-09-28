@@ -35,7 +35,7 @@ const nodeGlobals = Object.fromEntries(['Buffer', 'URL', 'module', 'process', 'r
  * Browser globals used by the smoke tests' functions that run inside the page.
  * @type {Record<string, string>}
  */
-const pageGlobals = Object.fromEntries(['ClipboardEvent', 'DataTransfer', 'DragEvent', 'getComputedStyle'].map(name => [name, 'readonly']));
+const pageGlobals = Object.fromEntries(['ClipboardEvent', 'DataTransfer', 'DragEvent', 'MutationObserver', 'getComputedStyle'].map(name => [name, 'readonly']));
 
 /**
  * Rules shared by the userscript and the smoke tests: full JSDoc coverage, no ordinary comments,

@@ -23,15 +23,15 @@ const PARAGRAPH = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed 
 const ROOT_MESSAGE = '00000000-0000-4000-8000-000000000000';
 
 /**
- * One message of a generated conversation, its text numbered and of varying length so message
- * heights vary too.
+ * One message of a generated conversation, its text numbered and of varying length - every 97th
+ * one enormous - so message heights vary widely, as real ones do.
  * @param {string} conversation Conversation id.
  * @param {number} index Position in the conversation.
  * @param {string} parent Id of the message it replies to.
  * @returns {object} The message, as a conversations.json entry.
  */
 function generatedMessage(conversation, index, parent) {
-  const text = `Message number ${index}: ${PARAGRAPH.repeat((index % 7) + 1)}`;
+  const text = `Message number ${index}: ${PARAGRAPH.repeat(index > 1 && index % 97 === 0 ? 300 : (index % 7) + 1)}`;
   const stamp = new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString();
   return { uuid: `${conversation}-m${index}`, text, content: [{ type: 'text', text }], sender: index % 2 === 0 ? 'human' : 'assistant', created_at: stamp, updated_at: stamp, attachments: [], files: [], parent_message_uuid: parent };
 }
@@ -162,6 +162,38 @@ async function checkMessageWindowMiddle(run) {
 }
 
 /**
+ * Runs in the page: narrows the message list step by step faster than the list's settle time and
+ * counts how often its rendered messages were replaced during that and after it had settled.
+ * @returns {Promise<{during: number, after: number}>} Replacements while the width was changing and once it stopped.
+ */
+async function narrowMessageListAndCountRerenders() {
+  const list = document.querySelector('.claude-plus-message-list');
+  let replacements = 0;
+  const observer = new MutationObserver(records => { replacements += records.length; });
+  observer.observe(list, { childList: true });
+  const baseWidth = list.clientWidth;
+  for (let step = 1; step <= 10; step += 1) {
+    list.style.maxWidth = `${baseWidth - step * 10}px`;
+    await new Promise(resolve => setTimeout(resolve, 15));
+  }
+  const during = replacements;
+  await new Promise(resolve => setTimeout(resolve, 700));
+  observer.disconnect();
+  list.style.maxWidth = '';
+  return { during, after: replacements - during };
+}
+
+/**
+ * Checks that resizing a list re-renders it once the width stops changing, not while it changes.
+ * @param {SmokeRun} run The smoke run.
+ * @returns {Promise<void>} Resolves once checked.
+ */
+async function checkResizeWaitsForSettle(run) {
+  const counts = await run.page.evaluate(narrowMessageListAndCountRerenders);
+  run.check('resizing a list does not re-render while its width is still changing', counts.during === 0, JSON.stringify(counts));
+}
+
+/**
  * Imports thousands of conversations, one of them thousands of messages long, and checks the
  * Chats table and the message list only ever render the part near the visible area.
  * @param {SmokeRun} run The smoke run.
@@ -172,6 +204,7 @@ async function virtualScrolling(run) {
   await checkTableWindowing(run);
   await checkMessageWindowEnds(run);
   await checkMessageWindowMiddle(run);
+  await checkResizeWaitsForSettle(run);
 }
 
 module.exports = { virtualScrolling };
