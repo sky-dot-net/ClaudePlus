@@ -1,3 +1,4 @@
+import { FONT_PRESETS } from '../config/FONT_PRESETS.js';
 import { STORAGE_KEYS } from '../config/STORAGE_KEYS.js';
 import { THEME_COLOR_FIELDS } from '../config/THEME_COLOR_FIELDS.js';
 import { isDarkColor } from '../color/isDarkColor.js';
@@ -30,7 +31,8 @@ export class Theme {
   get settings() {
     const stored = this.#preferences.readJson(STORAGE_KEYS.theme) ?? {};
     const colors = Object.fromEntries(THEME_COLOR_FIELDS.map(field => [field.key, stored.colors?.[field.key] || field.default]));
-    return { colors, uiFontFamily: stored.uiFontFamily || '', chatFontFamily: stored.chatFontFamily || '' };
+    const defaultFontFamily = FONT_PRESETS.find(preset => preset.isDefault).value;
+    return { colors, uiFontFamily: stored.uiFontFamily || defaultFontFamily, chatFontFamily: stored.chatFontFamily || defaultFontFamily };
   }
 
   /**

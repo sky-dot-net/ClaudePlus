@@ -129,6 +129,14 @@
   color: var(--claude-plus-color-text-muted);
 }
 
+.claude-plus-settings-dialog__field select {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 6px 8px;
+}
+
 .claude-plus-settings-dialog__field input[type='text'] {
   display: block;
   width: 100%;

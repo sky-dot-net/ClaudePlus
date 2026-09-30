@@ -1,4 +1,5 @@
 import { Dialog } from './Dialog.js';
+import { FONT_PRESETS } from '../../config/FONT_PRESETS.js';
 import { HotkeyEditor } from './HotkeyEditor.js';
 import { ImportDialog } from './ImportDialog.js';
 import { PromptDialog } from './PromptDialog.js';
@@ -181,12 +182,28 @@ export class SettingsDialog extends Dialog {
       <section class="claude-plus-settings-dialog__section">
         <h3>Theme</h3>
         <div class="claude-plus-settings-dialog__colors" data-name="colorFields"></div>
-        <label class="claude-plus-settings-dialog__field">Interface font<input type="text" data-name="uiFontInput" placeholder="System default"></label>
-        <label class="claude-plus-settings-dialog__field">Chat font<input type="text" data-name="chatFontInput" placeholder="Same as interface"></label>
+        <label class="claude-plus-settings-dialog__field">Interface font
+          <select data-name="uiFontSelect">${SettingsDialog.#fontOptionsHtml()}</select>
+          <input type="text" data-name="uiFontInput" placeholder="CSS font-family, e.g. &quot;Fira Code&quot;, monospace" hidden>
+        </label>
+        <label class="claude-plus-settings-dialog__field">Chat font
+          <select data-name="chatFontSelect">${SettingsDialog.#fontOptionsHtml()}</select>
+          <input type="text" data-name="chatFontInput" placeholder="CSS font-family, e.g. &quot;Fira Code&quot;, monospace" hidden>
+        </label>
         <div class="claude-plus-settings-dialog__row">
           <button class="claude-plus-toolbar__button" data-name="resetThemeButton">Reset to defaults</button>
         </div>
       </section>`;
+  }
+
+  /**
+   * Options of a font picker: every preset, then a final "Custom…" choice that reveals a free-text
+   * field instead.
+   * @returns {string} The option elements.
+   */
+  static #fontOptionsHtml() {
+    const presetOptionsHtml = FONT_PRESETS.map(preset => `<option value="${preset.id}">${escapeHtml(preset.label)}</option>`).join('');
+    return `${presetOptionsHtml}<option value="custom">Custom…</option>`;
   }
 
   /**
@@ -221,6 +238,8 @@ export class SettingsDialog extends Dialog {
     elements.exportButton.addEventListener('click', () => this.#settingsTransfer.exportSettings());
     elements.importButton.addEventListener('click', () => this.#settingsTransfer.chooseFileAndImport());
     elements.importChatExportButton.addEventListener('click', () => ImportDialog.open(this.#importOrchestrator, this.#preferences, this.#onImported));
+    elements.uiFontSelect.addEventListener('change', () => this.#onFontSelectChange('uiFont'));
+    elements.chatFontSelect.addEventListener('change', () => this.#onFontSelectChange('chatFont'));
     elements.uiFontInput.addEventListener('input', () => this.#saveThemeFromFields());
     elements.chatFontInput.addEventListener('input', () => this.#saveThemeFromFields());
     elements.resetThemeButton.addEventListener('click', () => this.#resetTheme());
@@ -299,8 +318,46 @@ export class SettingsDialog extends Dialog {
     const { colors, uiFontFamily, chatFontFamily } = this.#theme.settings;
     this.#elements.colorFields.innerHTML = THEME_COLOR_FIELDS.map(field => SettingsDialog.#colorFieldHtml(field, colors[field.key])).join('');
     this.#elements.colorFields.querySelectorAll('input[type="color"]').forEach(input => input.addEventListener('input', () => this.#saveThemeFromFields()));
-    this.#elements.uiFontInput.value = uiFontFamily;
-    this.#elements.chatFontInput.value = chatFontFamily;
+    this.#renderFontField('uiFont', uiFontFamily);
+    this.#renderFontField('chatFont', chatFontFamily);
+  }
+
+  /**
+   * Shows a font value in its picker: the matching preset selected, or "Custom…" with the value in
+   * the free-text field when it isn't one of the presets.
+   * @param {'uiFont'|'chatFont'} prefix Which font field.
+   * @param {string} value The font's current CSS font-family value.
+   * @returns {void}
+   */
+  #renderFontField(prefix, value) {
+    const preset = FONT_PRESETS.find(candidate => candidate.value === value);
+    this.#elements[`${prefix}Select`].value = preset ? preset.id : 'custom';
+    this.#elements[`${prefix}Input`].hidden = Boolean(preset);
+    this.#elements[`${prefix}Input`].value = preset ? '' : value;
+  }
+
+  /**
+   * Shows or hides a font field's free-text input for its select's new choice, and saves.
+   * @param {'uiFont'|'chatFont'} prefix Which font field.
+   * @returns {void}
+   */
+  #onFontSelectChange(prefix) {
+    const isCustom = this.#elements[`${prefix}Select`].value === 'custom';
+    this.#elements[`${prefix}Input`].hidden = !isCustom;
+    if (isCustom) this.#elements[`${prefix}Input`].focus();
+    this.#saveThemeFromFields();
+  }
+
+  /**
+   * A font field's current CSS font-family value: the selected preset's, or the free-text field's
+   * when "Custom…" is selected.
+   * @param {'uiFont'|'chatFont'} prefix Which font field.
+   * @returns {string} The value.
+   */
+  #fontFieldValue(prefix) {
+    const selectedId = this.#elements[`${prefix}Select`].value;
+    if (selectedId === 'custom') return this.#elements[`${prefix}Input`].value.trim();
+    return FONT_PRESETS.find(preset => preset.id === selectedId)?.value ?? '';
   }
 
   /**
@@ -323,7 +380,7 @@ export class SettingsDialog extends Dialog {
   #saveThemeFromFields() {
     const colorInputs = [...this.#elements.colorFields.querySelectorAll('input[type="color"]')];
     const colors = Object.fromEntries(colorInputs.map(input => [input.dataset.colorKey, input.value]));
-    this.#theme.save({ colors, uiFontFamily: this.#elements.uiFontInput.value.trim(), chatFontFamily: this.#elements.chatFontInput.value.trim() });
+    this.#theme.save({ colors, uiFontFamily: this.#fontFieldValue('uiFont'), chatFontFamily: this.#fontFieldValue('chatFont') });
   }
 
   /**

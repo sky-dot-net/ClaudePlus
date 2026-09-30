@@ -16431,6 +16431,22 @@
   }
 
   /**
+   * Font choices offered in the Settings screen's font pickers, for both the interface and the chat
+   * text. "Anthropic Sans" is claude.ai's own interface font - already loaded on the page since
+   * ClaudePlus runs inside it - and is the default, so a fresh install already looks like claude.ai
+   * rather than a plain system font. Each value is a full CSS font-family list with sane fallbacks.
+   * Picking "Custom…" in the dropdown (not listed here) reveals a free-text field instead.
+   * @type {ReadonlyArray<{id: string, label: string, value: string, isDefault: boolean}>}
+   */
+  const FONT_PRESETS = Object.freeze([
+    Object.freeze({ id: 'anthropicSans', label: 'Anthropic Sans (claude.ai\'s own)', value: 'anthropic-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif', isDefault: true }),
+    Object.freeze({ id: 'anthropicSerif', label: 'Anthropic Serif', value: 'anthropic-serif, Georgia, "Times New Roman", serif', isDefault: false }),
+    Object.freeze({ id: 'system', label: 'System default', value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif', isDefault: false }),
+    Object.freeze({ id: 'inter', label: 'Inter', value: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', isDefault: false }),
+    Object.freeze({ id: 'mono', label: 'Monospace (Anthropic Mono)', value: 'anthropic-mono, "SFMono-Regular", Consolas, monospace', isDefault: false }),
+  ]);
+
+  /**
    * The key colors themeable in the Settings screen; every other color derives from the app's
    * built-in stylesheet. Each default is a plain hex color, so it can seed a native color input.
    * @type {ReadonlyArray<{key: string, cssVar: string, label: string, default: string}>}
@@ -16483,7 +16499,8 @@
     get settings() {
       const stored = this.#preferences.readJson(STORAGE_KEYS.theme) ?? {};
       const colors = Object.fromEntries(THEME_COLOR_FIELDS.map(field => [field.key, stored.colors?.[field.key] || field.default]));
-      return { colors, uiFontFamily: stored.uiFontFamily || '', chatFontFamily: stored.chatFontFamily || '' };
+      const defaultFontFamily = FONT_PRESETS.find(preset => preset.isDefault).value;
+      return { colors, uiFontFamily: stored.uiFontFamily || defaultFontFamily, chatFontFamily: stored.chatFontFamily || defaultFontFamily };
     }
 
     /**
@@ -17391,7 +17408,7 @@
     }
   }
 
-  var stylesheet$2 = ".claude-plus-settings-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-settings-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 420px;\n  max-width: 90vw;\n  max-height: 85vh;\n  overflow-y: auto;\n  font-size: 13px;\n}\n\n.claude-plus-settings-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n}\n\n.claude-plus-settings-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-settings-dialog__tabs {\n  display: flex;\n  gap: 4px;\n  margin-bottom: 8px;\n  border-bottom: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-settings-dialog__tab {\n  background: none;\n  border: none;\n  border-bottom: 2px solid transparent;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font: inherit;\n  padding: 6px 10px;\n}\n\n.claude-plus-settings-dialog__tab:hover {\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-settings-dialog__tab--active {\n  color: var(--claude-plus-color-text);\n  border-bottom-color: var(--claude-plus-color-accent);\n}\n\n.claude-plus-settings-dialog__section {\n  padding: 12px 0;\n  border-top: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-settings-dialog__section:first-of-type {\n  border-top: none;\n}\n\n.claude-plus-settings-dialog__section h3 {\n  margin: 0 0 8px;\n  font-size: 12px;\n  text-transform: uppercase;\n  letter-spacing: 0.04em;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__row {\n  display: flex;\n  gap: 8px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-settings-dialog__layout-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 6px 0;\n}\n\n.claude-plus-settings-dialog__layout-name {\n  flex: 1;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-settings-dialog__colors {\n  display: flex;\n  gap: 14px;\n  flex-wrap: wrap;\n  margin-bottom: 12px;\n}\n\n.claude-plus-settings-dialog__color-field {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__color-field input[type='color'] {\n  width: 36px;\n  height: 28px;\n  padding: 0;\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  background: none;\n  cursor: pointer;\n}\n\n.claude-plus-settings-dialog__field {\n  display: block;\n  margin-bottom: 10px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__field input[type='text'] {\n  display: block;\n  width: 100%;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 6px 8px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font: inherit;\n}\n\n.claude-plus-settings-dialog__hotkey-message {\n  min-height: 1em;\n  color: var(--claude-plus-color-error);\n  font-size: 12px;\n}\n";
+  var stylesheet$2 = ".claude-plus-settings-overlay {\n  position: fixed;\n  inset: 0;\n  z-index: var(--claude-plus-layer-drag-label);\n  background: rgba(0, 0, 0, 0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.claude-plus-settings-dialog {\n  background: var(--claude-plus-color-raised);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 8px;\n  padding: 16px;\n  width: 420px;\n  max-width: 90vw;\n  max-height: 85vh;\n  overflow-y: auto;\n  font-size: 13px;\n}\n\n.claude-plus-settings-dialog__header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n}\n\n.claude-plus-settings-dialog__header h2 {\n  margin: 0;\n  font-size: 15px;\n}\n\n.claude-plus-settings-dialog__tabs {\n  display: flex;\n  gap: 4px;\n  margin-bottom: 8px;\n  border-bottom: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-settings-dialog__tab {\n  background: none;\n  border: none;\n  border-bottom: 2px solid transparent;\n  color: var(--claude-plus-color-text-muted);\n  cursor: pointer;\n  font: inherit;\n  padding: 6px 10px;\n}\n\n.claude-plus-settings-dialog__tab:hover {\n  color: var(--claude-plus-color-text);\n}\n\n.claude-plus-settings-dialog__tab--active {\n  color: var(--claude-plus-color-text);\n  border-bottom-color: var(--claude-plus-color-accent);\n}\n\n.claude-plus-settings-dialog__section {\n  padding: 12px 0;\n  border-top: 1px solid var(--claude-plus-color-border);\n}\n\n.claude-plus-settings-dialog__section:first-of-type {\n  border-top: none;\n}\n\n.claude-plus-settings-dialog__section h3 {\n  margin: 0 0 8px;\n  font-size: 12px;\n  text-transform: uppercase;\n  letter-spacing: 0.04em;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__row {\n  display: flex;\n  gap: 8px;\n  flex-wrap: wrap;\n}\n\n.claude-plus-settings-dialog__layout-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 6px 0;\n}\n\n.claude-plus-settings-dialog__layout-name {\n  flex: 1;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.claude-plus-settings-dialog__colors {\n  display: flex;\n  gap: 14px;\n  flex-wrap: wrap;\n  margin-bottom: 12px;\n}\n\n.claude-plus-settings-dialog__color-field {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__color-field input[type='color'] {\n  width: 36px;\n  height: 28px;\n  padding: 0;\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  background: none;\n  cursor: pointer;\n}\n\n.claude-plus-settings-dialog__field {\n  display: block;\n  margin-bottom: 10px;\n  font-size: 12px;\n  color: var(--claude-plus-color-text-muted);\n}\n\n.claude-plus-settings-dialog__field select {\n  display: block;\n  width: 100%;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 6px 8px;\n}\n\n.claude-plus-settings-dialog__field input[type='text'] {\n  display: block;\n  width: 100%;\n  box-sizing: border-box;\n  margin-top: 4px;\n  padding: 6px 8px;\n  background: var(--claude-plus-color-bar);\n  border: 1px solid var(--claude-plus-color-border-strong);\n  border-radius: 6px;\n  color: var(--claude-plus-color-text);\n  font: inherit;\n}\n\n.claude-plus-settings-dialog__hotkey-message {\n  min-height: 1em;\n  color: var(--claude-plus-color-error);\n  font-size: 12px;\n}\n";
 
   StyleRegistry.register(stylesheet$2);
 
@@ -17564,12 +17581,28 @@
       <section class="claude-plus-settings-dialog__section">
         <h3>Theme</h3>
         <div class="claude-plus-settings-dialog__colors" data-name="colorFields"></div>
-        <label class="claude-plus-settings-dialog__field">Interface font<input type="text" data-name="uiFontInput" placeholder="System default"></label>
-        <label class="claude-plus-settings-dialog__field">Chat font<input type="text" data-name="chatFontInput" placeholder="Same as interface"></label>
+        <label class="claude-plus-settings-dialog__field">Interface font
+          <select data-name="uiFontSelect">${SettingsDialog.#fontOptionsHtml()}</select>
+          <input type="text" data-name="uiFontInput" placeholder="CSS font-family, e.g. &quot;Fira Code&quot;, monospace" hidden>
+        </label>
+        <label class="claude-plus-settings-dialog__field">Chat font
+          <select data-name="chatFontSelect">${SettingsDialog.#fontOptionsHtml()}</select>
+          <input type="text" data-name="chatFontInput" placeholder="CSS font-family, e.g. &quot;Fira Code&quot;, monospace" hidden>
+        </label>
         <div class="claude-plus-settings-dialog__row">
           <button class="claude-plus-toolbar__button" data-name="resetThemeButton">Reset to defaults</button>
         </div>
       </section>`;
+    }
+
+    /**
+     * Options of a font picker: every preset, then a final "Custom…" choice that reveals a free-text
+     * field instead.
+     * @returns {string} The option elements.
+     */
+    static #fontOptionsHtml() {
+      const presetOptionsHtml = FONT_PRESETS.map(preset => `<option value="${preset.id}">${escapeHtml(preset.label)}</option>`).join('');
+      return `${presetOptionsHtml}<option value="custom">Custom…</option>`;
     }
 
     /**
@@ -17604,6 +17637,8 @@
       elements.exportButton.addEventListener('click', () => this.#settingsTransfer.exportSettings());
       elements.importButton.addEventListener('click', () => this.#settingsTransfer.chooseFileAndImport());
       elements.importChatExportButton.addEventListener('click', () => ImportDialog.open(this.#importOrchestrator, this.#preferences, this.#onImported));
+      elements.uiFontSelect.addEventListener('change', () => this.#onFontSelectChange('uiFont'));
+      elements.chatFontSelect.addEventListener('change', () => this.#onFontSelectChange('chatFont'));
       elements.uiFontInput.addEventListener('input', () => this.#saveThemeFromFields());
       elements.chatFontInput.addEventListener('input', () => this.#saveThemeFromFields());
       elements.resetThemeButton.addEventListener('click', () => this.#resetTheme());
@@ -17682,8 +17717,46 @@
       const { colors, uiFontFamily, chatFontFamily } = this.#theme.settings;
       this.#elements.colorFields.innerHTML = THEME_COLOR_FIELDS.map(field => SettingsDialog.#colorFieldHtml(field, colors[field.key])).join('');
       this.#elements.colorFields.querySelectorAll('input[type="color"]').forEach(input => input.addEventListener('input', () => this.#saveThemeFromFields()));
-      this.#elements.uiFontInput.value = uiFontFamily;
-      this.#elements.chatFontInput.value = chatFontFamily;
+      this.#renderFontField('uiFont', uiFontFamily);
+      this.#renderFontField('chatFont', chatFontFamily);
+    }
+
+    /**
+     * Shows a font value in its picker: the matching preset selected, or "Custom…" with the value in
+     * the free-text field when it isn't one of the presets.
+     * @param {'uiFont'|'chatFont'} prefix Which font field.
+     * @param {string} value The font's current CSS font-family value.
+     * @returns {void}
+     */
+    #renderFontField(prefix, value) {
+      const preset = FONT_PRESETS.find(candidate => candidate.value === value);
+      this.#elements[`${prefix}Select`].value = preset ? preset.id : 'custom';
+      this.#elements[`${prefix}Input`].hidden = Boolean(preset);
+      this.#elements[`${prefix}Input`].value = preset ? '' : value;
+    }
+
+    /**
+     * Shows or hides a font field's free-text input for its select's new choice, and saves.
+     * @param {'uiFont'|'chatFont'} prefix Which font field.
+     * @returns {void}
+     */
+    #onFontSelectChange(prefix) {
+      const isCustom = this.#elements[`${prefix}Select`].value === 'custom';
+      this.#elements[`${prefix}Input`].hidden = !isCustom;
+      if (isCustom) this.#elements[`${prefix}Input`].focus();
+      this.#saveThemeFromFields();
+    }
+
+    /**
+     * A font field's current CSS font-family value: the selected preset's, or the free-text field's
+     * when "Custom…" is selected.
+     * @param {'uiFont'|'chatFont'} prefix Which font field.
+     * @returns {string} The value.
+     */
+    #fontFieldValue(prefix) {
+      const selectedId = this.#elements[`${prefix}Select`].value;
+      if (selectedId === 'custom') return this.#elements[`${prefix}Input`].value.trim();
+      return FONT_PRESETS.find(preset => preset.id === selectedId)?.value ?? '';
     }
 
     /**
@@ -17706,7 +17779,7 @@
     #saveThemeFromFields() {
       const colorInputs = [...this.#elements.colorFields.querySelectorAll('input[type="color"]')];
       const colors = Object.fromEntries(colorInputs.map(input => [input.dataset.colorKey, input.value]));
-      this.#theme.save({ colors, uiFontFamily: this.#elements.uiFontInput.value.trim(), chatFontFamily: this.#elements.chatFontInput.value.trim() });
+      this.#theme.save({ colors, uiFontFamily: this.#fontFieldValue('uiFont'), chatFontFamily: this.#fontFieldValue('chatFont') });
     }
 
     /**

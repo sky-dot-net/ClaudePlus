@@ -24,6 +24,7 @@ const { searchPanel } = require('./scenarios/searchPanel.cjs');
 const { settingsTransfer } = require('./scenarios/settingsTransfer.cjs');
 const { sourceAndFilePanels } = require('./scenarios/sourceAndFilePanels.cjs');
 const { storedRecordValidation } = require('./scenarios/storedRecordValidation.cjs');
+const { themeFonts } = require('./scenarios/themeFonts.cjs');
 const { virtualScrolling } = require('./scenarios/virtualScrolling.cjs');
 
 /**
@@ -32,7 +33,7 @@ const { virtualScrolling } = require('./scenarios/virtualScrolling.cjs');
  */
 const SCENARIOS = [
   storedRecordValidation, markdownRendering, conversationTable, sourceAndFilePanels, searchPanel, composerSending, sendingIndicator, queuedPrompt, quoteReply, fileAttachments,
-  conversationSubPanes, jumpIntoHiddenChat, addPanelMenu, activeChatBorder, imageViewer, layoutLibrary, settingsTransfer, deleteAndShortcut, hotkeys, importChatExport, virtualScrolling, failedMount,
+  conversationSubPanes, jumpIntoHiddenChat, addPanelMenu, activeChatBorder, imageViewer, layoutLibrary, settingsTransfer, deleteAndShortcut, hotkeys, themeFonts, importChatExport, virtualScrolling, failedMount,
 ];
 
 /**
