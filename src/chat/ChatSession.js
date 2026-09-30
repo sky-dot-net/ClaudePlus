@@ -12,6 +12,7 @@ import { EventEmitter } from '../core/EventEmitter.js';
  * @fires ChatSession#messages The message list changed.
  * @fires ChatSession#messageContent One message's content changed; payload is the ChatMessage.
  * @fires ChatSession#sending Sending started or ended.
+ * @fires ChatSession#queuedPrompt The prompt queued for after the current reply changed.
  * @fires ChatSession#conversationLoaded A conversation was fetched; payload is {conversation: ApiConversation, isImported: boolean}.
  * @fires ChatSession#rateLimits Usage windows arrived in a stream; payload is RateLimits.
  * @fires ChatSession#quoteRequested Text was selected and "Reply" clicked; payload is {text: string, sender: string}.
@@ -100,6 +101,14 @@ export class ChatSession extends EventEmitter {
    */
   get isSending() {
     return this.#state.isSending;
+  }
+
+  /**
+   * Prompt queued to send once the reply in progress finishes.
+   * @returns {?{prompt: string, files: UploadedFile[], quote: ?{text: string, sender: string}}} It, or null.
+   */
+  get queuedPrompt() {
+    return this.#state.queuedPrompt;
   }
 
   /**
@@ -205,6 +214,37 @@ export class ChatSession extends EventEmitter {
    */
   sendPrompt(prompt, files = [], quote = null) {
     return this.#sender.sendAfter(prompt, this.#state.lastPersistedMessageIdBefore(this.#state.messages.length), files, quote);
+  }
+
+  /**
+   * Queues a prompt to send automatically the moment the reply in progress finishes, replacing
+   * whatever was queued before. Ignored while not sending (send it directly instead) or for a
+   * blank prompt.
+   * @param {string} prompt Prompt text.
+   * @param {UploadedFile[]} [files] Files uploaded beforehand to attach.
+   * @param {?{text: string, sender: string}} [quote] Text quoted from an earlier message, if any.
+   * @returns {void}
+   */
+  queuePrompt(prompt, files = [], quote = null) {
+    if (!this.#state.isSending || !prompt.trim()) return;
+    this.#state.setQueuedPrompt({ prompt, files, quote });
+  }
+
+  /**
+   * Drops the queued prompt without sending it.
+   * @returns {void}
+   */
+  clearQueuedPrompt() {
+    this.#state.setQueuedPrompt(null);
+  }
+
+  /**
+   * Stops the reply in progress so the queued prompt sends right away instead of waiting for the
+   * reply to finish naturally. Ignored when nothing is queued.
+   * @returns {void}
+   */
+  sendQueuedPromptNow() {
+    if (this.#state.queuedPrompt) this.stopReply();
   }
 
   /**

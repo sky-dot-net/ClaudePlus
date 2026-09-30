@@ -17,6 +17,7 @@ const { importChatExport } = require('./scenarios/importChatExport.cjs');
 const { jumpIntoHiddenChat } = require('./scenarios/jumpIntoHiddenChat.cjs');
 const { layoutLibrary } = require('./scenarios/layoutLibrary.cjs');
 const { markdownRendering } = require('./scenarios/markdownRendering.cjs');
+const { queuedPrompt } = require('./scenarios/queuedPrompt.cjs');
 const { quoteReply } = require('./scenarios/quoteReply.cjs');
 const { sendingIndicator } = require('./scenarios/sendingIndicator.cjs');
 const { searchPanel } = require('./scenarios/searchPanel.cjs');
@@ -30,7 +31,7 @@ const { virtualScrolling } = require('./scenarios/virtualScrolling.cjs');
  * @type {Array<function(SmokeRun): Promise<void>>}
  */
 const SCENARIOS = [
-  storedRecordValidation, markdownRendering, conversationTable, sourceAndFilePanels, searchPanel, composerSending, sendingIndicator, quoteReply, fileAttachments,
+  storedRecordValidation, markdownRendering, conversationTable, sourceAndFilePanels, searchPanel, composerSending, sendingIndicator, queuedPrompt, quoteReply, fileAttachments,
   conversationSubPanes, jumpIntoHiddenChat, addPanelMenu, activeChatBorder, imageViewer, layoutLibrary, settingsTransfer, deleteAndShortcut, hotkeys, importChatExport, virtualScrolling, failedMount,
 ];
 

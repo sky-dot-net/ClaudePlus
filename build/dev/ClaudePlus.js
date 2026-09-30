@@ -7214,7 +7214,9 @@
     }
 
     /**
-     * Ends sending and, if the server accepted the prompt, reloads the conversation from the server.
+     * Ends sending and, if the server accepted the prompt, reloads the conversation from the server;
+     * then, if a prompt was queued while this one was sending, sends it too - whether this turn ended
+     * naturally or was stopped early to send the queued prompt right away.
      * @param {Turn} turn The turn.
      * @returns {void}
      */
@@ -7224,6 +7226,18 @@
       this.#state.setSending(false);
       this.#state.setMessages(this.#state.messages);
       if (turn.promptMessage.isPersisted) this.#reloadAfterSend(turn.conversationId, !turn.hasFailed);
+      this.#sendQueuedPromptIfAny();
+    }
+
+    /**
+     * Sends the prompt queued while the last turn was sending, if any, clearing the queue first.
+     * @returns {Promise<void>} Resolves once it has ended, or immediately when nothing was queued.
+     */
+    async #sendQueuedPromptIfAny() {
+      const queued = this.#state.queuedPrompt;
+      if (!queued) return;
+      this.#state.setQueuedPrompt(null);
+      await this.sendAfter(queued.prompt, this.#state.lastPersistedMessageIdBefore(this.#state.messages.length), queued.files, queued.quote);
     }
   }
 
@@ -7286,6 +7300,12 @@
     #isSending = false;
 
     /**
+     * Prompt queued to send automatically once the reply in progress finishes, or null.
+     * @type {?{prompt: string, files: UploadedFile[], quote: ?{text: string, sender: string}}}
+     */
+    #queuedPrompt = null;
+
+    /**
      * Creates the state of an empty new chat.
      * @param {function(string, *=): void} publish Publishes a session event with an optional payload.
      */
@@ -7334,6 +7354,14 @@
     }
 
     /**
+     * Prompt queued to send once the reply in progress finishes.
+     * @returns {?{prompt: string, files: UploadedFile[], quote: ?{text: string, sender: string}}} It, or null.
+     */
+    get queuedPrompt() {
+      return this.#queuedPrompt;
+    }
+
+    /**
      * Id of the conversation a file uploaded right now would belong to: the open conversation, or a
      * stable id generated on first use so an upload and the prompt that follows it share one
      * conversation, even before that conversation exists on the server.
@@ -7353,6 +7381,7 @@
       this.#conversation = null;
       this.#isImported = false;
       this.setMessages([]);
+      this.setQueuedPrompt(null);
     }
 
     /**
@@ -7410,6 +7439,16 @@
     }
 
     /**
+     * Replaces the queued prompt.
+     * @param {?{prompt: string, files: UploadedFile[], quote: ?{text: string, sender: string}}} queuedPrompt The new queued prompt, or null to clear it.
+     * @returns {void}
+     */
+    setQueuedPrompt(queuedPrompt) {
+      this.#queuedPrompt = queuedPrompt;
+      this.#publish('queuedPrompt');
+    }
+
+    /**
      * Whether a conversation is open here and not sending.
      * @param {string} conversationId Conversation id.
      * @returns {boolean} True when its messages can be replaced safely.
@@ -7436,6 +7475,7 @@
    * @fires ChatSession#messages The message list changed.
    * @fires ChatSession#messageContent One message's content changed; payload is the ChatMessage.
    * @fires ChatSession#sending Sending started or ended.
+   * @fires ChatSession#queuedPrompt The prompt queued for after the current reply changed.
    * @fires ChatSession#conversationLoaded A conversation was fetched; payload is {conversation: ApiConversation, isImported: boolean}.
    * @fires ChatSession#rateLimits Usage windows arrived in a stream; payload is RateLimits.
    * @fires ChatSession#quoteRequested Text was selected and "Reply" clicked; payload is {text: string, sender: string}.
@@ -7524,6 +7564,14 @@
      */
     get isSending() {
       return this.#state.isSending;
+    }
+
+    /**
+     * Prompt queued to send once the reply in progress finishes.
+     * @returns {?{prompt: string, files: UploadedFile[], quote: ?{text: string, sender: string}}} It, or null.
+     */
+    get queuedPrompt() {
+      return this.#state.queuedPrompt;
     }
 
     /**
@@ -7629,6 +7677,37 @@
      */
     sendPrompt(prompt, files = [], quote = null) {
       return this.#sender.sendAfter(prompt, this.#state.lastPersistedMessageIdBefore(this.#state.messages.length), files, quote);
+    }
+
+    /**
+     * Queues a prompt to send automatically the moment the reply in progress finishes, replacing
+     * whatever was queued before. Ignored while not sending (send it directly instead) or for a
+     * blank prompt.
+     * @param {string} prompt Prompt text.
+     * @param {UploadedFile[]} [files] Files uploaded beforehand to attach.
+     * @param {?{text: string, sender: string}} [quote] Text quoted from an earlier message, if any.
+     * @returns {void}
+     */
+    queuePrompt(prompt, files = [], quote = null) {
+      if (!this.#state.isSending || !prompt.trim()) return;
+      this.#state.setQueuedPrompt({ prompt, files, quote });
+    }
+
+    /**
+     * Drops the queued prompt without sending it.
+     * @returns {void}
+     */
+    clearQueuedPrompt() {
+      this.#state.setQueuedPrompt(null);
+    }
+
+    /**
+     * Stops the reply in progress so the queued prompt sends right away instead of waiting for the
+     * reply to finish naturally. Ignored when nothing is queued.
+     * @returns {void}
+     */
+    sendQueuedPromptNow() {
+      if (this.#state.queuedPrompt) this.stopReply();
     }
 
     /**
@@ -9602,7 +9681,7 @@
     }
   }
 
-  var stylesheet$b = ".claude-plus-composer__options {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 8px;\r\n  align-items: center;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-composer__options select {\r\n  padding: 4px 6px;\r\n}\r\n\r\n.claude-plus-composer__thinking-toggle {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-panel .claude-plus-composer__input {\r\n  flex: 1;\r\n  resize: none;\r\n  min-height: 40px;\r\n  border-radius: 8px;\r\n  padding: 8px;\r\n  font-size: 14px;\r\n}\r\n\r\n.claude-plus-primary-button.claude-plus-composer__stop-button {\r\n  flex-shrink: 0;\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-composer__readonly-notice {\r\n  padding: 8px;\r\n  font-size: 13px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-style: italic;\r\n}\r\n";
+  var stylesheet$b = ".claude-plus-composer__options {\r\n  display: flex;\r\n  flex-wrap: wrap;\r\n  gap: 8px;\r\n  align-items: center;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-composer__options select {\r\n  padding: 4px 6px;\r\n}\r\n\r\n.claude-plus-composer__thinking-toggle {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  font-size: 12px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-panel .claude-plus-composer__input {\r\n  flex: 1;\r\n  resize: none;\r\n  min-height: 40px;\r\n  border-radius: 8px;\r\n  padding: 8px;\r\n  font-size: 14px;\r\n}\r\n\r\n.claude-plus-primary-button.claude-plus-composer__stop-button {\r\n  flex-shrink: 0;\r\n  background: var(--claude-plus-color-button-hover);\r\n}\r\n\r\n.claude-plus-composer__readonly-notice {\r\n  padding: 8px;\r\n  font-size: 13px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  font-style: italic;\r\n}\r\n\r\n.claude-plus-composer__queued {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 6px;\r\n  background: var(--claude-plus-color-accent-soft);\r\n  border-radius: 6px;\r\n  padding: 4px 8px;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-composer__queued-label {\r\n  color: var(--claude-plus-color-accent);\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-composer__queued-text {\r\n  flex: 1;\r\n  min-width: 0;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-composer__queued-remove {\r\n  background: none;\r\n  border: none;\r\n  color: var(--claude-plus-color-text-muted);\r\n  cursor: pointer;\r\n  font-size: 13px;\r\n  line-height: 1;\r\n  padding: 0 2px;\r\n}\r\n\r\n.claude-plus-composer__queued-remove:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$b);
 
@@ -9722,6 +9801,12 @@
       <div data-name="pendingQuote" hidden></div>
       <div class="claude-plus-composer__readonly-notice" data-name="readonlyNotice" hidden>This is an imported chat — read-only, there's no model to reply to.</div>
       <textarea class="claude-plus-composer__input" data-name="promptInput" placeholder="Message Claude… (Enter sends, Shift+Enter adds a line — paste or drop files to attach them)" rows="3"></textarea>
+      <div class="claude-plus-composer__queued" data-name="queuedPromptRow" hidden>
+        <span class="claude-plus-composer__queued-label">⏳ Queued:</span>
+        <span class="claude-plus-composer__queued-text" data-name="queuedPromptText"></span>
+        <button class="claude-plus-toolbar__button" data-name="sendQueuedNowButton" title="Stop the current reply and send this now">Send now</button>
+        <button class="claude-plus-composer__queued-remove" data-name="cancelQueuedButton" title="Remove the queued message">✕</button>
+      </div>
       <button class="claude-plus-primary-button claude-plus-composer__stop-button" data-name="stopButton" hidden>Stop</button>`;
     }
 
@@ -9744,6 +9829,8 @@
       filesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('files'));
       sourcesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('sources'));
       statsButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('stats'));
+      this.elements.sendQueuedNowButton.addEventListener('click', () => this.#paneManager.focusedSession.sendQueuedPromptNow());
+      this.elements.cancelQueuedButton.addEventListener('click', () => this.#paneManager.focusedSession.clearQueuedPrompt());
       this.listenTo(this.#settings, 'settings', () => this.#optionsView.showSettings());
       this.listenTo(this.#modelCatalog, 'catalog', () => this.#optionsView.refreshChoices(this.#modelCatalog));
       this.listenTo(this.#paneManager, 'focus', () => this.#followActiveChat());
@@ -9770,6 +9857,20 @@
       this.#exportButton.setEnabled(Boolean(session.openConversationId));
       filesButton.hidden = !this.#activeChatHas('folders');
       sourcesButton.hidden = !this.#activeChatHas('sources');
+      this.#renderQueuedPrompt(session.queuedPrompt);
+    }
+
+    /**
+     * Shows the prompt queued for after the current reply, if there is one.
+     * @param {?{prompt: string, files: UploadedFile[], quote: ?{text: string, sender: string}}} queuedPrompt The queued prompt.
+     * @returns {void}
+     */
+    #renderQueuedPrompt(queuedPrompt) {
+      const { queuedPromptRow, queuedPromptText } = this.elements;
+      queuedPromptRow.hidden = !queuedPrompt;
+      if (!queuedPrompt) return;
+      queuedPromptText.textContent = queuedPrompt.prompt;
+      queuedPromptText.title = queuedPrompt.prompt;
     }
 
     /**
@@ -9802,6 +9903,7 @@
       const session = this.#paneManager.focusedSession;
       this.#sessionUnsubscribers = [
         session.subscribe('sending', () => this.render()),
+        session.subscribe('queuedPrompt', () => this.render()),
         session.subscribe('quoteRequested', ({ text, sender }) => this.#pendingQuote.set(text, sender)),
       ];
       this.#stagedFiles.clear();
@@ -9840,17 +9942,21 @@
 
     /**
      * Sends the typed prompt, the staged files and any pending quote to the active chat, then clears
-     * all three; ignored for blank input, while the active chat is sending, or while a file is still
-     * uploading.
+     * all three; ignored for blank input or while a file is still uploading. While the active chat is
+     * already sending, this queues the prompt instead, replacing whatever was queued before - it
+     * sends automatically the moment the current reply finishes, or right away if "Send now" is used.
      * @returns {void}
      */
     #sendTypedPrompt() {
       const { promptInput } = this.elements;
       const session = this.#paneManager.focusedSession;
-      if (!promptInput.value.trim() || session.isSending || this.#stagedFiles.isUploading) return;
+      if (!promptInput.value.trim() || this.#stagedFiles.isUploading) return;
       const prompt = promptInput.value;
+      const files = this.#stagedFiles.takeUploads();
+      const quote = this.#pendingQuote.take();
       promptInput.value = '';
-      session.sendPrompt(prompt, this.#stagedFiles.takeUploads(), this.#pendingQuote.take());
+      if (session.isSending) session.queuePrompt(prompt, files, quote);
+      else session.sendPrompt(prompt, files, quote);
     }
 
     /**

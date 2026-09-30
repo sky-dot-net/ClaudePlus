@@ -158,7 +158,9 @@ export class ChatReplySender {
   }
 
   /**
-   * Ends sending and, if the server accepted the prompt, reloads the conversation from the server.
+   * Ends sending and, if the server accepted the prompt, reloads the conversation from the server;
+   * then, if a prompt was queued while this one was sending, sends it too - whether this turn ended
+   * naturally or was stopped early to send the queued prompt right away.
    * @param {Turn} turn The turn.
    * @returns {void}
    */
@@ -168,5 +170,17 @@ export class ChatReplySender {
     this.#state.setSending(false);
     this.#state.setMessages(this.#state.messages);
     if (turn.promptMessage.isPersisted) this.#reloadAfterSend(turn.conversationId, !turn.hasFailed);
+    this.#sendQueuedPromptIfAny();
+  }
+
+  /**
+   * Sends the prompt queued while the last turn was sending, if any, clearing the queue first.
+   * @returns {Promise<void>} Resolves once it has ended, or immediately when nothing was queued.
+   */
+  async #sendQueuedPromptIfAny() {
+    const queued = this.#state.queuedPrompt;
+    if (!queued) return;
+    this.#state.setQueuedPrompt(null);
+    await this.sendAfter(queued.prompt, this.#state.lastPersistedMessageIdBefore(this.#state.messages.length), queued.files, queued.quote);
   }
 }

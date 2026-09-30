@@ -50,6 +50,12 @@ export class ChatSessionState {
   #isSending = false;
 
   /**
+   * Prompt queued to send automatically once the reply in progress finishes, or null.
+   * @type {?{prompt: string, files: UploadedFile[], quote: ?{text: string, sender: string}}}
+   */
+  #queuedPrompt = null;
+
+  /**
    * Creates the state of an empty new chat.
    * @param {function(string, *=): void} publish Publishes a session event with an optional payload.
    */
@@ -98,6 +104,14 @@ export class ChatSessionState {
   }
 
   /**
+   * Prompt queued to send once the reply in progress finishes.
+   * @returns {?{prompt: string, files: UploadedFile[], quote: ?{text: string, sender: string}}} It, or null.
+   */
+  get queuedPrompt() {
+    return this.#queuedPrompt;
+  }
+
+  /**
    * Id of the conversation a file uploaded right now would belong to: the open conversation, or a
    * stable id generated on first use so an upload and the prompt that follows it share one
    * conversation, even before that conversation exists on the server.
@@ -117,6 +131,7 @@ export class ChatSessionState {
     this.#conversation = null;
     this.#isImported = false;
     this.setMessages([]);
+    this.setQueuedPrompt(null);
   }
 
   /**
@@ -171,6 +186,16 @@ export class ChatSessionState {
   setSending(isSending) {
     this.#isSending = isSending;
     this.#publish('sending');
+  }
+
+  /**
+   * Replaces the queued prompt.
+   * @param {?{prompt: string, files: UploadedFile[], quote: ?{text: string, sender: string}}} queuedPrompt The new queued prompt, or null to clear it.
+   * @returns {void}
+   */
+  setQueuedPrompt(queuedPrompt) {
+    this.#queuedPrompt = queuedPrompt;
+    this.#publish('queuedPrompt');
   }
 
   /**

@@ -39,3 +39,40 @@
   color: var(--claude-plus-color-text-muted);
   font-style: italic;
 }
+
+.claude-plus-composer__queued {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--claude-plus-color-accent-soft);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.claude-plus-composer__queued-label {
+  color: var(--claude-plus-color-accent);
+  flex-shrink: 0;
+}
+
+.claude-plus-composer__queued-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claude-plus-composer__queued-remove {
+  background: none;
+  border: none;
+  color: var(--claude-plus-color-text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.claude-plus-composer__queued-remove:hover {
+  color: var(--claude-plus-color-text);
+}

@@ -126,6 +126,12 @@ export class ComposerPanel extends Panel {
       <div data-name="pendingQuote" hidden></div>
       <div class="claude-plus-composer__readonly-notice" data-name="readonlyNotice" hidden>This is an imported chat — read-only, there's no model to reply to.</div>
       <textarea class="claude-plus-composer__input" data-name="promptInput" placeholder="Message Claude… (Enter sends, Shift+Enter adds a line — paste or drop files to attach them)" rows="3"></textarea>
+      <div class="claude-plus-composer__queued" data-name="queuedPromptRow" hidden>
+        <span class="claude-plus-composer__queued-label">⏳ Queued:</span>
+        <span class="claude-plus-composer__queued-text" data-name="queuedPromptText"></span>
+        <button class="claude-plus-toolbar__button" data-name="sendQueuedNowButton" title="Stop the current reply and send this now">Send now</button>
+        <button class="claude-plus-composer__queued-remove" data-name="cancelQueuedButton" title="Remove the queued message">✕</button>
+      </div>
       <button class="claude-plus-primary-button claude-plus-composer__stop-button" data-name="stopButton" hidden>Stop</button>`;
   }
 
@@ -148,6 +154,8 @@ export class ComposerPanel extends Panel {
     filesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('files'));
     sourcesButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('sources'));
     statsButton.addEventListener('click', () => this.#paneManager.focusedPanel.openSubPane('stats'));
+    this.elements.sendQueuedNowButton.addEventListener('click', () => this.#paneManager.focusedSession.sendQueuedPromptNow());
+    this.elements.cancelQueuedButton.addEventListener('click', () => this.#paneManager.focusedSession.clearQueuedPrompt());
     this.listenTo(this.#settings, 'settings', () => this.#optionsView.showSettings());
     this.listenTo(this.#modelCatalog, 'catalog', () => this.#optionsView.refreshChoices(this.#modelCatalog));
     this.listenTo(this.#paneManager, 'focus', () => this.#followActiveChat());
@@ -174,6 +182,20 @@ export class ComposerPanel extends Panel {
     this.#exportButton.setEnabled(Boolean(session.openConversationId));
     filesButton.hidden = !this.#activeChatHas('folders');
     sourcesButton.hidden = !this.#activeChatHas('sources');
+    this.#renderQueuedPrompt(session.queuedPrompt);
+  }
+
+  /**
+   * Shows the prompt queued for after the current reply, if there is one.
+   * @param {?{prompt: string, files: UploadedFile[], quote: ?{text: string, sender: string}}} queuedPrompt The queued prompt.
+   * @returns {void}
+   */
+  #renderQueuedPrompt(queuedPrompt) {
+    const { queuedPromptRow, queuedPromptText } = this.elements;
+    queuedPromptRow.hidden = !queuedPrompt;
+    if (!queuedPrompt) return;
+    queuedPromptText.textContent = queuedPrompt.prompt;
+    queuedPromptText.title = queuedPrompt.prompt;
   }
 
   /**
@@ -206,6 +228,7 @@ export class ComposerPanel extends Panel {
     const session = this.#paneManager.focusedSession;
     this.#sessionUnsubscribers = [
       session.subscribe('sending', () => this.render()),
+      session.subscribe('queuedPrompt', () => this.render()),
       session.subscribe('quoteRequested', ({ text, sender }) => this.#pendingQuote.set(text, sender)),
     ];
     this.#stagedFiles.clear();
@@ -244,17 +267,21 @@ export class ComposerPanel extends Panel {
 
   /**
    * Sends the typed prompt, the staged files and any pending quote to the active chat, then clears
-   * all three; ignored for blank input, while the active chat is sending, or while a file is still
-   * uploading.
+   * all three; ignored for blank input or while a file is still uploading. While the active chat is
+   * already sending, this queues the prompt instead, replacing whatever was queued before - it
+   * sends automatically the moment the current reply finishes, or right away if "Send now" is used.
    * @returns {void}
    */
   #sendTypedPrompt() {
     const { promptInput } = this.elements;
     const session = this.#paneManager.focusedSession;
-    if (!promptInput.value.trim() || session.isSending || this.#stagedFiles.isUploading) return;
+    if (!promptInput.value.trim() || this.#stagedFiles.isUploading) return;
     const prompt = promptInput.value;
+    const files = this.#stagedFiles.takeUploads();
+    const quote = this.#pendingQuote.take();
     promptInput.value = '';
-    session.sendPrompt(prompt, this.#stagedFiles.takeUploads(), this.#pendingQuote.take());
+    if (session.isSending) session.queuePrompt(prompt, files, quote);
+    else session.sendPrompt(prompt, files, quote);
   }
 
   /**

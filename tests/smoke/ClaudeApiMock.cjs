@@ -101,12 +101,20 @@ class ClaudeApiMock {
   }
 
   /**
-   * Records a completion request and streams a two-part reply with usage windows.
+   * Milliseconds a completion waits before it starts streaming, so a scenario has a real window to
+   * act while a reply is in progress instead of racing an instant response.
+   * @type {number}
+   */
+  static #COMPLETION_DELAY_MS = 500;
+
+  /**
+   * Records a completion request and, after a short delay, streams a two-part reply with usage windows.
    * @param {import('playwright').Route} route The request.
    * @returns {Promise<void>} Resolves once fulfilled.
    */
-  #streamCompletion(route) {
+  async #streamCompletion(route) {
     this.completions.push(JSON.parse(zlib.gunzipSync(route.request().postDataBuffer()).toString()));
+    await new Promise(resolve => setTimeout(resolve, ClaudeApiMock.#COMPLETION_DELAY_MS));
     const events = [
       { type: 'message_start' },
       { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Streamed ' } },
