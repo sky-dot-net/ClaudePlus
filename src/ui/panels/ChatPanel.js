@@ -147,7 +147,8 @@ export class ChatPanel extends Panel {
           <div class="claude-plus-find-bar" data-name="findBar" hidden></div>
         </div>
         <div class="claude-plus-chat-layout__side" data-name="rightSide"></div>
-      </div>`;
+      </div>
+      <div class="claude-plus-chat-sending-bar" data-name="sendingBar" title="Claude is replying" hidden></div>`;
   }
 
   /**
@@ -161,15 +162,17 @@ export class ChatPanel extends Panel {
     this.element.addEventListener('focusin', () => this.#paneManager.focusPane(this.#paneId));
     this.listenTo(this.#paneManager, 'focus', () => this.#renderFocus());
     this.listenTo(this.#paneManager, 'visiblePanes', () => this.#renderFocus());
+    this.listenTo(this.#session, 'sending', () => this.#renderSendingBar());
   }
 
   /**
-   * Renders the focus markers and the messages.
+   * Renders the focus markers, the messages and the sending bar.
    * @returns {void}
    */
   render() {
     this.#renderFocus();
     this.#messageListView.render();
+    this.#renderSendingBar();
   }
 
   /**
@@ -325,5 +328,14 @@ export class ChatPanel extends Panel {
     this.element.classList.toggle('claude-plus-panel--focused', isActive);
     this.element.classList.toggle('claude-plus-panel--active-among-several', borderKind === 'active');
     this.element.classList.toggle('claude-plus-panel--inactive-among-several', borderKind === 'inactive');
+  }
+
+  /**
+   * Shows the animated bar at the bottom of the pane while Claude is replying, so a reply that
+   * takes a while doesn't look like the chat just stopped responding.
+   * @returns {void}
+   */
+  #renderSendingBar() {
+    this.elements.sendingBar.hidden = !this.#session.isSending;
   }
 }

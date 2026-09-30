@@ -5349,7 +5349,7 @@
     }
   }
 
-  var stylesheet$i = ".claude-plus-panel--active-among-several {\r\n  border: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-panel--inactive-among-several {\r\n  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n";
+  var stylesheet$i = ".claude-plus-panel--active-among-several {\r\n  border: 1px solid var(--claude-plus-color-active-chat);\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-panel--inactive-among-several {\r\n  border: 1px solid var(--claude-plus-color-inactive-border, rgba(255, 255, 255, 0.16));\r\n  border-top: none;\r\n}\r\n\r\n.claude-plus-chat-layout {\r\n  display: flex;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__center {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex: 1;\r\n  min-width: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  width: 300px;\r\n  flex-shrink: 0;\r\n  min-height: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__top {\r\n  display: flex;\r\n  flex-direction: column;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-chat-layout__side:empty,\r\n.claude-plus-chat-layout__top:empty {\r\n  display: none;\r\n}\r\n\r\n.claude-plus-chat-layout__top .claude-plus-subpane {\r\n  height: 200px;\r\n  flex: none;\r\n}\r\n\n.claude-plus-chat-sending-bar {\n  flex: none;\n  height: 3px;\n  border-radius: 2px;\n  overflow: hidden;\n  background: linear-gradient(90deg, transparent 0%, var(--claude-plus-color-accent) 50%, transparent 100%);\n  background-size: 50% 100%;\n  background-repeat: no-repeat;\n  animation: claude-plus-sending-bar-marquee 1.1s ease-in-out infinite;\n}\n\n.claude-plus-chat-sending-bar[hidden] {\n  display: none;\n}\n\n@keyframes claude-plus-sending-bar-marquee {\n  0% {\n    background-position: -50% 0;\n  }\n\n  100% {\n    background-position: 150% 0;\n  }\n}\n";
 
   StyleRegistry.register(stylesheet$i);
 
@@ -5489,7 +5489,8 @@
           <div class="claude-plus-find-bar" data-name="findBar" hidden></div>
         </div>
         <div class="claude-plus-chat-layout__side" data-name="rightSide"></div>
-      </div>`;
+      </div>
+      <div class="claude-plus-chat-sending-bar" data-name="sendingBar" title="Claude is replying" hidden></div>`;
     }
 
     /**
@@ -5503,15 +5504,17 @@
       this.element.addEventListener('focusin', () => this.#paneManager.focusPane(this.#paneId));
       this.listenTo(this.#paneManager, 'focus', () => this.#renderFocus());
       this.listenTo(this.#paneManager, 'visiblePanes', () => this.#renderFocus());
+      this.listenTo(this.#session, 'sending', () => this.#renderSendingBar());
     }
 
     /**
-     * Renders the focus markers and the messages.
+     * Renders the focus markers, the messages and the sending bar.
      * @returns {void}
      */
     render() {
       this.#renderFocus();
       this.#messageListView.render();
+      this.#renderSendingBar();
     }
 
     /**
@@ -5667,6 +5670,15 @@
       this.element.classList.toggle('claude-plus-panel--focused', isActive);
       this.element.classList.toggle('claude-plus-panel--active-among-several', borderKind === 'active');
       this.element.classList.toggle('claude-plus-panel--inactive-among-several', borderKind === 'inactive');
+    }
+
+    /**
+     * Shows the animated bar at the bottom of the pane while Claude is replying, so a reply that
+     * takes a while doesn't look like the chat just stopped responding.
+     * @returns {void}
+     */
+    #renderSendingBar() {
+      this.elements.sendingBar.hidden = !this.#session.isSending;
     }
   }
 
