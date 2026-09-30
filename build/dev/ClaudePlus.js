@@ -5874,14 +5874,16 @@
    */
   const ATTACHMENT_NAME_FIELDS = Object.freeze(['file_name', 'name', 'filename', 'title']);
 
-  var stylesheet$h = ".claude-plus-code-block {\r\n  background: var(--claude-plus-color-code-block);\r\n  padding: 8px;\r\n  border-radius: 6px;\r\n  overflow-x: auto;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-md-table-scroll {\r\n  overflow-x: auto;\r\n  max-width: 100%;\r\n  margin: 6px 0;\r\n}\r\n\r\n.claude-plus-md-table {\r\n  border-collapse: collapse;\r\n  text-align: left;\r\n  font-size: 0.95em;\r\n}\r\n\r\n.claude-plus-md-table th,\r\n.claude-plus-md-table td {\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  padding: 6px 10px;\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-md-table th {\r\n  background: var(--claude-plus-color-bar);\r\n  font-weight: 600;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-md-table tbody tr:nth-child(even) {\r\n  background: var(--claude-plus-color-border-faint);\r\n}\r\n";
+  var stylesheet$h = ".claude-plus-code-block {\r\n  background: var(--claude-plus-color-code-block);\r\n  padding: 8px;\r\n  border-radius: 6px;\r\n  overflow-x: auto;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-md-table-scroll {\r\n  overflow-x: auto;\r\n  max-width: 100%;\r\n  margin: 6px 0;\r\n}\r\n\r\n.claude-plus-md-table {\r\n  border-collapse: collapse;\r\n  text-align: left;\r\n  font-size: 0.95em;\r\n}\r\n\r\n.claude-plus-md-table th,\r\n.claude-plus-md-table td {\r\n  border: 1px solid var(--claude-plus-color-border-strong);\r\n  padding: 6px 10px;\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-md-table th {\r\n  background: var(--claude-plus-color-bar);\r\n  font-weight: 600;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-md-table tbody tr:nth-child(even) {\r\n  background: var(--claude-plus-color-border-faint);\r\n}\r\n\r\n.claude-plus-message-text h1,\r\n.claude-plus-message-text h2,\r\n.claude-plus-message-text h3,\r\n.claude-plus-message-text h4,\r\n.claude-plus-message-text h5,\r\n.claude-plus-message-text h6 {\r\n  margin: 0.7em 0 0.3em;\r\n  line-height: 1.3;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-message-text h1 {\r\n  font-size: 1.5em;\r\n}\r\n\r\n.claude-plus-message-text h2 {\r\n  font-size: 1.3em;\r\n}\r\n\r\n.claude-plus-message-text h3 {\r\n  font-size: 1.15em;\r\n}\r\n\r\n.claude-plus-message-text h4,\r\n.claude-plus-message-text h5,\r\n.claude-plus-message-text h6 {\r\n  font-size: 1em;\r\n}\r\n\r\n.claude-plus-message-text hr {\r\n  border: none;\r\n  border-top: 1px solid var(--claude-plus-color-border-strong);\r\n  margin: 10px 0;\r\n}\r\n\r\n.claude-plus-message-text blockquote {\r\n  margin: 6px 0;\r\n  padding: 2px 10px;\r\n  border-left: 3px solid var(--claude-plus-color-border-strong);\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\n.claude-plus-message-text ul,\r\n.claude-plus-message-text ol {\r\n  margin: 4px 0;\r\n  padding-left: 1.5em;\r\n}\r\n\r\n.claude-plus-message-text li {\r\n  margin: 2px 0;\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$h);
 
   /**
-   * Minimal markdown renderer: fenced code blocks, GFM tables, and inline code, bold, italic and
-   * http(s) links elsewhere. All other text is HTML-escaped; every original newline outside a table
-   * becomes a line break, matching how Claude's own replies are spaced.
+   * Minimal markdown renderer: fenced code blocks; GFM tables, ATX headings, horizontal rules,
+   * blockquotes and ordered/unordered lists as real block elements; and inline code, bold, italic
+   * and http(s) links elsewhere. All other text is HTML-escaped; every original newline outside a
+   * block element becomes a line break, matching how Claude's own replies are spaced. Lists are not
+   * nested - an indented sub-item renders as its own top-level item.
    */
   class Markdown {
     /**
@@ -5895,6 +5897,49 @@
      * @type {RegExp}
      */
     static #TABLE_SEPARATOR_CELL = /^:?-{1,}:?$/;
+
+    /**
+     * An ATX heading line: 1-6 leading #'s, a space, then the heading text; trailing #'s are ignored.
+     * @type {RegExp}
+     */
+    static #HEADING_LINE = /^ {0,3}(#{1,6})\s+(.+?)\s*#*\s*$/;
+
+    /**
+     * A line that is only a repeated -, * or _ (a thematic break).
+     * @type {RegExp}
+     */
+    static #HR_LINE = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/;
+
+    /**
+     * A blockquote line: up to 3 leading spaces, ">", and an optional single space before the text.
+     * @type {RegExp}
+     */
+    static #QUOTE_LINE = /^ {0,3}>\s?(.*)$/;
+
+    /**
+     * An unordered list item: optional leading spaces, a -, * or + marker, a space, then the text.
+     * @type {RegExp}
+     */
+    static #UNORDERED_ITEM = /^\s*[-*+]\s+(.+)$/;
+
+    /**
+     * An ordered list item: optional leading spaces, digits, a "." or ")", a space, then the text.
+     * @type {RegExp}
+     */
+    static #ORDERED_ITEM = /^\s*\d+[.)]\s+(.+)$/;
+
+    /**
+     * Block readers tried, in order, at each line: a table, a heading, a horizontal rule, a
+     * blockquote, then a list; a line matching none of them is plain text.
+     * @type {ReadonlyArray<{test: function(string[], number): boolean, read: function(string[], number): {blockHtml: string, nextIndex: number}}>}
+     */
+    static #BLOCK_READERS = [
+      { test: Markdown.#isTableStart, read: Markdown.#readTable },
+      { test: Markdown.#isHeadingLine, read: Markdown.#readHeading },
+      { test: Markdown.#isHrLine, read: Markdown.#readHr },
+      { test: Markdown.#isQuoteLine, read: Markdown.#readQuote },
+      { test: Markdown.#isListLine, read: Markdown.#readList },
+    ];
 
     /**
      * Renders markdown text as HTML.
@@ -5933,8 +5978,8 @@
     }
 
     /**
-     * Renders a plain-text segment: a GFM table wherever one starts, and every other line rendered
-     * the old way - inline markup with each newline kept as a line break.
+     * Renders a plain-text segment: each block element (table, heading, rule, quote, list) as real
+     * HTML, and every other line the old way - inline markup with each newline kept as a line break.
      * @param {string} text Plain text segment (no code fences).
      * @returns {string} The HTML.
      */
@@ -5943,29 +5988,53 @@
       const parts = [];
       let plainLines = [];
       for (let index = 0; index < lines.length; ) {
-        if (!Markdown.#isTableStart(lines, index)) {
+        const reader = Markdown.#blockReaderAt(lines, index);
+        if (!reader) {
           plainLines.push(lines[index]);
           index += 1;
           continue;
         }
         parts.push(Markdown.#flushPlainRun(plainLines));
         plainLines = [];
-        const table = Markdown.#readTable(lines, index);
-        parts.push(table.tableHtml);
-        index = table.nextIndex;
+        const block = reader.read(lines, index);
+        parts.push(block.blockHtml);
+        index = block.nextIndex;
       }
       parts.push(Markdown.#flushPlainRun(plainLines));
       return parts.join('');
     }
 
     /**
-     * Renders the lines collected outside any table, the way this renderer always has: inline markup
-     * with each original line joined by a line break.
-     * @param {string[]} plainLines Lines outside any table, in order.
+     * The block reader that claims a line, if any.
+     * @param {string[]} lines The segment's lines.
+     * @param {number} index Line to check.
+     * @returns {?{read: function(string[], number): {blockHtml: string, nextIndex: number}}} The reader, or null for plain text.
+     */
+    static #blockReaderAt(lines, index) {
+      return Markdown.#BLOCK_READERS.find(reader => reader.test(lines, index)) ?? null;
+    }
+
+    /**
+     * Renders the lines collected outside any block element, the way this renderer always has:
+     * inline markup with each original line joined by a line break.
+     * @param {string[]} plainLines Lines outside any block element, in order.
      * @returns {string} The HTML; empty when there are no lines.
      */
     static #flushPlainRun(plainLines) {
       return plainLines.length ? Markdown.#inlineMarkupHtml(plainLines.join('\n')).replace(/\n/g, '<br>') : '';
+    }
+
+    /**
+     * Lines starting at an index for as long as they match a test, at least the first one.
+     * @param {string[]} lines The segment's lines.
+     * @param {number} start Index to start at.
+     * @param {function(string[], number): boolean} test Whether the line at an index still qualifies.
+     * @returns {string[]} The matching lines, in order.
+     */
+    static #consecutiveLines(lines, start, test) {
+      const collected = [];
+      for (let index = start; index < lines.length && test(lines, index); index += 1) collected.push(lines[index]);
+      return collected;
     }
 
     /**
@@ -6014,7 +6083,7 @@
      * Reads a GFM table starting at its header row.
      * @param {string[]} lines The segment's lines.
      * @param {number} index Index of the header row.
-     * @returns {{tableHtml: string, nextIndex: number}} The table's HTML and the index of the next unread line.
+     * @returns {{blockHtml: string, nextIndex: number}} The table's HTML and the index of the next unread line.
      */
     static #readTable(lines, index) {
       const headerCells = Markdown.#tableCells(lines[index]);
@@ -6022,8 +6091,8 @@
       const bodyLines = Markdown.#tableBodyLines(lines, index + 2);
       const headHtml = `<thead><tr>${headerCells.map((cell, position) => Markdown.#tableCellHtml('th', cell, aligns[position])).join('')}</tr></thead>`;
       const bodyHtml = `<tbody>${bodyLines.map(line => Markdown.#tableRowHtml(line, aligns)).join('')}</tbody>`;
-      const tableHtml = `<div class="claude-plus-md-table-scroll"><table class="claude-plus-md-table">${headHtml}${bodyHtml}</table></div>`;
-      return { tableHtml, nextIndex: index + 2 + bodyLines.length };
+      const blockHtml = `<div class="claude-plus-md-table-scroll"><table class="claude-plus-md-table">${headHtml}${bodyHtml}</table></div>`;
+      return { blockHtml, nextIndex: index + 2 + bodyLines.length };
     }
 
     /**
@@ -6072,6 +6141,97 @@
     static #tableRowHtml(line, aligns) {
       const cells = Markdown.#tableCells(line);
       return `<tr>${cells.map((cell, position) => Markdown.#tableCellHtml('td', cell, aligns[position])).join('')}</tr>`;
+    }
+
+    /**
+     * Whether a heading starts at a line.
+     * @param {string[]} lines The segment's lines.
+     * @param {number} index Line to check.
+     * @returns {boolean} True when it qualifies.
+     */
+    static #isHeadingLine(lines, index) {
+      return Markdown.#HEADING_LINE.test(lines[index] ?? '');
+    }
+
+    /**
+     * Reads an ATX heading.
+     * @param {string[]} lines The segment's lines.
+     * @param {number} index Index of the heading line.
+     * @returns {{blockHtml: string, nextIndex: number}} The heading's HTML and the next unread line.
+     */
+    static #readHeading(lines, index) {
+      const [, hashes, content] = Markdown.#HEADING_LINE.exec(lines[index]);
+      const level = hashes.length;
+      return { blockHtml: `<h${level}>${Markdown.#inlineMarkupHtml(content)}</h${level}>`, nextIndex: index + 1 };
+    }
+
+    /**
+     * Whether a horizontal rule starts at a line.
+     * @param {string[]} lines The segment's lines.
+     * @param {number} index Line to check.
+     * @returns {boolean} True when it qualifies.
+     */
+    static #isHrLine(lines, index) {
+      return Markdown.#HR_LINE.test(lines[index] ?? '');
+    }
+
+    /**
+     * Reads a horizontal rule.
+     * @param {string[]} lines The segment's lines.
+     * @param {number} index Index of the rule line.
+     * @returns {{blockHtml: string, nextIndex: number}} The rule's HTML and the next unread line.
+     */
+    static #readHr(lines, index) {
+      return { blockHtml: '<hr>', nextIndex: index + 1 };
+    }
+
+    /**
+     * Whether a line continues a blockquote.
+     * @param {string[]} lines The segment's lines.
+     * @param {number} index Line to check.
+     * @returns {boolean} True when it qualifies.
+     */
+    static #isQuoteLine(lines, index) {
+      return Markdown.#QUOTE_LINE.test(lines[index] ?? '');
+    }
+
+    /**
+     * Reads a blockquote: every consecutive quote line, with its marker stripped and rendered
+     * recursively, so a table, list or further quote inside it still works.
+     * @param {string[]} lines The segment's lines.
+     * @param {number} index Index of the first quote line.
+     * @returns {{blockHtml: string, nextIndex: number}} The quote's HTML and the next unread line.
+     */
+    static #readQuote(lines, index) {
+      const quoteLines = Markdown.#consecutiveLines(lines, index, Markdown.#isQuoteLine);
+      const inner = quoteLines.map(line => Markdown.#QUOTE_LINE.exec(line)[1]).join('\n');
+      return { blockHtml: `<blockquote>${Markdown.#textSegmentHtml(inner)}</blockquote>`, nextIndex: index + quoteLines.length };
+    }
+
+    /**
+     * Whether a list item starts at a line, ordered or unordered.
+     * @param {string[]} lines The segment's lines.
+     * @param {number} index Line to check.
+     * @returns {boolean} True when it qualifies.
+     */
+    static #isListLine(lines, index) {
+      const line = lines[index] ?? '';
+      return Markdown.#UNORDERED_ITEM.test(line) || Markdown.#ORDERED_ITEM.test(line);
+    }
+
+    /**
+     * Reads a list: every consecutive item of the same kind (ordered or unordered) as the first line.
+     * @param {string[]} lines The segment's lines.
+     * @param {number} index Index of the first item.
+     * @returns {{blockHtml: string, nextIndex: number}} The list's HTML and the next unread line.
+     */
+    static #readList(lines, index) {
+      const isOrdered = Markdown.#ORDERED_ITEM.test(lines[index]);
+      const itemPattern = isOrdered ? Markdown.#ORDERED_ITEM : Markdown.#UNORDERED_ITEM;
+      const itemLines = Markdown.#consecutiveLines(lines, index, (candidateLines, candidateIndex) => itemPattern.test(candidateLines[candidateIndex] ?? ''));
+      const itemsHtml = itemLines.map(line => `<li>${Markdown.#inlineMarkupHtml(itemPattern.exec(line)[1])}</li>`).join('');
+      const tag = isOrdered ? 'ol' : 'ul';
+      return { blockHtml: `<${tag}>${itemsHtml}</${tag}>`, nextIndex: index + itemLines.length };
     }
 
     /**
