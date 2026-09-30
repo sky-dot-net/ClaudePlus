@@ -2682,7 +2682,7 @@
     return FILTER_CONTROLS[column.filter ?? 'none'](column);
   }
 
-  var stylesheet$p = ".claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table--locked {\r\n  table-layout: fixed;\r\n}\r\n\r\n.claude-plus-column-table__table--locked .claude-plus-column-table__cell {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-column-table__resize-handle {\r\n  position: absolute;\r\n  top: 0;\r\n  right: 0;\r\n  bottom: 0;\r\n  width: 6px;\r\n  cursor: col-resize;\r\n  z-index: 2;\r\n}\r\n\r\n.claude-plus-column-table__resize-handle:hover,\r\n.claude-plus-column-table__resize-handle:active {\r\n  background: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  user-select: none;\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n\n.claude-plus-column-table__table tbody tr[data-selected] > td {\n  background: var(--claude-plus-color-accent-soft);\n}\n";
+  var stylesheet$p = ".claude-plus-column-table__toolbar {\r\n  display: flex;\r\n  align-items: center;\r\n  gap: 8px;\r\n  flex-shrink: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-picker {\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n}\r\n\r\n.claude-plus-column-table__row-count {\r\n  margin-left: auto;\r\n  flex-shrink: 0;\r\n  font-size: 11px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  white-space: nowrap;\r\n}\r\n\r\ndetails.claude-plus-column-table__column-picker summary {\r\n  padding: 0;\r\n}\r\n\r\n.claude-plus-column-table__column-toggle {\r\n  display: inline-flex;\r\n  align-items: center;\r\n  gap: 4px;\r\n  margin: 2px 10px 2px 0;\r\n  cursor: pointer;\r\n}\r\n\r\n.claude-plus-column-table__table {\r\n  width: 100%;\r\n  border-collapse: collapse;\r\n  font-size: 12px;\r\n}\r\n\r\n.claude-plus-column-table__table th {\r\n  text-align: left;\r\n  padding: 4px 6px;\r\n  color: var(--claude-plus-color-text-muted);\r\n  background: var(--claude-plus-color-raised);\r\n  position: sticky;\r\n  z-index: 1;\r\n  white-space: nowrap;\r\n  font-weight: 600;\r\n}\r\n\r\n.claude-plus-column-table__table--locked {\r\n  table-layout: fixed;\r\n}\r\n\r\n.claude-plus-column-table__table--locked .claude-plus-column-table__cell {\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n}\r\n\r\n.claude-plus-column-table__resize-handle {\r\n  position: absolute;\r\n  top: 0;\r\n  right: 0;\r\n  bottom: 0;\r\n  width: 6px;\r\n  cursor: col-resize;\r\n  z-index: 2;\r\n}\r\n\r\n.claude-plus-column-table__resize-handle:hover,\r\n.claude-plus-column-table__resize-handle:active {\r\n  background: var(--claude-plus-color-accent);\r\n}\r\n\r\n.claude-plus-column-table__table thead tr:first-child th {\r\n  top: 0;\r\n}\r\n\r\n.claude-plus-column-table__filter-row th {\r\n  top: 24px;\r\n  padding-top: 0;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-strong);\r\n  font-weight: normal;\r\n}\r\n\r\n.claude-plus-column-table__sortable {\r\n  cursor: pointer;\r\n  user-select: none;\r\n}\r\n\r\n.claude-plus-column-table__sortable:hover {\r\n  color: var(--claude-plus-color-text);\r\n}\r\n\r\n.claude-plus-panel .claude-plus-column-table__filter-input {\r\n  display: block;\r\n  width: 100%;\r\n  min-width: 40px;\r\n  box-sizing: border-box;\r\n  padding: 2px 4px;\r\n  font-size: 11px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input {\r\n  min-width: 0;\r\n  max-width: 112px;\r\n  padding: 1px 2px;\r\n  font-size: 10px;\r\n}\r\n\r\n.claude-plus-panel input[type=date].claude-plus-column-table__filter-input + input[type=date] {\r\n  margin-top: 2px;\r\n}\r\n\r\n.claude-plus-column-table__cell {\r\n  user-select: none;\r\n  padding: 4px 6px;\r\n  border-bottom: 1px solid var(--claude-plus-color-border-faint);\r\n  vertical-align: top;\r\n}\r\n\r\n.claude-plus-column-table__cell--name,\r\n.claude-plus-column-table__cell--title,\r\n.claude-plus-column-table__cell--match {\r\n  width: 100%;\r\n  max-width: 1px;\r\n  overflow: hidden;\r\n  text-overflow: ellipsis;\r\n  white-space: nowrap;\r\n}\r\n\r\n.claude-plus-column-table__cell a {\r\n  color: var(--claude-plus-color-accent);\r\n  text-decoration: none;\r\n}\r\n\r\n.claude-plus-column-table__cell a:hover {\r\n  text-decoration: underline;\r\n}\r\n\r\n.claude-plus-column-table__table tbody tr[data-selected] > td {\r\n  background: var(--claude-plus-color-accent-soft);\r\n}\r\n";
 
   StyleRegistry.register(stylesheet$p);
 
@@ -2878,7 +2878,8 @@
         .map(column => `<label class="claude-plus-column-table__column-toggle"><input type="checkbox" data-column-toggle="${column.id}" /> ${escapeHtml(column.label)}</label>`)
         .join('');
       const picker = toggles ? `<details class="claude-plus-column-table__column-picker"><summary>Columns</summary><div data-name="columnToggles">${toggles}</div></details>` : '';
-      return `${picker}<div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-column-table" data-name="scroller"><table class="claude-plus-column-table__table" data-name="table"><colgroup data-name="columnGroup"></colgroup><thead><tr data-name="headerRow"></tr><tr class="claude-plus-column-table__filter-row" data-name="filterRow"></tr></thead><tbody data-name="tableBody"></tbody></table></div>`;
+      const toolbar = `<div class="claude-plus-column-table__toolbar">${picker}<span class="claude-plus-column-table__row-count" data-name="rowCount"></span></div>`;
+      return `${toolbar}<div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-column-table" data-name="scroller"><table class="claude-plus-column-table__table" data-name="table"><colgroup data-name="columnGroup"></colgroup><thead><tr data-name="headerRow"></tr><tr class="claude-plus-column-table__filter-row" data-name="filterRow"></tr></thead><tbody data-name="tableBody"></tbody></table></div>`;
     }
 
     /**
@@ -3149,6 +3150,26 @@
     #renderBody() {
       this.#visibleRows = this.#sortOrder.sort(this.#filters.apply(this.#rows, this.#visibility));
       this.#relayout();
+      this.#renderRowCount();
+    }
+
+    /**
+     * Shows how many rows pass the current filters, and the total when that's fewer than all of them.
+     * @returns {void}
+     */
+    #renderRowCount() {
+      const total = this.#rows.length;
+      const visible = this.#visibleRows.length;
+      this.#elements.rowCount.textContent = visible === total ? ColumnTable.#countLabel(total) : `${visible.toLocaleString()} of ${ColumnTable.#countLabel(total)}`;
+    }
+
+    /**
+     * A row count with correct pluralization and thousands separators.
+     * @param {number} count Number of rows.
+     * @returns {string} E.g. "1 row" or "12,867 rows".
+     */
+    static #countLabel(count) {
+      return `${count.toLocaleString()} row${count === 1 ? '' : 's'}`;
     }
 
     /**

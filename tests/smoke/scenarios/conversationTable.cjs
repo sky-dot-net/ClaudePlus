@@ -56,6 +56,7 @@ async function checkColumnsAndSorting(run) {
   const chatRows = () => run.chatsPanel.locator('tbody tr.claude-plus-conversation');
   const headers = () => run.chatsPanel.locator('thead tr:first-child th').allTextContents();
   run.check('Chats table lists conversations', await chatRows().count() === 2);
+  run.check('the row count shows the total when unfiltered', await run.chatsPanel.locator('[data-name="rowCount"]').textContent() === '2 rows');
   run.check('Chats table default columns: Name, Origin, Date (+ buttons)', JSON.stringify(await headers()) === JSON.stringify(['Name', 'Origin', 'Date ▼', '']), JSON.stringify(await headers()));
   await run.chatsPanel.locator('summary', { hasText: 'Columns' }).click();
   await run.chatsPanel.locator('[data-column-toggle="turns"]').check();
@@ -84,11 +85,13 @@ async function checkFilters(run) {
   await page.waitForTimeout(50);
   const narrowed = await page.$$eval('.claude-plus-value-combobox__entry', entries => entries.map(entry => entry.textContent));
   run.check('typeahead lists distinct values and narrows with * wildcards, case-insensitive', offered.length === 2 && narrowed.length === 1 && await chatRows().count() === 1, `${offered} -> ${narrowed}`);
+  run.check('the row count shows how many rows a filter narrowed to, out of the total', await run.chatsPanel.locator('[data-name="rowCount"]').textContent() === '1 of 2 rows');
   await nameFilter.fill('');
   const dateFrom = run.chatsPanel.locator('[data-filter-column="date"][data-filter-bound="from"]');
   await dateFrom.fill('2999-01-01');
   await page.waitForTimeout(50);
   run.check('date range filter', await chatRows().count() === 0);
+  run.check('the row count reads "0 of N rows" when a filter matches nothing', await run.chatsPanel.locator('[data-name="rowCount"]').textContent() === '0 of 2 rows');
   await dateFrom.fill('');
   await page.keyboard.press('Escape');
 }

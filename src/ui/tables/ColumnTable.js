@@ -207,7 +207,8 @@ export class ColumnTable {
       .map(column => `<label class="claude-plus-column-table__column-toggle"><input type="checkbox" data-column-toggle="${column.id}" /> ${escapeHtml(column.label)}</label>`)
       .join('');
     const picker = toggles ? `<details class="claude-plus-column-table__column-picker"><summary>Columns</summary><div data-name="columnToggles">${toggles}</div></details>` : '';
-    return `${picker}<div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-column-table" data-name="scroller"><table class="claude-plus-column-table__table" data-name="table"><colgroup data-name="columnGroup"></colgroup><thead><tr data-name="headerRow"></tr><tr class="claude-plus-column-table__filter-row" data-name="filterRow"></tr></thead><tbody data-name="tableBody"></tbody></table></div>`;
+    const toolbar = `<div class="claude-plus-column-table__toolbar">${picker}<span class="claude-plus-column-table__row-count" data-name="rowCount"></span></div>`;
+    return `${toolbar}<div class="claude-plus-scrollable claude-plus-fill-remaining claude-plus-column-table" data-name="scroller"><table class="claude-plus-column-table__table" data-name="table"><colgroup data-name="columnGroup"></colgroup><thead><tr data-name="headerRow"></tr><tr class="claude-plus-column-table__filter-row" data-name="filterRow"></tr></thead><tbody data-name="tableBody"></tbody></table></div>`;
   }
 
   /**
@@ -478,6 +479,26 @@ export class ColumnTable {
   #renderBody() {
     this.#visibleRows = this.#sortOrder.sort(this.#filters.apply(this.#rows, this.#visibility));
     this.#relayout();
+    this.#renderRowCount();
+  }
+
+  /**
+   * Shows how many rows pass the current filters, and the total when that's fewer than all of them.
+   * @returns {void}
+   */
+  #renderRowCount() {
+    const total = this.#rows.length;
+    const visible = this.#visibleRows.length;
+    this.#elements.rowCount.textContent = visible === total ? ColumnTable.#countLabel(total) : `${visible.toLocaleString()} of ${ColumnTable.#countLabel(total)}`;
+  }
+
+  /**
+   * A row count with correct pluralization and thousands separators.
+   * @param {number} count Number of rows.
+   * @returns {string} E.g. "1 row" or "12,867 rows".
+   */
+  static #countLabel(count) {
+    return `${count.toLocaleString()} row${count === 1 ? '' : 's'}`;
   }
 
   /**
