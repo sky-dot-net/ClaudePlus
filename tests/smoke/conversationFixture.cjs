@@ -34,7 +34,7 @@ function conversationFixture(conversationId, now) {
         { type: 'thinking', thinking: 'internal ```notes```' },
       ] },
       { uuid: 'm3', parent_message_uuid: 'm2', sender: 'human', text: 'thanks', created_at: isoBefore(1.5e6), attachments: [{ file_name: 'excerpt_from_previous_claude_message.txt', file_size: 11, file_type: 'txt', extracted_content: 'Here you go' }] },
-      { uuid: 'm4', parent_message_uuid: 'm3', sender: 'assistant', content: [{ type: 'text', text: 'You are welcome ```inline fence```' }], created_at: isoBefore(1.5e6 - 4000) },
+      { uuid: 'm4', parent_message_uuid: 'm3', sender: 'assistant', content: [{ type: 'text', text: 'You are welcome ```inline fence```\n\nHere:\n\n| Name | Type |\n| --- | ---: |\n| Bug | **Fixed** |\n| Note | Fun |\n\nDone.' }], created_at: isoBefore(1.5e6 - 4000) },
     ],
   };
 }

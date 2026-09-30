@@ -5,3 +5,32 @@
   overflow-x: auto;
   font-size: 12px;
 }
+
+.claude-plus-md-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 6px 0;
+}
+
+.claude-plus-md-table {
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.95em;
+}
+
+.claude-plus-md-table th,
+.claude-plus-md-table td {
+  border: 1px solid var(--claude-plus-color-border-strong);
+  padding: 6px 10px;
+  vertical-align: top;
+}
+
+.claude-plus-md-table th {
+  background: var(--claude-plus-color-bar);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.claude-plus-md-table tbody tr:nth-child(even) {
+  background: var(--claude-plus-color-border-faint);
+}
