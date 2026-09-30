@@ -5880,10 +5880,9 @@
 
   /**
    * Minimal markdown renderer: fenced code blocks; GFM tables, ATX headings, horizontal rules,
-   * blockquotes and ordered/unordered lists as real block elements; and inline code, bold, italic
-   * and http(s) links elsewhere. All other text is HTML-escaped; every original newline outside a
-   * block element becomes a line break, matching how Claude's own replies are spaced. Lists are not
-   * nested - an indented sub-item renders as its own top-level item.
+   * blockquotes and nested ordered/unordered lists as real block elements; and inline code, bold,
+   * italic and http(s) links elsewhere. All other text is HTML-escaped; every original newline
+   * outside a block element becomes a line break, matching how Claude's own replies are spaced.
    */
   class Markdown {
     /**
@@ -5917,16 +5916,18 @@
     static #QUOTE_LINE = /^ {0,3}>\s?(.*)$/;
 
     /**
-     * An unordered list item: optional leading spaces, a -, * or + marker, a space, then the text.
+     * An unordered list item: captures its leading spaces (nesting depth) and its text after a -, *
+     * or + marker.
      * @type {RegExp}
      */
-    static #UNORDERED_ITEM = /^\s*[-*+]\s+(.+)$/;
+    static #UNORDERED_ITEM = /^(\s*)[-*+]\s+(.+)$/;
 
     /**
-     * An ordered list item: optional leading spaces, digits, a "." or ")", a space, then the text.
+     * An ordered list item: captures its leading spaces (nesting depth) and its text after a digit
+     * marker ("." or ")").
      * @type {RegExp}
      */
-    static #ORDERED_ITEM = /^\s*\d+[.)]\s+(.+)$/;
+    static #ORDERED_ITEM = /^(\s*)\d+[.)]\s+(.+)$/;
 
     /**
      * Block readers tried, in order, at each line: a table, a heading, a horizontal rule, a
@@ -6220,18 +6221,96 @@
     }
 
     /**
-     * Reads a list: every consecutive item of the same kind (ordered or unordered) as the first line.
+     * Reads a list: every consecutive list-item line, nested by indentation - a more indented item
+     * starts a new list inside the item above it; a less indented item closes back out to that
+     * level; an item at the same indentation but a different marker kind starts a new list there
+     * instead of continuing the old one.
      * @param {string[]} lines The segment's lines.
      * @param {number} index Index of the first item.
      * @returns {{blockHtml: string, nextIndex: number}} The list's HTML and the next unread line.
      */
     static #readList(lines, index) {
-      const isOrdered = Markdown.#ORDERED_ITEM.test(lines[index]);
-      const itemPattern = isOrdered ? Markdown.#ORDERED_ITEM : Markdown.#UNORDERED_ITEM;
-      const itemLines = Markdown.#consecutiveLines(lines, index, (candidateLines, candidateIndex) => itemPattern.test(candidateLines[candidateIndex] ?? ''));
-      const itemsHtml = itemLines.map(line => `<li>${Markdown.#inlineMarkupHtml(itemPattern.exec(line)[1])}</li>`).join('');
-      const tag = isOrdered ? 'ol' : 'ul';
-      return { blockHtml: `<${tag}>${itemsHtml}</${tag}>`, nextIndex: index + itemLines.length };
+      const itemLines = Markdown.#consecutiveLines(lines, index, Markdown.#isListLine);
+      const items = itemLines.map(Markdown.#parseListItem);
+      return { blockHtml: Markdown.#nestedListHtml(items), nextIndex: index + itemLines.length };
+    }
+
+    /**
+     * Parses one list-item line.
+     * @param {string} line The line.
+     * @returns {{indent: number, tag: 'ul'|'ol', content: string}} Its nesting depth (leading space
+     * count), list kind and text.
+     */
+    static #parseListItem(line) {
+      const orderedMatch = Markdown.#ORDERED_ITEM.exec(line);
+      if (orderedMatch) return { indent: orderedMatch[1].length, tag: 'ol', content: orderedMatch[2] };
+      const unorderedMatch = Markdown.#UNORDERED_ITEM.exec(line);
+      return { indent: unorderedMatch[1].length, tag: 'ul', content: unorderedMatch[2] };
+    }
+
+    /**
+     * Builds nested <ul>/<ol> HTML from a flat, ordered list of parsed items, using each item's
+     * indentation to decide how deep it nests under the items before it.
+     * @param {Array<{indent: number, tag: 'ul'|'ol', content: string}>} items The parsed items, in order.
+     * @returns {string} The outermost list(s) HTML, concatenated.
+     */
+    static #nestedListHtml(items) {
+      const stack = [];
+      const roots = [];
+      for (const item of items) Markdown.#placeListItem(stack, roots, item);
+      while (stack.length) Markdown.#closeListLevel(stack, roots);
+      return roots.join('');
+    }
+
+    /**
+     * Places one item into the open stack of list levels: closes levels that this item dedents past
+     * or replaces (same indentation, different marker kind), opens a new nested level when this item
+     * is more indented than the current one, then adds the item to whichever level is now open.
+     * @param {Array<{indent: number, tag: string, items: string[]}>} stack Open levels, outermost first; mutated in place.
+     * @param {string[]} roots Finished top-level lists' HTML; mutated in place.
+     * @param {{indent: number, tag: 'ul'|'ol', content: string}} item The item to place.
+     * @returns {void}
+     */
+    static #placeListItem(stack, roots, item) {
+      while (stack.length && Markdown.#dedentsPast(stack.at(-1), item)) Markdown.#closeListLevel(stack, roots);
+      if (Markdown.#needsNewLevel(stack, item)) stack.push({ indent: item.indent, tag: item.tag, items: [] });
+      stack.at(-1).items.push(Markdown.#inlineMarkupHtml(item.content));
+    }
+
+    /**
+     * Whether an item closes an open level: it is less indented than that level, or exactly as
+     * indented but of a different marker kind.
+     * @param {{indent: number, tag: string}} level An open level.
+     * @param {{indent: number, tag: string}} item The incoming item.
+     * @returns {boolean} True when the level should close before placing the item.
+     */
+    static #dedentsPast(level, item) {
+      return level.indent > item.indent || (level.indent === item.indent && level.tag !== item.tag);
+    }
+
+    /**
+     * Whether an item needs a new, more nested level rather than joining the current one.
+     * @param {Array<{indent: number}>} stack Open levels, outermost first.
+     * @param {{indent: number}} item The incoming item.
+     * @returns {boolean} True when nothing is open yet, or the current level is less indented.
+     */
+    static #needsNewLevel(stack, item) {
+      return !stack.length || stack.at(-1).indent < item.indent;
+    }
+
+    /**
+     * Closes the innermost open list level: turns its items into a <ul>/<ol>, then either nests that
+     * inside the parent level's last item or, with no parent, adds it as a finished top-level list.
+     * @param {Array<{tag: string, items: string[]}>} stack Open levels; mutated in place (the top is removed).
+     * @param {string[]} roots Finished top-level lists' HTML; mutated in place.
+     * @returns {void}
+     */
+    static #closeListLevel(stack, roots) {
+      const level = stack.pop();
+      const listHtml = `<${level.tag}>${level.items.map(inner => `<li>${inner}</li>`).join('')}</${level.tag}>`;
+      const parent = stack.at(-1);
+      if (parent) parent.items[parent.items.length - 1] += listHtml;
+      else roots.push(listHtml);
     }
 
     /**
